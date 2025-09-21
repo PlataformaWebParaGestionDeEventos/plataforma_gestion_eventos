@@ -1,5 +1,6 @@
 import React from "react"
 import ImageUpao from '../assets/logo_upao.jpeg'
+import FondoImage from '../assets/fondo.jpg'
 
 import appFirebase, { db } from "../credenciales"
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, reload } from "firebase/auth"
@@ -208,151 +209,211 @@ const Login = () => {
             }
         }
     return (
-        <div className="login-container">
-            <div className="login-content">
-                <div className="container">
-                    <div className="row justify-content-center">
-                        <div className="col-md-6 col-lg-4">
-                            <div className="padre">
-                                <div className="card card-body login-card shadow">
-                                    {esperandoVerificacion ? (
-                                        // Vista de verificación de email
-                                        <div className="text-center">
-                                            <img src={ImageUpao} className="rounded-circle mb-4" width="120" height="120" alt="Profile" />
-                                            <h4 className="text-primary mb-3">Verifica tu Email</h4>
-                                            <div className="alert alert-info">
+        <div 
+            className="min-vh-100 d-flex align-items-center position-relative" 
+            style={{
+                backgroundImage: `url(${FondoImage})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+                backgroundAttachment: 'fixed'
+            }}
+        >
+            {/* Overlay semi-transparente para mejorar legibilidad */}
+            <div 
+                className="position-absolute top-0 start-0 w-100 h-100"
+                style={{
+                    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                    zIndex: 1
+                }}
+            ></div>
+            
+            {/* Contenido del login */}
+            <div className="container-fluid position-relative" style={{ zIndex: 2 }}>
+                <div className="row justify-content-center">
+                    <div className="col-11 col-sm-8 col-md-6 col-lg-5 col-xl-4 col-xxl-3">
+                        <div className="card border-0 shadow-lg" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)' }}>
+                            <div className="card-body p-4 p-sm-5">
+                                {esperandoVerificacion ? (
+                                    // Vista de verificación de email
+                                    <div className="text-center">
+                                        <img 
+                                            src={ImageUpao} 
+                                            className="mb-4" 
+                                            style={{width: '120px', height: 'auto'}}
+                                            alt="UPAO Logo" 
+                                        />
+                                        <h4 className="text-primary mb-3 h5">📧 Verifica tu Email</h4>
+                                        <div className="alert alert-info">
+                                            <div className="mb-2">
                                                 <i className="fas fa-envelope mb-2"></i>
-                                                <p className="mb-2">
+                                                <p className="mb-2 small">
                                                     Se ha enviado un email de verificación a:
-                                                    <br />
-                                                    <strong>{usuarioCreado?.email}</strong>
                                                 </p>
-                                                <small>Revisa tu bandeja de entrada y spam</small>
+                                                <strong className="small">{usuarioCreado?.email}</strong>
                                             </div>
-                                            
-                                            <div className="d-grid gap-2 mb-3">
-                                                <button 
-                                                    className="btn btn-success" 
-                                                    onClick={verificarEmailConfirmado}
-                                                >
-                                                    ✓ Ya verifiqué mi email
-                                                </button>
-                                                
-                                                <button 
-                                                    className="btn btn-outline-primary"
-                                                    onClick={reenviarEmailVerificacion}
-                                                    disabled={cargandoReenvio}
-                                                >
-                                                    {cargandoReenvio ? '📧 Enviando...' : '📧 Reenviar email'}
-                                                </button>
-                                            </div>
+                                            <small className="text-muted">Revisa tu bandeja de entrada y spam</small>
+                                        </div>
+                                        
+                                        <div className="d-grid gap-2 mb-3">
+                                            <button 
+                                                className="btn btn-success btn-sm" 
+                                                onClick={verificarEmailConfirmado}
+                                            >
+                                                ✓ Ya verifiqué mi email
+                                            </button>
                                             
                                             <button 
-                                                className="btn btn-link text-muted"
-                                                onClick={() => {
-                                                    setEsperandoVerificacion(false);
-                                                    setUsuarioCreado(null);
-                                                    setRegistrando(false);
-                                                }}
+                                                className="btn btn-outline-primary btn-sm"
+                                                onClick={reenviarEmailVerificacion}
+                                                disabled={cargandoReenvio}
                                             >
-                                                ← Volver al login
+                                                {cargandoReenvio ? '📧 Enviando...' : '📧 Reenviar email'}
                                             </button>
                                         </div>
-                                    ) : (
-                                        // Vista normal de login/registro
-                                        <>
-                                            <form action="" onSubmit={functAutentication}>
-                                                <div className="text-center mb-4">
-                                                    <img src={ImageUpao} className="rounded-circle" width="150" height="200" alt="Profile" />
-                                                </div>
-                                                
-                                                {registrando && (
-                                                    <>
+                                        
+                                        <button 
+                                            className="btn btn-link text-muted btn-sm"
+                                            onClick={() => {
+                                                setEsperandoVerificacion(false);
+                                                setUsuarioCreado(null);
+                                                setRegistrando(false);
+                                            }}
+                                        >
+                                            ← Volver al login
+                                        </button>
+                                    </div>
+                                ) : (
+                                    // Vista normal de login/registro
+                                    <>
+                                        <form onSubmit={functAutentication}>
+                                            <div className="text-center mb-4">
+                                                <img 
+                                                    src={ImageUpao} 
+                                                    className="rounded-circle mb-3" 
+                                                    style={{width: '140px', height: 'auto'}}
+                                                    alt="UPAO Logo" 
+                                                />
+                                                <h2 className="h4 fw-bold text-primary mb-2">Eventos de la UPAO</h2>
+                                                <p className="text-muted small mb-0">
+                                                    {registrando ? 'Crear nueva cuenta' : 'Iniciar sesión'}
+                                                </p>
+                                            </div>
+                                            
+                                            {registrando && (
+                                                <div className="row g-2 mb-3">
+                                                    <div className="col-6">
                                                         <input 
                                                             type="text" 
-                                                            placeholder="Ingresa tu nombre" 
-                                                            className="form-control mb-3" 
+                                                            placeholder="Nombre" 
+                                                            className="form-control" 
                                                             id="nombre" 
                                                             required={registrando}
                                                         />
+                                                    </div>
+                                                    <div className="col-6">
                                                         <input 
                                                             type="text" 
-                                                            placeholder="Ingresa tu apellido" 
-                                                            className="form-control mb-3" 
+                                                            placeholder="Apellido" 
+                                                            className="form-control" 
                                                             id="apellido" 
                                                             required={registrando}
                                                         />
-                                                    </>
-                                                )}
-                                                
-                                                <input type="text" placeholder="Ingresar gmail" className="form-control mb-3" id="gmail" required />
-                                                
-                                                {/* Campo de contraseña con icono de ojo */}
-                                                <div className="input-group mb-3">
-                                                    <input 
-                                                        type={mostrarPassword ? "text" : "password"} 
-                                                        placeholder="Ingresar contraseña" 
-                                                        className="form-control" 
-                                                        id="password" 
-                                                        required 
-                                                    />
-                                                    <button 
-                                                        type="button" 
-                                                        className="btn password-toggle-btn"
-                                                        onClick={() => setMostrarPassword(!mostrarPassword)}
-                                                        title={mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                                                    >
-                                                        {mostrarPassword ? <IconoOjoCerrado /> : <IconoOjoAbierto />}
-                                                    </button>
+                                                    </div>
                                                 </div>
-
-                                                {/* Campo de confirmación de contraseña solo para registro */}
-                                                {registrando && (
-                                                    <>
-                                                        <div className="input-group mb-3">
-                                                            <input 
-                                                                type={mostrarConfirmPassword ? "text" : "password"} 
-                                                                placeholder="Confirmar contraseña" 
-                                                                className="form-control" 
-                                                                id="confirmPassword" 
-                                                                required 
-                                                            />
-                                                            <button 
-                                                                type="button" 
-                                                                className="btn password-toggle-btn"
-                                                                onClick={() => setMostrarConfirmPassword(!mostrarConfirmPassword)}
-                                                                title={mostrarConfirmPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                                                            >
-                                                                {mostrarConfirmPassword ? <IconoOjoCerrado /> : <IconoOjoAbierto />}
-                                                            </button>
-                                                        </div>
-                                                        
-                                                        <div className="alert alert-info mb-3">
-                                                            <small>
-                                                                <strong>Contraseña segura:</strong><br/>
-                                                                • Mínimo 8 caracteres<br/>
-                                                                • Al menos una mayúscula (A-Z)<br/>
-                                                                • Al menos una minúscula (a-z)<br/>
-                                                                • Al menos un número (0-9)<br/>
-                                                                • Al menos un símbolo (!@#$%^&*...)
-                                                            </small>
-                                                        </div>
-                                                    </>
-                                                )}
-                                                
-                                                <button type="submit" className="btn btn-primary w-100">{registrando ? "Registrate" : "Inicia Sesion"}</button>
-                                            </form>
-                                            <div className="text-center toggle-section">
-                                                <h4 className="toggle-text">{registrando ? "¿Ya tienes una cuenta?" : "¿No tienes una cuenta?"}
-                                                    <button className="toggle-button" onClick={() => setRegistrando(!registrando)}>
-                                                        {registrando ? "Inicia Sesion" : "Registrate"}
-                                                    </button>
-                                                </h4>
+                                            )}
+                                            
+                                            <div className="mb-3">
+                                                <input 
+                                                    type="email" 
+                                                    placeholder="correo@gmail.com" 
+                                                    className="form-control" 
+                                                    id="gmail" 
+                                                    required 
+                                                />
                                             </div>
-                                        </>
-                                    )}
-                                </div>
+                                            
+                                            {/* Campo de contraseña con icono de ojo */}
+                                            <div className="input-group mb-3">
+                                                <input 
+                                                    type={mostrarPassword ? "text" : "password"} 
+                                                    placeholder="Contraseña" 
+                                                    className="form-control" 
+                                                    id="password" 
+                                                    required 
+                                                />
+                                                <button 
+                                                    type="button" 
+                                                    className="btn btn-outline-secondary"
+                                                    onClick={() => setMostrarPassword(!mostrarPassword)}
+                                                    title={mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                                                >
+                                                    {mostrarPassword ? <IconoOjoCerrado /> : <IconoOjoAbierto />}
+                                                </button>
+                                            </div>
+
+                                            {/* Campo de confirmación de contraseña solo para registro */}
+                                            {registrando && (
+                                                <>
+                                                    <div className="input-group mb-3">
+                                                        <input 
+                                                            type={mostrarConfirmPassword ? "text" : "password"} 
+                                                            placeholder="Confirmar contraseña" 
+                                                            className="form-control" 
+                                                            id="confirmPassword" 
+                                                            required 
+                                                        />
+                                                        <button 
+                                                            type="button" 
+                                                            className="btn btn-outline-secondary"
+                                                            onClick={() => setMostrarConfirmPassword(!mostrarConfirmPassword)}
+                                                            title={mostrarConfirmPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                                                        >
+                                                            {mostrarConfirmPassword ? <IconoOjoCerrado /> : <IconoOjoAbierto />}
+                                                        </button>
+                                                    </div>
+                                                    
+                                                    <div className="alert alert-info mb-3">
+                                                        <small className="fw-semibold">Contraseña segura:</small>
+                                                        <ul className="mb-0 mt-1 small">
+                                                            <li>Mínimo 8 caracteres</li>
+                                                            <li>Una mayúscula (A-Z)</li>
+                                                            <li>Una minúscula (a-z)</li>
+                                                            <li>Un número (0-9)</li>
+                                                            <li>Un símbolo (!@#$%...)</li>
+                                                        </ul>
+                                                    </div>
+                                                </>
+                                            )}
+                                            
+                                            <div className="d-grid mb-3">
+                                                <button type="submit" className="btn btn-primary btn-lg fw-semibold">
+                                                    {registrando ? "Crear Cuenta" : "Iniciar Sesión"}
+                                                </button>
+                                            </div>
+                                        </form>
+                                        
+                                        <div className="text-center border-top pt-3">
+                                            <p className="text-muted small mb-2">
+                                                {registrando ? "¿Ya tienes una cuenta?" : "¿No tienes una cuenta?"}
+                                            </p>
+                                            <button 
+                                                className="btn btn-link p-0 text-decoration-none fw-semibold" 
+                                                onClick={() => setRegistrando(!registrando)}
+                                            >
+                                                {registrando ? "Iniciar Sesión" : "Crear Cuenta"}
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
                             </div>
+                        </div>
+                        
+                        {/* Footer con información adicional */}
+                        <div className="text-center mt-4">
+                            <small className="text-white-50 fw-medium">
+                                © 2025 NoctisCode - BC156
+                            </small>
                         </div>
                     </div>
                 </div>

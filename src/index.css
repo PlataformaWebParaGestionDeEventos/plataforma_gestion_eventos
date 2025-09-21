@@ -1,0 +1,13 @@
+/* === UPAO Events - Estilos Base === */
+/* Bootstrap 5 maneja todo el responsive design */
+
+/* Reset básico para una mejor consistencia */
+* {
+  box-sizing: border-box;
+}
+
+/* Suavizado de fuentes para mejor legibilidad */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

@@ -326,358 +326,458 @@ const HomeOrganizador = ({ correoUsuario }) => {
         setMostrandoFormulario(false);
     };
 
-    // Componente del Dashboard principal
-    const DashboardPrincipal = () => (
-        <div className="row">
-            <div className="col-12 mb-4">
-                <h1 className="h3 mb-3">Dashboard - Gestión de Eventos Académicos</h1>
-                <p className="text-muted">Bienvenido, {correoUsuario}</p>
-            </div>
-            
-            {/* Tarjetas de estadísticas */}
-            <div className="col-md-3 mb-4">
-                <div className="card border-primary">
-                    <div className="card-body text-center">
-                        <h5 className="card-title text-primary">📅 Total Eventos</h5>
-                        <h2 className="text-primary">{eventos.length}</h2>
-                    </div>
-                </div>
-            </div>
-            
-            <div className="col-md-3 mb-4">
-                <div className="card border-success">
-                    <div className="card-body text-center">
-                        <h5 className="card-title text-success">✅ Publicados</h5>
-                        <h2 className="text-success">{eventos.filter(e => e.estado === 'publicado').length}</h2>
-                    </div>
-                </div>
-            </div>
-            
-            <div className="col-md-3 mb-4">
-                <div className="card border-warning">
-                    <div className="card-body text-center">
-                        <h5 className="card-title text-warning">📝 Borradores</h5>
-                        <h2 className="text-warning">{eventos.filter(e => e.estado === 'borrador').length}</h2>
-                    </div>
-                </div>
-            </div>
-            
-            <div className="col-md-3 mb-4">
-                <div className="card border-info">
-                    <div className="card-body text-center">
-                        <h5 className="card-title text-info">👥 Total Participantes</h5>
-                        <h2 className="text-info">{eventos.reduce((total, evento) => total + (evento.participantes?.length || 0), 0)}</h2>
-                    </div>
-                </div>
-            </div>
-
-            {/* Acciones rápidas */}
-            <div className="col-12">
-                <div className="card">
-                    <div className="card-header">
-                        <h5 className="mb-0">🚀 Acciones Rápidas</h5>
-                    </div>
-                    <div className="card-body">
-                        <div className="row">
-                            <div className="col-md-4 mb-3">
+    return (
+        <div className="min-vh-100 bg-light">
+            {/* Navbar Responsive */}
+            <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+                <div className="container-fluid">
+                    <span className="navbar-brand fs-5 fw-bold">
+                        🎓 UPAO Events - Organizador
+                    </span>
+                    
+                    {/* Botón hamburguesa para móvil */}
+                    <button 
+                        className="navbar-toggler" 
+                        type="button" 
+                        data-bs-toggle="collapse" 
+                        data-bs-target="#navbarNav"
+                        aria-controls="navbarNav" 
+                        aria-expanded="false" 
+                        aria-label="Toggle navigation"
+                    >
+                        <span className="navbar-toggler-icon"></span>
+                    </button>
+                    
+                    {/* Menú colapsable */}
+                    <div className="collapse navbar-collapse" id="navbarNav">
+                        <ul className="navbar-nav me-auto mb-2 mb-lg-0">
+                            <li className="nav-item">
                                 <button 
-                                    className="btn btn-primary w-100" 
-                                    onClick={() => {setVistaActual('eventos'); setMostrandoFormulario(true)}}
+                                    className={`nav-link btn btn-link text-white border-0 ${vistaActual === 'dashboard' ? 'active fw-bold' : ''}`}
+                                    onClick={() => setVistaActual('dashboard')}
                                 >
-                                    ➕ Crear Nuevo Evento
+                                    🏠 Dashboard
                                 </button>
-                            </div>
-                            <div className="col-md-4 mb-3">
+                            </li>
+                            <li className="nav-item">
                                 <button 
-                                    className="btn btn-outline-primary w-100" 
+                                    className={`nav-link btn btn-link text-white border-0 ${vistaActual === 'eventos' ? 'active fw-bold' : ''}`}
                                     onClick={() => setVistaActual('eventos')}
                                 >
-                                    📋 Ver Mis Eventos
+                                    📅 Eventos
                                 </button>
-                            </div>
-                            <div className="col-md-4 mb-3">
-                                <button className="btn btn-outline-secondary w-100">
-                                    📊 Reportes
-                                </button>
-                            </div>
+                            </li>
+                        </ul>
+                        
+                        {/* Usuario y logout */}
+                        <div className="d-flex flex-column flex-lg-row align-items-start align-items-lg-center">
+                            <span className="navbar-text text-light me-lg-3 mb-2 mb-lg-0 small">
+                                👤 {correoUsuario}
+                            </span>
+                            <button 
+                                className="btn btn-outline-light btn-sm" 
+                                onClick={() => signOut(auth)}
+                            >
+                                🚪 Cerrar Sesión
+                            </button>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-
-    return (
-        <div className="min-vh-100" style={{backgroundColor: '#f8f9fa'}}>
-            {/* Navbar */}
-            <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
-                <div className="container">
-                    <span className="navbar-brand">🎓 UPAO Events - Organizador</span>
-                    <div className="navbar-nav ms-auto">
-                        <button 
-                            className={`nav-link btn btn-link text-white mx-1 ${vistaActual === 'dashboard' ? 'active' : ''}`}
-                            onClick={() => setVistaActual('dashboard')}
-                        >
-                            🏠 Dashboard
-                        </button>
-                        <button 
-                            className={`nav-link btn btn-link text-white mx-1 ${vistaActual === 'eventos' ? 'active' : ''}`}
-                            onClick={() => setVistaActual('eventos')}
-                        >
-                            📅 Eventos
-                        </button>
-                        <button 
-                            className="btn btn-outline-light ms-3" 
-                            onClick={() => signOut(auth)}
-                        >
-                            🚪 Cerrar Sesión
-                        </button>
                     </div>
                 </div>
             </nav>
 
             {/* Contenido principal */}
-            <div className="container mt-4">
-                {vistaActual === 'dashboard' && <DashboardPrincipal />}
-                
-                {vistaActual === 'eventos' && (
-                    <div>
-                        <div className="d-flex justify-content-between align-items-center mb-4">
-                            <h2>📅 Gestión de Eventos</h2>
-                            <button 
-                                className="btn btn-primary"
-                                onClick={() => {
-                                    if (mostrandoFormulario) {
-                                        cancelarEdicion();
-                                    } else {
-                                        setEventoEditando(null);
-                                        setMostrandoFormulario(true);
-                                    }
-                                }}
-                            >
-                                {mostrandoFormulario ? '❌ Cancelar' : '➕ Nuevo Evento'}
-                            </button>
+            <main className="flex-grow-1">
+                {vistaActual === 'dashboard' && (
+                    <div className="container-fluid py-4">
+                        {/* Header */}
+                        <div className="row mb-4">
+                            <div className="col-12">
+                                <div className="text-center text-md-start">
+                                    <h1 className="h3 fw-bold text-primary mb-1">🏠 Dashboard - Gestión de Eventos</h1>
+                                    <p className="text-muted mb-0">Bienvenido, {correoUsuario}</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Tarjetas de estadísticas responsive */}
+                        <div className="row g-3 mb-4">
+                            <div className="col-6 col-md-3">
+                                <div className="card border-0 shadow-sm h-100">
+                                    <div className="card-body text-center p-3">
+                                        <div className="fs-2 text-primary mb-2">📅</div>
+                                        <h5 className="card-title text-primary mb-1 fs-6">Total Eventos</h5>
+                                        <h3 className="text-primary mb-0">{eventos.length}</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="col-6 col-md-3">
+                                <div className="card border-0 shadow-sm h-100">
+                                    <div className="card-body text-center p-3">
+                                        <div className="fs-2 text-success mb-2">✅</div>
+                                        <h5 className="card-title text-success mb-1 fs-6">Publicados</h5>
+                                        <h3 className="text-success mb-0">{eventos.filter(e => e.estado === 'publicado').length}</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="col-6 col-md-3">
+                                <div className="card border-0 shadow-sm h-100">
+                                    <div className="card-body text-center p-3">
+                                        <div className="fs-2 text-warning mb-2">📝</div>
+                                        <h5 className="card-title text-warning mb-1 fs-6">Borradores</h5>
+                                        <h3 className="text-warning mb-0">{eventos.filter(e => e.estado === 'borrador').length}</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="col-6 col-md-3">
+                                <div className="card border-0 shadow-sm h-100">
+                                    <div className="card-body text-center p-3">
+                                        <div className="fs-2 text-info mb-2">👥</div>
+                                        <h5 className="card-title text-info mb-1 fs-6">Participantes</h5>
+                                        <h3 className="text-info mb-0">{eventos.reduce((total, evento) => total + (evento.participantes?.length || 0), 0)}</h3>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Formulario para crear evento */}
-                        {mostrandoFormulario && (
-                            <div className="card mb-4">
-                                <div className="card-header">
-                                    <h5 className="mb-0">
-                                        {eventoEditando ? '✏️ Editar Evento' : '✨ Crear Nuevo Evento'}
-                                    </h5>
-                                </div>
-                                <div className="card-body">
-                                    <form onSubmit={eventoEditando ? actualizarEvento : crearEvento}>
-                                        <div className="row">
-                                            <div className="col-md-6 mb-3">
-                                                <label className="form-label">Título del Evento *</label>
-                                                <input
-                                                    type="text"
-                                                    className={`form-control ${erroresValidacion.titulo ? 'is-invalid' : nuevoEvento.titulo.length >= 10 ? 'is-valid' : ''}`}
-                                                    value={nuevoEvento.titulo}
-                                                    onChange={(e) => manejarCambioFormulario('titulo', e.target.value)}
-                                                    required
-                                                />
-                                                {erroresValidacion.titulo && (
-                                                    <div className="invalid-feedback">{erroresValidacion.titulo}</div>
-                                                )}
-                                                <small className="text-muted">{nuevoEvento.titulo.length}/100 caracteres</small>
-                                            </div>
-                                            <div className="col-md-6 mb-3">
-                                                <label className="form-label">Tipo de Evento</label>
-                                                <select
-                                                    className="form-control"
-                                                    value={nuevoEvento.tipo}
-                                                    onChange={(e) => setNuevoEvento({...nuevoEvento, tipo: e.target.value})}
+                        {/* Acciones rápidas */}
+                        <div className="row">
+                            <div className="col-12">
+                                <div className="card border-0 shadow-sm">
+                                    <div className="card-header bg-white border-0">
+                                        <h5 className="mb-0 fw-bold text-dark">🚀 Acciones Rápidas</h5>
+                                    </div>
+                                    <div className="card-body p-4">
+                                        <div className="row g-3">
+                                            <div className="col-12 col-sm-6 col-lg-4">
+                                                <button 
+                                                    className="btn btn-primary w-100 py-3" 
+                                                    onClick={() => {setVistaActual('eventos'); setMostrandoFormulario(true)}}
                                                 >
-                                                    <option value="conferencia">Conferencia</option>
-                                                    <option value="seminario">Seminario</option>
-                                                    <option value="taller">Taller</option>
-                                                    <option value="curso">Curso</option>
-                                                    <option value="charla">Charla</option>
-                                                </select>
+                                                    <div className="fs-4 mb-1">➕</div>
+                                                    <div className="fw-semibold">Crear Nuevo Evento</div>
+                                                </button>
+                                            </div>
+                                            <div className="col-12 col-sm-6 col-lg-4">
+                                                <button 
+                                                    className="btn btn-outline-primary w-100 py-3" 
+                                                    onClick={() => setVistaActual('eventos')}
+                                                >
+                                                    <div className="fs-4 mb-1">📋</div>
+                                                    <div className="fw-semibold">Ver Mis Eventos</div>
+                                                </button>
+                                            </div>
+                                            <div className="col-12 col-sm-6 col-lg-4">
+                                                <button className="btn btn-outline-secondary w-100 py-3">
+                                                    <div className="fs-4 mb-1">📊</div>
+                                                    <div className="fw-semibold">Reportes</div>
+                                                </button>
                                             </div>
                                         </div>
-
-                                        <div className="mb-3">
-                                            <label className="form-label">Descripción *</label>
-                                            <textarea
-                                                className={`form-control ${erroresValidacion.descripcion ? 'is-invalid' : nuevoEvento.descripcion.length >= 20 ? 'is-valid' : ''}`}
-                                                rows="3"
-                                                value={nuevoEvento.descripcion}
-                                                onChange={(e) => manejarCambioFormulario('descripcion', e.target.value)}
-                                                required
-                                            ></textarea>
-                                            {erroresValidacion.descripcion && (
-                                                <div className="invalid-feedback">{erroresValidacion.descripcion}</div>
-                                            )}
-                                            <small className="text-muted">{nuevoEvento.descripcion.length}/500 caracteres</small>
-                                        </div>
-
-                                        <div className="row">
-                                            <div className="col-md-4 mb-3">
-                                                <label className="form-label">Fecha *</label>
-                                                <input
-                                                    type="date"
-                                                    className={`form-control ${erroresValidacion.fechaHora ? 'is-invalid' : ''}`}
-                                                    value={nuevoEvento.fecha}
-                                                    onChange={(e) => manejarCambioFormulario('fecha', e.target.value)}
-                                                    required
-                                                />
-                                                {erroresValidacion.fechaHora && (
-                                                    <div className="invalid-feedback">{erroresValidacion.fechaHora}</div>
-                                                )}
-                                            </div>
-                                            <div className="col-md-4 mb-3">
-                                                <label className="form-label">Hora *</label>
-                                                <input
-                                                    type="time"
-                                                    className={`form-control ${erroresValidacion.fechaHora ? 'is-invalid' : ''}`}
-                                                    value={nuevoEvento.hora}
-                                                    onChange={(e) => manejarCambioFormulario('hora', e.target.value)}
-                                                    required
-                                                />
-                                            </div>
-                                            <div className="col-md-4 mb-3">
-                                                <label className="form-label">Capacidad Máxima *</label>
-                                                <input
-                                                    type="number"
-                                                    className={`form-control ${erroresValidacion.capacidadMaxima ? 'is-invalid' : nuevoEvento.capacidadMaxima && parseInt(nuevoEvento.capacidadMaxima) >= 1 ? 'is-valid' : ''}`}
-                                                    min="1"
-                                                    max="1000"
-                                                    value={nuevoEvento.capacidadMaxima}
-                                                    onChange={(e) => manejarCambioFormulario('capacidadMaxima', e.target.value)}
-                                                    required
-                                                />
-                                                {erroresValidacion.capacidadMaxima && (
-                                                    <div className="invalid-feedback">{erroresValidacion.capacidadMaxima}</div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="mb-3">
-                                            <label className="form-label">Ubicación *</label>
-                                            <input
-                                                type="text"
-                                                className="form-control"
-                                                placeholder="Ej: Auditorio Principal, Aula 205, Biblioteca Central"
-                                                value={nuevoEvento.ubicacion}
-                                                onChange={(e) => setNuevoEvento({...nuevoEvento, ubicacion: e.target.value})}
-                                                required
-                                            />
-                                        </div>
-
-                                        <div className="mb-3">
-                                            <label className="form-label">Estado</label>
-                                            <select
-                                                className="form-control"
-                                                value={nuevoEvento.estado}
-                                                onChange={(e) => setNuevoEvento({...nuevoEvento, estado: e.target.value})}
-                                            >
-                                                <option value="borrador">📝 Borrador</option>
-                                                <option value="publicado">✅ Publicado</option>
-                                            </select>
-                                        </div>
-
-                                        <div className="d-flex gap-2">
-                                            <button type="submit" className="btn btn-primary">
-                                                {eventoEditando ? '💾 Actualizar Evento' : '💾 Crear Evento'}
-                                            </button>
-                                            <button 
-                                                type="button" 
-                                                className="btn btn-secondary"
-                                                onClick={cancelarEdicion}
-                                            >
-                                                ❌ Cancelar
-                                            </button>
-                                        </div>
-                                    </form>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-
-                        {/* Lista de eventos */}
-                        <div className="card">
-                            <div className="card-header">
-                                <h5 className="mb-0">📋 Mis Eventos</h5>
-                            </div>
-                            <div className="card-body">
-                                {cargandoEventos ? (
-                                    <div className="text-center">
-                                        <div className="spinner-border text-primary" role="status">
-                                            <span className="visually-hidden">Cargando...</span>
-                                        </div>
-                                        <p className="mt-2">Cargando eventos...</p>
-                                    </div>
-                                ) : eventos.length === 0 ? (
-                                    <div className="text-center text-muted">
-                                        <h5>📭 No tienes eventos creados</h5>
-                                        <p>¡Crea tu primer evento académico!</p>
-                                        <button 
-                                            className="btn btn-primary"
-                                            onClick={() => {
-                                                setEventoEditando(null);
-                                                setMostrandoFormulario(true);
-                                            }}
-                                        >
-                                            ➕ Crear Primer Evento
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="row">
-                                        {eventos.map(evento => (
-                                            <div key={evento.id} className="col-md-6 col-lg-4 mb-4">
-                                                <div className="card h-100">
-                                                    <div className="card-header d-flex justify-content-between align-items-center">
-                                                        <span className="badge bg-primary">{evento.tipo}</span>
-                                                        <span className={`badge ${evento.estado === 'publicado' ? 'bg-success' : 'bg-warning'}`}>
-                                                            {evento.estado === 'publicado' ? '✅ Publicado' : '📝 Borrador'}
-                                                        </span>
-                                                    </div>
-                                                    <div className="card-body">
-                                                        <h6 className="card-title">{evento.titulo}</h6>
-                                                        <p className="card-text text-muted small">
-                                                            {evento.descripcion.length > 100 
-                                                                ? evento.descripcion.substring(0, 100) + '...' 
-                                                                : evento.descripcion
-                                                            }
-                                                        </p>
-                                                        <div className="small text-muted">
-                                                            <div>📅 {evento.fecha} - {evento.hora}</div>
-                                                            <div>📍 {evento.ubicacion}</div>
-                                                            <div>👥 {evento.participantes?.length || 0}/{evento.capacidadMaxima}</div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="card-footer">
-                                                        <div className="btn-group w-100">
-                                                            <button 
-                                                                className="btn btn-outline-primary btn-sm"
-                                                                onClick={() => iniciarEdicion(evento)}
-                                                            >
-                                                                ✏️ Editar
-                                                            </button>
-                                                            <button className="btn btn-outline-info btn-sm">
-                                                                👥 Participantes
-                                                            </button>
-                                                            <button 
-                                                                className="btn btn-outline-danger btn-sm"
-                                                                onClick={() => eliminarEvento(evento.id, evento.titulo)}
-                                                            >
-                                                                🗑️ Eliminar
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </div>
                 )}
-            </div>
+                
+                {vistaActual === 'eventos' && (
+                    <div className="container-fluid py-4">
+                        {/* Header con botón responsive */}
+                        <div className="row mb-4">
+                            <div className="col-12">
+                                <div className="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3">
+                                    <div>
+                                        <h2 className="h3 fw-bold text-primary mb-1">📅 Gestión de Eventos</h2>
+                                        <p className="text-muted mb-0">Crea, edita y gestiona tus eventos académicos</p>
+                                    </div>
+                                    <button 
+                                        className="btn btn-primary flex-shrink-0"
+                                        onClick={() => {
+                                            if (mostrandoFormulario) {
+                                                cancelarEdicion();
+                                            } else {
+                                                setEventoEditando(null);
+                                                setMostrandoFormulario(true);
+                                            }
+                                        }}
+                                    >
+                                        {mostrandoFormulario ? '❌ Cancelar' : '➕ Nuevo Evento'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Formulario responsive para crear evento */}
+                        {mostrandoFormulario && (
+                            <div className="row mb-4">
+                                <div className="col-12">
+                                    <div className="card border-0 shadow-sm">
+                                        <div className="card-header bg-white border-0">
+                                            <h5 className="mb-0 fw-bold text-dark">
+                                                {eventoEditando ? '✏️ Editar Evento' : '✨ Crear Nuevo Evento'}
+                                            </h5>
+                                        </div>
+                                        <div className="card-body p-4">
+                                            <form onSubmit={eventoEditando ? actualizarEvento : crearEvento}>
+                                                <div className="row g-3">
+                                                    <div className="col-12 col-md-8">
+                                                        <label className="form-label fw-semibold">Título del Evento *</label>
+                                                        <input
+                                                            type="text"
+                                                            className={`form-control ${erroresValidacion.titulo ? 'is-invalid' : nuevoEvento.titulo.length >= 10 ? 'is-valid' : ''}`}
+                                                            value={nuevoEvento.titulo}
+                                                            onChange={(e) => manejarCambioFormulario('titulo', e.target.value)}
+                                                            required
+                                                        />
+                                                        {erroresValidacion.titulo && (
+                                                            <div className="invalid-feedback">{erroresValidacion.titulo}</div>
+                                                        )}
+                                                        <small className="text-muted">{nuevoEvento.titulo.length}/100 caracteres</small>
+                                                    </div>
+                                                    <div className="col-12 col-md-4">
+                                                        <label className="form-label fw-semibold">Tipo de Evento</label>
+                                                        <select
+                                                            className="form-select"
+                                                            value={nuevoEvento.tipo}
+                                                            onChange={(e) => setNuevoEvento({...nuevoEvento, tipo: e.target.value})}
+                                                        >
+                                                            <option value="conferencia">Conferencia</option>
+                                                            <option value="seminario">Seminario</option>
+                                                            <option value="taller">Taller</option>
+                                                            <option value="curso">Curso</option>
+                                                            <option value="charla">Charla</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                <div className="row g-3 mt-1">
+                                                    <div className="col-12">
+                                                        <label className="form-label fw-semibold">Descripción *</label>
+                                                        <textarea
+                                                            className={`form-control ${erroresValidacion.descripcion ? 'is-invalid' : nuevoEvento.descripcion.length >= 20 ? 'is-valid' : ''}`}
+                                                            rows="3"
+                                                            value={nuevoEvento.descripcion}
+                                                            onChange={(e) => manejarCambioFormulario('descripcion', e.target.value)}
+                                                            required
+                                                        ></textarea>
+                                                        {erroresValidacion.descripcion && (
+                                                            <div className="invalid-feedback">{erroresValidacion.descripcion}</div>
+                                                        )}
+                                                        <small className="text-muted">{nuevoEvento.descripcion.length}/500 caracteres</small>
+                                                    </div>
+                                                </div>
+
+                                                <div className="row g-3 mt-1">
+                                                    <div className="col-6 col-md-3">
+                                                        <label className="form-label fw-semibold">Fecha *</label>
+                                                        <input
+                                                            type="date"
+                                                            className={`form-control ${erroresValidacion.fechaHora ? 'is-invalid' : ''}`}
+                                                            value={nuevoEvento.fecha}
+                                                            onChange={(e) => manejarCambioFormulario('fecha', e.target.value)}
+                                                            required
+                                                        />
+                                                        {erroresValidacion.fechaHora && (
+                                                            <div className="invalid-feedback">{erroresValidacion.fechaHora}</div>
+                                                        )}
+                                                    </div>
+                                                    <div className="col-6 col-md-3">
+                                                        <label className="form-label fw-semibold">Hora *</label>
+                                                        <input
+                                                            type="time"
+                                                            className={`form-control ${erroresValidacion.fechaHora ? 'is-invalid' : ''}`}
+                                                            value={nuevoEvento.hora}
+                                                            onChange={(e) => manejarCambioFormulario('hora', e.target.value)}
+                                                            required
+                                                        />
+                                                    </div>
+                                                    <div className="col-6 col-md-3">
+                                                        <label className="form-label fw-semibold">Capacidad *</label>
+                                                        <input
+                                                            type="number"
+                                                            className={`form-control ${erroresValidacion.capacidadMaxima ? 'is-invalid' : nuevoEvento.capacidadMaxima && parseInt(nuevoEvento.capacidadMaxima) >= 1 ? 'is-valid' : ''}`}
+                                                            min="1"
+                                                            max="1000"
+                                                            value={nuevoEvento.capacidadMaxima}
+                                                            onChange={(e) => manejarCambioFormulario('capacidadMaxima', e.target.value)}
+                                                            required
+                                                        />
+                                                        {erroresValidacion.capacidadMaxima && (
+                                                            <div className="invalid-feedback">{erroresValidacion.capacidadMaxima}</div>
+                                                        )}
+                                                    </div>
+                                                    <div className="col-6 col-md-3">
+                                                        <label className="form-label fw-semibold">Estado</label>
+                                                        <select
+                                                            className="form-select"
+                                                            value={nuevoEvento.estado}
+                                                            onChange={(e) => setNuevoEvento({...nuevoEvento, estado: e.target.value})}
+                                                        >
+                                                            <option value="borrador">📝 Borrador</option>
+                                                            <option value="publicado">✅ Publicado</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                <div className="row g-3 mt-1">
+                                                    <div className="col-12">
+                                                        <label className="form-label fw-semibold">Ubicación *</label>
+                                                        <input
+                                                            type="text"
+                                                            className="form-control"
+                                                            placeholder="Ej: Auditorio Principal, Aula 205, Biblioteca Central"
+                                                            value={nuevoEvento.ubicacion}
+                                                            onChange={(e) => setNuevoEvento({...nuevoEvento, ubicacion: e.target.value})}
+                                                            required
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="d-flex flex-column flex-sm-row gap-2 mt-4">
+                                                    <button type="submit" className="btn btn-primary">
+                                                        {eventoEditando ? '💾 Actualizar Evento' : '💾 Crear Evento'}
+                                                    </button>
+                                                    <button 
+                                                        type="button" 
+                                                        className="btn btn-secondary"
+                                                        onClick={cancelarEdicion}
+                                                    >
+                                                        ❌ Cancelar
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Lista de eventos responsive */}
+                        <div className="row">
+                            <div className="col-12">
+                                <div className="card border-0 shadow-sm">
+                                    <div className="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                                        <h5 className="mb-0 fw-bold text-dark">📋 Mis Eventos</h5>
+                                        <span className="badge bg-primary fs-6">{eventos.length} evento{eventos.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    <div className="card-body p-4">
+                                        {cargandoEventos ? (
+                                            <div className="text-center py-5">
+                                                <div className="spinner-border text-primary mb-3" role="status">
+                                                    <span className="visually-hidden">Cargando...</span>
+                                                </div>
+                                                <p className="text-muted">Cargando eventos...</p>
+                                            </div>
+                                        ) : eventos.length === 0 ? (
+                                            <div className="text-center py-5">
+                                                <div className="mb-4">
+                                                    <span className="text-muted" style={{fontSize: '4rem'}}>📭</span>
+                                                </div>
+                                                <h5 className="text-muted mb-3">No tienes eventos creados</h5>
+                                                <p className="text-muted mb-4">¡Crea tu primer evento académico!</p>
+                                                <button 
+                                                    className="btn btn-primary"
+                                                    onClick={() => {
+                                                        setEventoEditando(null);
+                                                        setMostrandoFormulario(true);
+                                                    }}
+                                                >
+                                                    ➕ Crear Primer Evento
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="row g-4">
+                                                {eventos.map(evento => (
+                                                    <div key={evento.id} className="col-12 col-md-6 col-xl-4">
+                                                        <div className="card h-100 border-0 shadow-sm event-card">
+                                                            {/* Header del evento */}
+                                                            <div className="card-header bg-gradient border-0 d-flex justify-content-between align-items-center p-3">
+                                                                <span className="badge bg-primary bg-opacity-10 text-primary border border-primary">
+                                                                    {evento.tipo}
+                                                                </span>
+                                                                <span className={`badge ${evento.estado === 'publicado' ? 'bg-success' : 'bg-warning'}`}>
+                                                                    {evento.estado === 'publicado' ? '✅ Publicado' : '📝 Borrador'}
+                                                                </span>
+                                                            </div>
+                                                            
+                                                            {/* Cuerpo del evento */}
+                                                            <div className="card-body p-4">
+                                                                <h6 className="card-title fw-bold text-dark mb-3" style={{lineHeight: '1.3'}}>
+                                                                    {evento.titulo}
+                                                                </h6>
+                                                                <p className="card-text text-muted small mb-3" style={{lineHeight: '1.4'}}>
+                                                                    {evento.descripcion.length > 100 
+                                                                        ? evento.descripcion.substring(0, 100) + '...' 
+                                                                        : evento.descripcion
+                                                                    }
+                                                                </p>
+                                                                
+                                                                {/* Información del evento */}
+                                                                <div className="border rounded p-3 bg-light">
+                                                                    <div className="row g-1 small">
+                                                                        <div className="col-12">
+                                                                            <div className="d-flex align-items-center">
+                                                                                <span className="me-2">📅</span>
+                                                                                <span>{evento.fecha} - {evento.hora}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="col-12">
+                                                                            <div className="d-flex align-items-center">
+                                                                                <span className="me-2">📍</span>
+                                                                                <span>{evento.ubicacion}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="col-12">
+                                                                            <div className="d-flex align-items-center">
+                                                                                <span className="me-2">👥</span>
+                                                                                <span>{evento.participantes?.length || 0}/{evento.capacidadMaxima}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            {/* Footer con botones */}
+                                                            <div className="card-footer bg-white border-0 p-3">
+                                                                <div className="d-flex flex-column gap-2">
+                                                                    <button 
+                                                                        className="btn btn-outline-primary btn-sm"
+                                                                        onClick={() => iniciarEdicion(evento)}
+                                                                    >
+                                                                        ✏️ Editar
+                                                                    </button>
+                                                                    <div className="row g-2">
+                                                                        <div className="col-6">
+                                                                            <button className="btn btn-outline-info btn-sm w-100">
+                                                                                👥 Participantes
+                                                                            </button>
+                                                                        </div>
+                                                                        <div className="col-6">
+                                                                            <button 
+                                                                                className="btn btn-outline-danger btn-sm w-100"
+                                                                                onClick={() => eliminarEvento(evento.id, evento.titulo)}
+                                                                            >
+                                                                                🗑️ Eliminar
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </main>
         </div>
     );
 };
