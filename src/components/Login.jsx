@@ -239,11 +239,11 @@ const Login = () => {
                                     <div className="text-center">
                                         <img 
                                             src={ImageUpao} 
-                                            className="mb-4" 
+                                            className="mb-4 rounded-circle" 
                                             style={{width: '120px', height: 'auto'}}
                                             alt="UPAO Logo" 
                                         />
-                                        <h4 className="text-primary mb-3 h5">📧 Verifica tu Email</h4>
+                                        <h4 className="text-primary mb-3 h5">Verifica tu Email</h4>
                                         <div className="alert alert-info">
                                             <div className="mb-2">
                                                 <i className="fas fa-envelope mb-2"></i>
@@ -268,7 +268,7 @@ const Login = () => {
                                                 onClick={reenviarEmailVerificacion}
                                                 disabled={cargandoReenvio}
                                             >
-                                                {cargandoReenvio ? '📧 Enviando...' : '📧 Reenviar email'}
+                                                {cargandoReenvio ? 'Enviando...' : 'Reenviar email'}
                                             </button>
                                         </div>
                                         

@@ -41,7 +41,7 @@ const HomeAlumno = ({ correoUsuario }) => {
             <nav className="navbar navbar-expand-lg navbar-dark bg-success shadow-sm">
                 <div className="container-fluid">
                     <span className="navbar-brand fs-5 fw-bold">
-                        🎓 UPAO Events - Estudiante
+                        UPAO Eventos - Estudiante
                     </span>
                     
                     {/* Botón hamburguesa para móvil */}
@@ -59,13 +59,13 @@ const HomeAlumno = ({ correoUsuario }) => {
                     
                     {/* Menú colapsable */}
                     <div className="collapse navbar-collapse" id="navbarNav">
-                        <ul className="navbar-nav me-auto mb-2 mb-lg-0">
+                        <ul className="navbar-nav mx-auto mb-2 mb-lg-0">
                             <li className="nav-item">
                                 <button 
                                     className={`nav-link btn btn-link text-white border-0 ${vistaActual === 'eventos' ? 'active fw-bold' : ''}`}
                                     onClick={() => setVistaActual('eventos')}
                                 >
-                                    📅 Eventos Disponibles
+                                    Eventos Académicos
                                 </button>
                             </li>
                             <li className="nav-item">
@@ -73,7 +73,7 @@ const HomeAlumno = ({ correoUsuario }) => {
                                     className={`nav-link btn btn-link text-white border-0 ${vistaActual === 'mis-inscripciones' ? 'active fw-bold' : ''}`}
                                     onClick={() => setVistaActual('mis-inscripciones')}
                                 >
-                                    📋 Mis Inscripciones
+                                    Mis Inscripciones
                                 </button>
                             </li>
                         </ul>
@@ -81,13 +81,13 @@ const HomeAlumno = ({ correoUsuario }) => {
                         {/* Usuario y logout */}
                         <div className="d-flex flex-column flex-lg-row align-items-start align-items-lg-center">
                             <span className="navbar-text text-light me-lg-3 mb-2 mb-lg-0 small">
-                                👤 {correoUsuario}
+                                {correoUsuario}
                             </span>
                             <button 
                                 className="btn btn-outline-light btn-sm" 
                                 onClick={() => signOut(auth)}
                             >
-                                🚪 Cerrar Sesión
+                                Cerrar Sesión
                             </button>
                         </div>
                     </div>
@@ -102,7 +102,7 @@ const HomeAlumno = ({ correoUsuario }) => {
                         <div className="row mb-4">
                             <div className="col-12">
                                 <div className="text-center text-md-start">
-                                    <h2 className="fw-bold text-success mb-1">📅 Eventos Académicos Disponibles</h2>
+                                    <h2 className="fw-bold text-success mb-1">Eventos Académicos Disponibles</h2>
                                     <p className="text-muted mb-0">Explora y regístrate en los eventos que te interesan</p>
                                 </div>
                             </div>

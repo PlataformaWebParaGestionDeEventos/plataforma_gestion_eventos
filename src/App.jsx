@@ -10,7 +10,7 @@ const auth = getAuth(appFirebase)
 //import componentes
 import Login from './components/Login'
 import HomeOrganizador from "./components/HomeOrganizador";
-import Home from './components/HomeAlumno' // Este será el "HomeAlumno"
+import Home from './components/HomeAlumno' 
 
 import './App.css'
 

@@ -332,7 +332,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
             <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
                 <div className="container-fluid">
                     <span className="navbar-brand fs-5 fw-bold">
-                        🎓 UPAO Events - Organizador
+                        UPAO Eventos - Organizador
                     </span>
                     
                     {/* Botón hamburguesa para móvil */}
@@ -350,13 +350,13 @@ const HomeOrganizador = ({ correoUsuario }) => {
                     
                     {/* Menú colapsable */}
                     <div className="collapse navbar-collapse" id="navbarNav">
-                        <ul className="navbar-nav me-auto mb-2 mb-lg-0">
+                        <ul className="navbar-nav mx-auto mb-2 mb-lg-0">
                             <li className="nav-item">
                                 <button 
                                     className={`nav-link btn btn-link text-white border-0 ${vistaActual === 'dashboard' ? 'active fw-bold' : ''}`}
                                     onClick={() => setVistaActual('dashboard')}
                                 >
-                                    🏠 Dashboard
+                                    Dashboard
                                 </button>
                             </li>
                             <li className="nav-item">
@@ -364,7 +364,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                     className={`nav-link btn btn-link text-white border-0 ${vistaActual === 'eventos' ? 'active fw-bold' : ''}`}
                                     onClick={() => setVistaActual('eventos')}
                                 >
-                                    📅 Eventos
+                                    Eventos
                                 </button>
                             </li>
                         </ul>
@@ -372,13 +372,13 @@ const HomeOrganizador = ({ correoUsuario }) => {
                         {/* Usuario y logout */}
                         <div className="d-flex flex-column flex-lg-row align-items-start align-items-lg-center">
                             <span className="navbar-text text-light me-lg-3 mb-2 mb-lg-0 small">
-                                👤 {correoUsuario}
+                                {correoUsuario}
                             </span>
                             <button 
                                 className="btn btn-outline-light btn-sm" 
                                 onClick={() => signOut(auth)}
                             >
-                                🚪 Cerrar Sesión
+                                Cerrar Sesión
                             </button>
                         </div>
                     </div>
@@ -393,7 +393,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                         <div className="row mb-4">
                             <div className="col-12">
                                 <div className="text-center text-md-start">
-                                    <h1 className="h3 fw-bold text-primary mb-1">🏠 Dashboard - Gestión de Eventos</h1>
+                                    <h1 className="h3 fw-bold text-primary mb-1">Dashboard - Gestión de Eventos</h1>
                                     <p className="text-muted mb-0">Bienvenido, {correoUsuario}</p>
                                 </div>
                             </div>
@@ -447,7 +447,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                             <div className="col-12">
                                 <div className="card border-0 shadow-sm">
                                     <div className="card-header bg-white border-0">
-                                        <h5 className="mb-0 fw-bold text-dark">🚀 Acciones Rápidas</h5>
+                                        <h5 className="mb-0 fw-bold text-dark">Acciones Rápidas</h5>
                                     </div>
                                     <div className="card-body p-4">
                                         <div className="row g-3">
@@ -490,7 +490,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                             <div className="col-12">
                                 <div className="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3">
                                     <div>
-                                        <h2 className="h3 fw-bold text-primary mb-1">📅 Gestión de Eventos</h2>
+                                        <h2 className="h3 fw-bold text-primary mb-1">Gestión de Eventos</h2>
                                         <p className="text-muted mb-0">Crea, edita y gestiona tus eventos académicos</p>
                                     </div>
                                     <button 
@@ -504,7 +504,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                             }
                                         }}
                                     >
-                                        {mostrandoFormulario ? '❌ Cancelar' : '➕ Nuevo Evento'}
+                                        {mostrandoFormulario ? 'Cancelar' : 'Nuevo Evento'}
                                     </button>
                                 </div>
                             </div>
@@ -517,7 +517,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                     <div className="card border-0 shadow-sm">
                                         <div className="card-header bg-white border-0">
                                             <h5 className="mb-0 fw-bold text-dark">
-                                                {eventoEditando ? '✏️ Editar Evento' : '✨ Crear Nuevo Evento'}
+                                                {eventoEditando ? 'Editar Evento' : 'Crear Nuevo Evento'}
                                             </h5>
                                         </div>
                                         <div className="card-body p-4">
@@ -638,14 +638,14 @@ const HomeOrganizador = ({ correoUsuario }) => {
 
                                                 <div className="d-flex flex-column flex-sm-row gap-2 mt-4">
                                                     <button type="submit" className="btn btn-primary">
-                                                        {eventoEditando ? '💾 Actualizar Evento' : '💾 Crear Evento'}
+                                                        {eventoEditando ? 'Actualizar Evento' : 'Crear Evento'}
                                                     </button>
                                                     <button 
                                                         type="button" 
                                                         className="btn btn-secondary"
                                                         onClick={cancelarEdicion}
                                                     >
-                                                        ❌ Cancelar
+                                                        Cancelar
                                                     </button>
                                                 </div>
                                             </form>
@@ -660,7 +660,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                             <div className="col-12">
                                 <div className="card border-0 shadow-sm">
                                     <div className="card-header bg-white border-0 d-flex justify-content-between align-items-center">
-                                        <h5 className="mb-0 fw-bold text-dark">📋 Mis Eventos</h5>
+                                        <h5 className="mb-0 fw-bold text-dark">Mis Eventos</h5>
                                         <span className="badge bg-primary fs-6">{eventos.length} evento{eventos.length !== 1 ? 's' : ''}</span>
                                     </div>
                                     <div className="card-body p-4">
@@ -674,7 +674,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                         ) : eventos.length === 0 ? (
                                             <div className="text-center py-5">
                                                 <div className="mb-4">
-                                                    <span className="text-muted" style={{fontSize: '4rem'}}>📭</span>
+                                                    <span className="text-muted" style={{fontSize: '4rem'}}> </span>
                                                 </div>
                                                 <h5 className="text-muted mb-3">No tienes eventos creados</h5>
                                                 <p className="text-muted mb-4">¡Crea tu primer evento académico!</p>
@@ -685,7 +685,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                         setMostrandoFormulario(true);
                                                     }}
                                                 >
-                                                    ➕ Crear Primer Evento
+                                                    Crear Primer Evento
                                                 </button>
                                             </div>
                                         ) : (
@@ -760,7 +760,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                                                 className="btn btn-outline-danger btn-sm w-100"
                                                                                 onClick={() => eliminarEvento(evento.id, evento.titulo)}
                                                                             >
-                                                                                🗑️ Eliminar
+                                                                                Eliminar
                                                                             </button>
                                                                         </div>
                                                                     </div>
