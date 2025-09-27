@@ -9,6 +9,7 @@ const auth = getAuth(appFirebase)
 
 //import componentes
 import Login from './components/Login'
+import LandingPage from './components/LandingPage'
 import HomeOrganizador from "./components/HomeOrganizador";
 import Home from './components/HomeAlumno' 
 
@@ -19,6 +20,8 @@ function App() {
   const [usuario, setUsuario] = useState(null)
   const [rol, setRole] = useState(null)
   const [cargandoAuth, setCargandoAuth] = useState(true)
+  const [mostrarLanding, setMostrarLanding] = useState(true)
+  const [modoLogin, setModoLogin] = useState('login') // 'login' o 'register'
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (usuarioFirebase) => {
@@ -67,6 +70,21 @@ function App() {
     return () => unsub();
   }, [])
 
+  // Funciones para manejar la navegación entre landing y login
+  const handleIniciarSesion = () => {
+    setModoLogin('login')
+    setMostrarLanding(false)
+  }
+
+  const handleCrearCuenta = () => {
+    setModoLogin('register')
+    setMostrarLanding(false)
+  }
+
+  const handleVolverLanding = () => {
+    setMostrarLanding(true)
+  }
+
   return (
     <>
       <div>
@@ -83,9 +101,21 @@ function App() {
         ) : 
           // Contenido principal
           usuario ? (
+            // Usuario autenticado - mostrar home según rol
             rol === "organizador" ? <HomeOrganizador correoUsuario={usuario.email} /> : <Home correoUsuario={usuario.email} />
           ) : (
-            <Login />
+            // Usuario no autenticado - mostrar landing o login
+            mostrarLanding ? (
+              <LandingPage 
+                onIniciarSesion={handleIniciarSesion}
+                onCrearCuenta={handleCrearCuenta}
+              />
+            ) : (
+              <Login 
+                modoInicial={modoLogin}
+                onVolverLanding={handleVolverLanding}
+              />
+            )
         )}
       </div>
     </>
