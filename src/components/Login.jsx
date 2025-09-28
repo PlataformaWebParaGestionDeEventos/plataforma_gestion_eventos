@@ -234,24 +234,24 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
                     <div className="col-11 col-sm-8 col-md-6 col-lg-5 col-xl-4 col-xxl-3">
                         <div className="card border-0 shadow-lg" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)' }}>
                             <div className="card-body p-4 p-sm-5">                                  
-            {onVolverLanding && (
-  <button 
-    className="btn position-absolute top-0 start-0 m-3 text-p fw-bold"
-    onClick={onVolverLanding}
-    style={{ 
-      zIndex: 10, 
-      fontSize: '20px',
-      textDecoration: 'none', // quita subrayado del link
-      color: '#0d6efd', // color azul bootstrap
-      background: 'none',
-      border: 'none',
-      cursor: 'pointer'
-    }}
-    title="Volver al inicio"
-  >
-    {"<"}
-  </button>
-)}
+                                {onVolverLanding && (
+                                <button 
+                                    className="btn position-absolute top-0 start-0 m-3 text-p fw-bold"
+                                    onClick={onVolverLanding}
+                                    style={{ 
+                                    zIndex: 10, 
+                                    fontSize: '20px',
+                                    textDecoration: 'none', // quita subrayado del link
+                                    color: '#0d6efd', // color azul bootstrap
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer'
+                                    }}
+                                    title="Volver al inicio"
+                                >
+                                    {"<"}
+                                </button>
+                                )}
             
                                 {esperandoVerificacion ? (
                                     // Vista de verificación de email
@@ -396,10 +396,8 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
                                                         <small className="fw-semibold">Contraseña segura:</small>
                                                         <ul className="mb-0 mt-1 small">
                                                             <li>Mínimo 8 caracteres</li>
-                                                            <li>Una mayúscula (A-Z)</li>
-                                                            <li>Una minúscula (a-z)</li>
-                                                            <li>Un número (0-9)</li>
-                                                            <li>Un símbolo (!@#$%...)</li>
+                                                            <li>Mayúsculas y Minúsculas (A-Z) (a-z)</li>
+                                                            <li>Números (0-9) y Símbolos (!@#$%...)</li>
                                                         </ul>
                                                     </div>
                                                 </>

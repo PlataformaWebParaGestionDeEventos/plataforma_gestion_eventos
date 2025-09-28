@@ -1,5 +1,5 @@
 import React from 'react';
-import loginVectorImage from '../assets/loginvector.jpg';
+import loginVectorImage from '../assets/fondo2Sistemas.jpg';
 import FondoImage from '../assets/fondo.jpg'
 
 
@@ -43,11 +43,13 @@ const LandingPage = ({ onIniciarSesion }) => {
               {/* Contenido sobre la imagen */}
               <div className="position-relative text-white text-center p-5">
                 <h2 className="display-4 fw-bold mb-4">
-                  Conecta con tu
-                  <span className="text-warning d-block">Futuro Profesional</span>
+                  <span className="text-white d-block"
+                  style={{ textShadow: '2px 2px 4px black' }}>Construye el</span>
+                  <span className="text-white d-block"
+                  style={{ textShadow: '2px 2px 4px black' }}>Futuro con la Tecnología</span>
                 </h2>
                 <p className="lead mb-0">
-                  Descubre eventos que transformarán tu carrera académica
+                  Potencia tu perfil profesional en Ingeniería de Sistemas e Inteligencia Artificial
                 </p>
               </div>
             </div>
@@ -59,7 +61,7 @@ const LandingPage = ({ onIniciarSesion }) => {
               
               {/* Header*/}
               <div className="text-center mb-5">
-                <h1 className="display-5 fw-bold text-white mb-2" style={{ fontFamily: "Georgia, serif" }}>Gestion de Eventos Académicos</h1>
+                <h1 className="display-5 fw-bold text-white mb-2" >Gestion de Eventos Académicos</h1>
               </div>
 
               {/* Contenido principal */}
@@ -93,7 +95,7 @@ const LandingPage = ({ onIniciarSesion }) => {
                         <div>
                           <h5 className="fw-semibold mb-2">Certificados Digitales</h5>
                           <p className="text-muted mb-0 small">
-                            Obtén certificados verificables que validen tu participación y aprendizaje.
+                            Obtén certificados verificables en blockchain que validen tu participación.
                           </p>
                         </div>
                       </div>
@@ -122,7 +124,7 @@ const LandingPage = ({ onIniciarSesion }) => {
                       style={{ boxShadow: '0 4px 15px rgba(255, 255, 255, 0.856)' }}
                     >
                       <i className="fas fa-calendar-plus me-2"></i>
-                      Participar en Eventos Académicos
+                      Participar
                     </button>
                     
                     <button 
@@ -134,7 +136,7 @@ const LandingPage = ({ onIniciarSesion }) => {
                       }}
                     >
                       <i className="fas fa-shield-alt me-2"></i>
-                      Verificar Certificados en Blockchain
+                      Verificar Certificados
                     </button>
                   </div>
                 </div>
