@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import appFirebase, { db } from "../credenciales";
+import appFirebase, { db } from "../../config/credenciales";
 import { getAuth, signOut } from "firebase/auth";
 import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore";
 const auth = getAuth(appFirebase);

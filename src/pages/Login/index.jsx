@@ -1,8 +1,8 @@
 import React from "react"
-import ImageUpao from '../assets/logo_upao.jpeg'
-import FondoImage from '../assets/fondo.jpg'
+import ImageUpao from '../../assets/logo_upao.jpeg'
+import FondoImage from '../../assets/fondo.jpg'
 
-import appFirebase, { db } from "../credenciales"
+import appFirebase, { db } from "../../config/credenciales"
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, reload } from "firebase/auth"
 import { doc, setDoc } from "firebase/firestore"
 const auth = getAuth(appFirebase)

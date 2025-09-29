@@ -1,6 +1,6 @@
 import React from 'react';
-import loginVectorImage from '../assets/fondo2Sistemas.jpg';
-import FondoImage from '../assets/fondo.jpg'
+import loginVectorImage from '../../assets/fondo2Sistemas.jpg';
+import FondoImage from '../../assets/fondo.jpg'
 
 
 const LandingPage = ({ onIniciarSesion }) => {

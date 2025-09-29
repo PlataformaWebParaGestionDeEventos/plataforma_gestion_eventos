@@ -30,31 +30,26 @@
 
 ## ✨ Características Principales
 
-### 🔐 **Sistema de Autenticación Completo**
-- Registro con validación de email obligatoria
-- Verificación por correo electrónico
-- Contraseñas seguras con validación en tiempo real
-- Gestión de roles (Organizador/Estudiante)
-- Toggle de visibilidad de contraseñas
+### 🔐 Autenticación y Seguridad
+- Login/registro con verificación por email
+- Firebase Authentication con gestión de roles (Alumno / Organizador)
+- Reglas de seguridad con Firebase Security Rules
 
-### 🏠 **Dashboard para Organizadores**
-- Panel de control con estadísticas en tiempo real
-- Gestión CRUD completa de eventos
-- Formularios dinámicos con validaciones avanzadas
-- Vista previa y edición de eventos
-- Control de estados (Borrador/Publicado)
+### 🏠 Panel de Organizador
+- Dashboard de eventos con estado (borrador/publicado)
+- CRUD de eventos académicos
+- Validación de horarios y aforos
+- Visualización de estadísticas (en desarrollo)
 
-### 🎓 **Portal para Estudiantes**
-- Exploración de eventos disponibles
-- Información detallada de cada evento
-- Sistema de inscripción (en desarrollo)
-- Seguimiento de participaciones
+### 🎓 Portal del Estudiante
+- Navegación de eventos abiertos
+- Registro a eventos con control de cupo (en desarrollo)
+- Seguimiento de inscripciones y asistencias (futuro)
 
-### 📱 **Diseño Responsive**
-- Optimizado para móvil, tablet y desktop
-- Bootstrap 5 con diseño mobile-first
-- Navegación adaptativa con menú hamburguesa
-- Cards y formularios responsivos
+### 🧩 Diseño Modular y Responsive
+- Bootstrap 5 + CSS personalizado
+- Componentes reutilizables tipo Atomic Design
+- Optimizado para desktop y móvil
 
 ---
 
@@ -68,7 +63,7 @@
 
 ### **Backend & Base de Datos**
 - **Firebase Auth** - Autenticación de usuarios
-- **Firestore** - Base de datos NoSQL en tiempo real
+- **Cloud Firestore** - Base de datos NoSQL en tiempo real
 - **Firebase Hosting** - Alojamiento web (opcional)
 
 ### **Herramientas de Desarrollo**
@@ -107,7 +102,7 @@
    - Información detallada (fecha, ubicación, capacidad)
    - Estado de disponibilidad
 
-2. **Inscripción** (Próximamente)
+2. **Inscripción** 
    - Registro en eventos de interés
    - Seguimiento de inscripciones
    - Notificaciones de eventos
@@ -118,26 +113,35 @@
 
 ```
 src/
-├── components/
-│   ├── Login.jsx              # Autenticación y registro
-│   ├── HomeOrganizador.jsx    # Dashboard organizadores
-│   └── HomeAlumno.jsx         # Portal estudiantes
-├── assets/
-│   ├── fondo.jpg              # Imagen de fondo
-│   └── logo_upao.jpeg         # Logo institucional
-├── App.jsx                    # Componente principal y routing
-├── App.css                    # Estilos globales mínimos
-├── index.css                  # Estilos base
-├── main.jsx                   # Punto de entrada
-└── credenciales.js            # Configuración Firebase
+├── assets/ # Imágenes e íconos
+├── config/ # Configuración de Firebase, credenciales y reglas
+├── core/ # Contextos globales y hooks reutilizables
+│ ├── hooks/
+│ ├── contexts/
+│ └── utils/
+├── services/ # Servicios desacoplados: auth, firestore, certificados
+├── routes/ # Routing central y rutas protegidas
+├── pages/ # Vistas por ruta
+│ ├── Login/
+│ ├── LandingPage/
+│ ├── HomeAlumno/
+│ ├── HomeOrganizador/
+│ └── NotFound/
+├── components/ # Componentes reutilizables
+│ ├── ui/ # Botones, inputs, tarjetas, etc.
+│ └── layout/ # Navbar, Sidebar, Footer
+├── styles/ # Estilos globales
+│ ├── index.css
+│ └── App.css
+├── App.jsx # Componente raíz
+└── main.jsx # Punto de entrada Vite
 ```
 
 ### **Flujo de Datos**
-1. **Autenticación**: Firebase Auth → Estado local
-2. **Datos**: Firestore → Componentes React
-3. **Estado**: React Hooks (useState, useEffect)
-4. **Routing**: Condicional basado en roles
-
+1. **Autenticación**: Firebase Auth + Context API
+2. **Acceso a datos**: servicios en `services/` con Firestore
+3. **Gestión de estado**: React Hooks y Context
+4. **Ruteo**: React Router DOM + protección según rol
 ---
 
 ## 🧪 Testing y Validaciones
@@ -190,10 +194,11 @@ src/
 
 ### **🔮 Funcionalidades Futuras**
 - [ ] Chat en tiempo real
-- [ ] Calificación de eventos
-- [ ] Certificados digitales
+- [ ] Búsqueda y filtros por fecha, programa, tipo
+- [ ] Recordatorios automáticos y notificaciones
+- [ ] Panel de métricas para autoridades
+- [ ] Emisión de certificados verificables con Polygon
 - [ ] Integración con calendario
-- [ ] App móvil nativa
 
 ---
 
@@ -203,6 +208,4 @@ src/
 
 
 
-</div>+ Vite
-
-
+</div>

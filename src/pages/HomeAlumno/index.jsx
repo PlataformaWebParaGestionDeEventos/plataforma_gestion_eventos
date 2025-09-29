@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import appFirebase, { db } from "../credenciales";
+import appFirebase, { db } from "../../config/credenciales";
 import { getAuth, signOut } from "firebase/auth";
 import { collection, getDocs, query, where } from "firebase/firestore";
 
