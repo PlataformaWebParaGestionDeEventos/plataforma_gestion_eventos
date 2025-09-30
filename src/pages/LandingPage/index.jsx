@@ -141,13 +141,6 @@ const LandingPage = ({ onIniciarSesion }) => {
                   </div>
                 </div>
               </div>
-
-              {/* Footer */}
-              <div className="text-center mt-4">
-                <p className="text-white-50 fw-medium">
-                  © 2025 NoctisCode - BC156
-                </p>
-              </div>
             </div>
           </div>
         </div>

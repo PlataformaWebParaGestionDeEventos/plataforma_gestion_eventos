@@ -425,13 +425,6 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
                                 )}
                             </div>
                         </div>
-                        
-                        {/* Footer  */}
-                        <div className="text-center mt-4">
-                            <small className="text-white-50 fw-medium">
-                                © 2025 NoctisCode - BC156
-                            </small>
-                        </div>
                     </div>
                 </div>
             </div>

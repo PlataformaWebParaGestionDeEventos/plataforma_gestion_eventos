@@ -2,9 +2,17 @@
 import React from 'react';
 import AppRouter from './routes/AppRouter';
 import './styles/App.css';
+import Footer from './components/layout/Footer'
 
 function App() {
-  return <AppRouter />;
+  return (
+    <>
+      <main>
+        <AppRouter />
+      </main>
+      <Footer />
+    </>
+  )
 }
 
 export default App;
