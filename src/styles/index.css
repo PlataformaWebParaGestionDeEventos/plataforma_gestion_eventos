@@ -1,0 +1,130 @@
+/* === UPAO Events - Estilos Base === */
+/* Bootstrap 5 maneja todo el responsive design */
+
+/* Reset básico para una mejor consistencia */
+* {
+  box-sizing: border-box;
+}
+
+/* Suavizado de fuentes para mejor legibilidad */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+
+.fade-in {
+  animation: fadeIn 0.8s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Efecto hover para los botones */
+.btn:hover {
+  transform: translateY(-2px);
+  transition: all 0.3s ease;
+}
+
+/* Mejora de contraste para texto sobre fondos */
+.text-white-75 {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+
+.text-white-50 {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Estilo para las tarjetas de estadísticas */
+.stats-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stats-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+/* Responsive improvements */
+@media (max-width: 992px) {
+  .display-4 {
+    font-size: calc(1.5rem + 1.5vw);
+  }
+  
+  .display-5 {
+    font-size: calc(1.3rem + 1.2vw);
+  }
+}
+
+/* Mejora para iconos de Font Awesome */
+.fas {
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+}
+
+/* === Landing Page Button Styles === */
+
+/* Animación para botones principales */
+.btn-success:hover {
+  background-color: #28a745;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4) !important;
+}
+
+.btn-outline-info:hover {
+  background: linear-gradient(45deg, rgba(13, 202, 240, 0.2), rgba(13, 110, 253, 0.2)) !important;
+  border-color: #0dcaf0;
+  color: #0dcaf0;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(13, 202, 240, 0.3);
+}
+
+/* Animación de pulso para badges */
+.badge {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Estilos para botones secundarios */
+.btn-outline-primary:hover,
+.btn-outline-secondary:hover {
+  transform: translateY(-1px);
+  transition: all 0.2s ease;
+}
+
+/* Efecto de separador */
+.text-muted .fas {
+  opacity: 0.5;
+}
+
+/* === Botón de Volver === */
+.btn-back {
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  transition: all 0.3s ease;
+}
+
+.btn-back:hover {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  transform: scale(1.1);
+  border-color: rgba(255, 255, 255, 0.5) !important;
+}

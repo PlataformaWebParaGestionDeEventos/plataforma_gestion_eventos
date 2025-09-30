@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
-import appFirebase, { db } from "../credenciales";
+import appFirebase, { db } from "../../config/credenciales";
 import { getAuth, signOut } from "firebase/auth";
 import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import GestionParticipantes from "../../components/GestionParticipantes";
 const auth = getAuth(appFirebase);
 
 const HomeOrganizador = ({ correoUsuario }) => {
@@ -10,6 +11,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
     const [cargandoEventos, setCargandoEventos] = useState(false);
     const [mostrandoFormulario, setMostrandoFormulario] = useState(false);
     const [eventoEditando, setEventoEditando] = useState(null);
+    const [eventoParticipantes, setEventoParticipantes] = useState(null);
 
     // Estados para el formulario de eventos
     const [nuevoEvento, setNuevoEvento] = useState({
@@ -326,6 +328,18 @@ const HomeOrganizador = ({ correoUsuario }) => {
         setMostrandoFormulario(false);
     };
 
+    // Función para ver participantes de un evento
+    const verParticipantes = (evento) => {
+        setEventoParticipantes(evento);
+        setVistaActual('participantes');
+    };
+
+    // Función para volver de la vista de participantes
+    const volverDeParticipantes = () => {
+        setEventoParticipantes(null);
+        setVistaActual('eventos');
+    };
+
     return (
         <div className="min-vh-100 bg-light">
             {/* Navbar Responsive */}
@@ -367,6 +381,16 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                     Eventos
                                 </button>
                             </li>
+                            {eventoParticipantes && (
+                                <li className="nav-item">
+                                    <button 
+                                        className={`nav-link btn btn-link text-white border-0 ${vistaActual === 'participantes' ? 'active fw-bold' : ''}`}
+                                        onClick={() => setVistaActual('participantes')}
+                                    >
+                                        Participantes
+                                    </button>
+                                </li>
+                            )}
                         </ul>
                         
                         {/* Usuario y logout */}
@@ -387,6 +411,13 @@ const HomeOrganizador = ({ correoUsuario }) => {
 
             {/* Contenido principal */}
             <main className="flex-grow-1">
+                {vistaActual === 'participantes' && eventoParticipantes && (
+                    <GestionParticipantes 
+                        evento={eventoParticipantes} 
+                        onVolver={volverDeParticipantes}
+                    />
+                )}
+
                 {vistaActual === 'dashboard' && (
                     <div className="container-fluid py-4">
                         {/* Header */}
@@ -751,7 +782,10 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                                     </button>
                                                                     <div className="row g-2">
                                                                         <div className="col-6">
-                                                                            <button className="btn btn-outline-info btn-sm w-100">
+                                                                            <button 
+                                                                                className="btn btn-outline-info btn-sm w-100"
+                                                                                onClick={() => verParticipantes(evento)}
+                                                                            >
                                                                                 👥 Participantes
                                                                             </button>
                                                                         </div>
