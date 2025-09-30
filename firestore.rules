@@ -1,0 +1,179 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Reglas para usuarios
+    match /users/{userId} {
+      // Los usuarios pueden leer y escribir solo su propio documento
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Reglas para eventos
+    match /eventos/{eventoId} {
+      // Permitir lectura pública de eventos publicados
+      allow read: if request.auth != null && resource.data.estado == 'publicado';
+      
+      // Permitir lectura completa solo al organizador del evento
+      allow read: if request.auth != null && request.auth.uid == resource.data.organizadorId;
+      
+      // Permitir crear eventos solo a usuarios autenticados
+      allow create: if request.auth != null 
+        && request.auth.uid == request.resource.data.organizadorId
+        && request.resource.data.keys().hasAll([
+          'titulo', 'descripcion', 'fecha', 'hora', 
+          'ubicacion', 'capacidadMaxima', 'tipo', 'estado'
+        ])
+        && request.resource.data.organizadorId is string
+        && request.resource.data.titulo is string
+        && request.resource.data.descripcion is string
+        && request.resource.data.fecha is string
+        && request.resource.data.hora is string
+        && request.resource.data.ubicacion is string
+        && request.resource.data.capacidadMaxima is number
+        && request.resource.data.tipo in ['conferencia', 'seminario', 'taller', 'curso', 'charla']
+        && request.resource.data.estado in ['borrador', 'publicado'];
+      
+      // Permitir actualizar solo al organizador O para operaciones de inscripción
+      allow update: if request.auth != null && (
+        // El organizador puede actualizar cualquier campo
+        (request.auth.uid == resource.data.organizadorId &&
+         request.auth.uid == request.resource.data.organizadorId) ||
+        // Permitir actualizaciones de inscripción/desinscripción
+        (isValidParticipantOperation() && onlyUpdatingParticipantFields())
+      );
+      
+      // Permitir eliminar solo al organizador
+      allow delete: if request.auth != null 
+        && request.auth.uid == resource.data.organizadorId;
+
+      // REGLAS PARA SUBCOLLECCIÓN DE INSCRITOS (mantener compatibilidad)
+      match /inscritos/{userId} {
+        // Los usuarios pueden leer sus propias inscripciones
+        allow read: if request.auth != null && request.auth.uid == userId;
+        
+        // Los organizadores pueden leer todas las inscripciones de sus eventos
+        allow read: if request.auth != null 
+          && get(/databases/$(database)/documents/eventos/$(eventoId)).data.organizadorId == request.auth.uid;
+        
+        // Los usuarios pueden crear sus propias inscripciones
+        allow create: if request.auth != null 
+          && request.auth.uid == userId
+          && request.auth.uid == request.resource.data.uid
+          && request.resource.data.correo == request.auth.token.email;
+        
+        // Los usuarios pueden eliminar sus propias inscripciones
+        allow delete: if request.auth != null && request.auth.uid == userId;
+        
+        // Los organizadores pueden eliminar inscripciones de sus eventos
+        allow delete: if request.auth != null 
+          && get(/databases/$(database)/documents/eventos/$(eventoId)).data.organizadorId == request.auth.uid;
+          
+        // Los usuarios pueden actualizar sus propias inscripciones
+        allow update: if request.auth != null && request.auth.uid == userId;
+        
+        // Los organizadores pueden actualizar inscripciones de sus eventos
+        allow update: if request.auth != null 
+          && get(/databases/$(database)/documents/eventos/$(eventoId)).data.organizadorId == request.auth.uid;
+      }
+    }
+    
+    // OPCIONAL: Mantener reglas para colección separada de inscripciones si la usas en el futuro
+    match /inscripciones/{inscripcionId} {
+      // Los usuarios pueden ver sus propias inscripciones
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      // Los organizadores pueden ver las inscripciones de sus eventos
+      allow read: if request.auth != null 
+        && exists(/databases/$(database)/documents/eventos/$(resource.data.eventId))
+        && get(/databases/$(database)/documents/eventos/$(resource.data.eventId)).data.organizadorId == request.auth.uid;
+      
+      // Los usuarios pueden crear sus propias inscripciones
+      allow create: if request.auth != null 
+        && request.auth.uid == request.resource.data.userId
+        && request.resource.data.eventId is string
+        && request.resource.data.userId is string
+        && request.resource.data.email is string
+        && request.resource.data.estado is string;
+      
+      // Los usuarios pueden cancelar sus propias inscripciones
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      // Los usuarios pueden actualizar sus propias inscripciones
+      allow update: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      // Los organizadores pueden gestionar inscripciones de sus eventos
+      allow update, delete: if request.auth != null 
+        && exists(/databases/$(database)/documents/eventos/$(resource.data.eventId))
+        && get(/databases/$(database)/documents/eventos/$(resource.data.eventId)).data.organizadorId == request.auth.uid;
+    }
+    
+    // Funciones auxiliares para validar operaciones de participantes
+    function onlyUpdatingParticipantFields() {
+      // Solo permitir actualización de campos relacionados con participantes
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['participantes', 'participantesInfo', 'asistentes']);
+    }
+    
+    function isValidParticipantOperation() {
+      let currentParticipants = resource.data.get('participantes', []);
+      let newParticipants = request.resource.data.get('participantes', []);
+      let currentUserId = request.auth.uid;
+      
+      return (
+        // Caso 1: Usuario se inscribe (se agrega a la lista)
+        (newParticipants.size() == currentParticipants.size() + 1 &&
+         newParticipants.hasAll(currentParticipants) &&
+         currentUserId in newParticipants &&
+         !(currentUserId in currentParticipants) &&
+         isValidInscription()) ||
+        
+        // Caso 2: Usuario se desinscribe (se remueve de la lista)
+        (currentParticipants.size() == newParticipants.size() + 1 &&
+         currentParticipants.hasAll(newParticipants) &&
+         currentUserId in currentParticipants &&
+         !(currentUserId in newParticipants) &&
+         isValidDesinscription()) ||
+        
+        // Caso 3: Organizador marca asistencia (solo actualiza asistentes)
+        (request.auth.uid == resource.data.organizadorId &&
+         request.resource.data.participantes == resource.data.participantes &&
+         request.resource.data.get('participantesInfo', []) == resource.data.get('participantesInfo', []) &&
+         isValidAttendanceUpdate())
+      );
+    }
+    
+    function isValidInscription() {
+      let newParticipantesInfo = request.resource.data.get('participantesInfo', []);
+      let currentParticipantesInfo = resource.data.get('participantesInfo', []);
+      let currentUserId = request.auth.uid;
+      let userEmail = request.auth.token.email;
+      
+      // Verificar que se agregó correctamente la info del participante
+      return newParticipantesInfo.size() == currentParticipantesInfo.size() + 1 &&
+             newParticipantesInfo.hasAll(currentParticipantesInfo) &&
+             // Verificar que el nuevo participante tiene la estructura correcta
+             newParticipantesInfo.toSet().difference(currentParticipantesInfo.toSet()).size() == 1;
+    }
+    
+    function isValidDesinscription() {
+      let newParticipantesInfo = request.resource.data.get('participantesInfo', []);
+      let currentParticipantesInfo = resource.data.get('participantesInfo', []);
+      let currentUserId = request.auth.uid;
+      
+      // Verificar que se removió correctamente la info del participante
+      return currentParticipantesInfo.size() == newParticipantesInfo.size() + 1 &&
+             currentParticipantesInfo.hasAll(newParticipantesInfo);
+    }
+    
+    function isValidAttendanceUpdate() {
+      let currentAsistentes = resource.data.get('asistentes', []);
+      let newAsistentes = request.resource.data.get('asistentes', []);
+      let currentParticipants = resource.data.get('participantes', []);
+      
+      // Solo se pueden agregar asistentes, no remover
+      // Y solo pueden ser participantes ya inscritos
+      return newAsistentes.hasAll(currentAsistentes) &&
+             newAsistentes.hasOnly(currentParticipants);
+    }
+  }
+}
