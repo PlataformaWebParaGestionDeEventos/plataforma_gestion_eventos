@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParticipantes } from '../../core/hooks/useParticipantes';
 
 const GestionParticipantes = ({ evento, onVolver }) => {
@@ -7,20 +7,15 @@ const GestionParticipantes = ({ evento, onVolver }) => {
     estadisticas, 
     loading, 
     error, 
-    cargarParticipantes, 
     marcarAsistencia, 
-    exportarParticipantes 
-  } = useParticipantes();
+    exportarParticipantes,
+    // Nuevos estados específicos de React Query
+    isMarcandoAsistencia
+  } = useParticipantes(evento?.id); // Ahora pasamos el eventoId directamente
   
   const [filtro, setFiltro] = useState('todos');
   const [busqueda, setBusqueda] = useState('');
   const [mensaje, setMensaje] = useState('');
-
-  useEffect(() => {
-    if (evento?.id) {
-      cargarParticipantes(evento.id);
-    }
-  }, [evento?.id, cargarParticipantes]);
 
   const handleMarcarAsistencia = async (alumnoId) => {
     const result = await marcarAsistencia(evento.id, alumnoId);
@@ -274,9 +269,19 @@ const GestionParticipantes = ({ evento, onVolver }) => {
                                 <button 
                                   className="btn btn-sm btn-outline-success"
                                   onClick={() => handleMarcarAsistencia(participante.id)}
+                                  disabled={isMarcandoAsistencia}
                                 >
-                                  <i className="bi bi-check-circle me-1"></i>
-                                  Marcar Asistencia
+                                  {isMarcandoAsistencia ? (
+                                    <>
+                                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                      Marcando...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <i className="bi bi-check-circle me-1"></i>
+                                      Marcar Asistencia
+                                    </>
+                                  )}
                                 </button>
                               )}
                             </td>

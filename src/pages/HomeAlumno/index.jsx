@@ -17,7 +17,10 @@ const HomeAlumno = ({ correoUsuario }) => {
         inscribirseEvento,
         estaInscrito,
         loading,
-        error
+        error,
+        // Nuevos estados específicos de React Query
+        isInscribiendo,
+        isDesinscribiendo
     } = useEventosAlumno();
 
     const handleInscripcion = async (evento) => {
@@ -27,6 +30,7 @@ const HomeAlumno = ({ correoUsuario }) => {
             setEventoSeleccionado(evento.id);
             setVistaActual('detalle-evento');
         } else {
+            // React Query maneja automáticamente el loading state
             const result = await inscribirseEvento(evento.id);
             if (result.success) {
                 setEventoSeleccionado(evento.id);
@@ -208,14 +212,21 @@ const HomeAlumno = ({ correoUsuario }) => {
                                                                         <button 
                                                                             className="btn btn-outline-success btn-sm"
                                                                             onClick={() => verDetalleEvento(evento.id)}
+                                                                            disabled={isInscribiendo || isDesinscribiendo}
                                                                         >
                                                                             👁️ Ver detalles
                                                                         </button>
                                                                         <button 
                                                                             className={`btn fw-semibold ${yaInscrito ? 'btn-primary' : 'btn-success'}`}
                                                                             onClick={() => handleInscripcion(evento)}
+                                                                            disabled={isInscribiendo || isDesinscribiendo}
                                                                         >
-                                                                            {yaInscrito ? '✅ Ya inscrito' : '📝 Inscribirme'}
+                                                                            {(isInscribiendo || isDesinscribiendo) ? (
+                                                                                <>
+                                                                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                                                                    {isInscribiendo ? 'Inscribiendo...' : 'Procesando...'}
+                                                                                </>
+                                                                            ) : yaInscrito ? '✅ Ya inscrito' : '📝 Inscribirme'}
                                                                         </button>
                                                                     </div>
                                                                 </div>

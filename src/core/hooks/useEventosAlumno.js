@@ -1,142 +1,204 @@
-// Hook personalizado para gestión de eventos desde la perspectiva del alumno
-import { useState, useEffect, useCallback } from 'react';
+// Hook optimizado con React Query para gestión de eventos desde la perspectiva del alumno
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { firestoreService } from '../../services/firestoreService';
 import { getAuth } from 'firebase/auth';
 import appFirebase from '../../config/credenciales';
 
 const auth = getAuth(appFirebase);
 
+// Claves de queries para React Query
+export const eventosQueryKeys = {
+  all: ['eventos'],
+  publicados: () => [...eventosQueryKeys.all, 'publicados'],
+  inscripciones: (userId) => [...eventosQueryKeys.all, 'inscripciones', userId],
+};
+
 export const useEventosAlumno = () => {
-  const [eventosDisponibles, setEventosDisponibles] = useState([]);
-  const [eventosInscritos, setEventosInscritos] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const queryClient = useQueryClient();
+  const user = auth.currentUser;
 
-  // Cargar eventos disponibles y eventos en los que está inscrito
-  const cargarEventos = useCallback(async () => {
-    const user = auth.currentUser;
-    console.log('Usuario actual en cargarEventos:', user);
-    
-    if (!user) {
-      console.log('No hay usuario autenticado');
-      setError('Usuario no autenticado');
-      return;
-    }
-
-    console.log('Iniciando carga de eventos...');
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // Cargar eventos publicados disponibles
-      console.log('Llamando a firestoreService.obtenerEventosPublicados...');
-      const resultEventos = await firestoreService.obtenerEventosPublicados();
-      console.log('Resultado de obtenerEventosPublicados:', resultEventos);
+  // Query para obtener eventos publicados
+  const {
+    data: eventosData,
+    isLoading: loadingEventos,
+    error: errorEventos,
+    refetch: refetchEventos
+  } = useQuery({
+    queryKey: eventosQueryKeys.publicados(),
+    queryFn: async () => {
+      console.log('React Query: Obteniendo eventos publicados...');
+      const result = await firestoreService.obtenerEventosPublicados();
       
-      if (resultEventos.success) {
-        const eventos = resultEventos.eventos;
-        console.log('Eventos obtenidos:', eventos);
-        
-        // Separar eventos disponibles de eventos inscritos
-        const inscritos = eventos.filter(evento => 
-          evento.participantes && evento.participantes.includes(user.uid)
-        );
-        
-        // Mostrar todos los eventos publicados como disponibles
-        const disponibles = eventos;
-
-        console.log('Eventos disponibles:', disponibles.length);
-        console.log('Eventos inscritos:', inscritos.length);
-
-        setEventosDisponibles(disponibles);
-        setEventosInscritos(inscritos);
-      } else {
-        console.error('Error obteniendo eventos:', resultEventos.error);
-        setError(resultEventos.error);
-        setEventosDisponibles([]);
-        setEventosInscritos([]);
+      if (!result.success) {
+        throw new Error(result.error || 'Error al obtener eventos');
       }
-    } catch (err) {
-      console.error('Error en cargarEventos:', err);
-      setError('Error al cargar eventos');
-      setEventosDisponibles([]);
-      setEventosInscritos([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      
+      console.log('React Query: Eventos obtenidos:', result.eventos.length);
+      return result.eventos;
+    },
+    enabled: !!user, // Solo ejecuta si hay usuario autenticado
+    staleTime: 2 * 60 * 1000, // 2 minutos para eventos (datos más dinámicos)
+    gcTime: 5 * 60 * 1000, // 5 minutos en caché
+  });
 
-  // Inscribirse a un evento
-  const inscribirseEvento = async (eventoId) => {
-    const user = auth.currentUser;
-    if (!user) {
-      return { success: false, error: 'Usuario no autenticado' };
+  // Separar eventos disponibles e inscritos usando useMemo para optimización
+  const { eventosDisponibles, eventosInscritos } = useMemo(() => {
+    if (!eventosData || !user) {
+      return { eventosDisponibles: [], eventosInscritos: [] };
     }
 
-    try {
+    const inscritos = eventosData.filter(evento => 
+      evento.participantes && evento.participantes.includes(user.uid)
+    );
+
+    return {
+      eventosDisponibles: eventosData,
+      eventosInscritos: inscritos
+    };
+  }, [eventosData, user]);
+
+  // Mutación para inscribirse a un evento
+  const inscripcionMutation = useMutation({
+    mutationFn: async (eventoId) => {
+      if (!user) {
+        throw new Error('Usuario no autenticado');
+      }
+      
+      console.log('React Query: Inscribiendo usuario al evento:', eventoId);
       const result = await firestoreService.inscribirAlumnoEvento(eventoId, user.uid, user.email);
       
-      if (result.success) {
-        // Recargar eventos después de la inscripción
-        await cargarEventos();
+      if (!result.success) {
+        throw new Error(result.error || 'Error al inscribirse al evento');
       }
       
       return result;
-    } catch (err) {
-      console.error('Error en inscribirseEvento:', err);
-      return { success: false, error: 'Error al inscribirse al evento' };
+    },
+    onSuccess: (data, eventoId) => {
+      console.log('React Query: Inscripción exitosa, invalidando caché');
+      // Invalidar caché para recargar eventos
+      queryClient.invalidateQueries({ queryKey: eventosQueryKeys.publicados() });
+      
+      // Opcional: Actualización optimista del caché
+      queryClient.setQueryData(eventosQueryKeys.publicados(), (oldData) => {
+        if (!oldData) return oldData;
+        
+        return oldData.map(evento => {
+          if (evento.id === eventoId) {
+            return {
+              ...evento,
+              participantes: [...(evento.participantes || []), user.uid]
+            };
+          }
+          return evento;
+        });
+      });
+    },
+    onError: (error) => {
+      console.error('React Query: Error en inscripción:', error);
     }
-  };
+  });
 
-  // Desinscribirse de un evento
-  const desinscribirseEvento = async (eventoId) => {
-    const user = auth.currentUser;
-    if (!user) {
-      return { success: false, error: 'Usuario no autenticado' };
-    }
-
-    try {
+  // Mutación para desinscribirse de un evento
+  const desinscripcionMutation = useMutation({
+    mutationFn: async (eventoId) => {
+      if (!user) {
+        throw new Error('Usuario no autenticado');
+      }
+      
+      console.log('React Query: Desinscribiendo usuario del evento:', eventoId);
       const result = await firestoreService.desinscribirAlumnoEvento(eventoId, user.uid);
       
-      if (result.success) {
-        // Recargar eventos después de la desinscripción
-        await cargarEventos();
+      if (!result.success) {
+        throw new Error(result.error || 'Error al desinscribirse del evento');
       }
       
       return result;
-    } catch (err) {
-      console.error('Error en desinscribirseEvento:', err);
-      return { success: false, error: 'Error al desinscribirse del evento' };
+    },
+    onSuccess: (data, eventoId) => {
+      console.log('React Query: Desinscripción exitosa, invalidando caché');
+      // Invalidar caché para recargar eventos
+      queryClient.invalidateQueries({ queryKey: eventosQueryKeys.publicados() });
+      
+      // Opcional: Actualización optimista del caché
+      queryClient.setQueryData(eventosQueryKeys.publicados(), (oldData) => {
+        if (!oldData) return oldData;
+        
+        return oldData.map(evento => {
+          if (evento.id === eventoId) {
+            return {
+              ...evento,
+              participantes: (evento.participantes || []).filter(uid => uid !== user.uid)
+            };
+          }
+          return evento;
+        });
+      });
+    },
+    onError: (error) => {
+      console.error('React Query: Error en desinscripción:', error);
+    }
+  });
+
+  // Funciones helper mejoradas
+  const inscribirseEvento = async (eventoId) => {
+    try {
+      await inscripcionMutation.mutateAsync(eventoId);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
     }
   };
 
-  // Verificar si está inscrito en un evento
+  const desinscribirseEvento = async (eventoId) => {
+    try {
+      await desinscripcionMutation.mutateAsync(eventoId);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
   const estaInscrito = (eventoId) => {
     return eventosInscritos.some(evento => evento.id === eventoId);
   };
 
-  // Obtener un evento específico por ID
   const obtenerEvento = (eventoId) => {
-    const eventoDisponible = eventosDisponibles.find(evento => evento.id === eventoId);
-    const eventoInscrito = eventosInscritos.find(evento => evento.id === eventoId);
-    return eventoDisponible || eventoInscrito || null;
+    return eventosDisponibles.find(evento => evento.id === eventoId) || null;
   };
 
-  // Cargar eventos al montar el componente
-  useEffect(() => {
-    cargarEventos();
-  }, [cargarEventos]);
+  const cargarEventos = () => {
+    refetchEventos();
+  };
+
+  // Estados unificados
+  const loading = loadingEventos || inscripcionMutation.isPending || desinscripcionMutation.isPending;
+  const error = errorEventos?.message || inscripcionMutation.error?.message || desinscripcionMutation.error?.message;
 
   return {
+    // Datos
     eventosDisponibles,
     eventosInscritos,
+    
+    // Acciones
     inscribirseEvento,
     desinscribirseEvento,
     estaInscrito,
     obtenerEvento,
     cargarEventos,
+    
+    // Estados
     loading,
-    error
+    error,
+    
+    // Estados específicos de React Query (para uso avanzado)
+    loadingEventos,
+    isInscribiendo: inscripcionMutation.isPending,
+    isDesinscribiendo: desinscripcionMutation.isPending,
+    
+    // Funciones de mutación directas (para uso avanzado)
+    inscripcionMutation,
+    desinscripcionMutation,
   };
 };
 
