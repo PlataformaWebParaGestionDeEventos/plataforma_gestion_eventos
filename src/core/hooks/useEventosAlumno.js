@@ -2,10 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { firestoreService } from '../../services/firestoreService';
-import { getAuth } from 'firebase/auth';
-import appFirebase from '../../config/credenciales';
-
-const auth = getAuth(appFirebase);
+import { useAuth } from './useAuth';
 
 // Claves de queries para React Query
 export const eventosQueryKeys = {
@@ -16,7 +13,7 @@ export const eventosQueryKeys = {
 
 export const useEventosAlumno = () => {
   const queryClient = useQueryClient();
-  const user = auth.currentUser;
+  const { user } = useAuth();
 
   // Query para obtener eventos publicados
   const {
