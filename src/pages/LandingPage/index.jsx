@@ -3,7 +3,7 @@ import loginVectorImage from '../../assets/fondo2Sistemas.jpg';
 import FondoImage from '../../assets/fondo.jpg'
 
 
-const LandingPage = ({ onIniciarSesion, onCrearCuenta }) => {
+const LandingPage = ({ onIniciarSesion }) => {
   return (
     <div className="min-vh-100 position-relative">
       {/* Fondo con overlay */}

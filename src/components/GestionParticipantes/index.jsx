@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParticipantes } from '../../core/hooks/useParticipantes';
+import firestoreService from '../../services/firestoreService';
 
 const GestionParticipantes = ({ evento, onVolver }) => {
   const { 
@@ -7,8 +8,7 @@ const GestionParticipantes = ({ evento, onVolver }) => {
     estadisticas, 
     loading, 
     error, 
-    marcarAsistencia, 
-    exportarParticipantes,
+    marcarAsistencia,
     // Nuevos estados específicos de React Query
     isMarcandoAsistencia
   } = useParticipantes(evento?.id); // Ahora pasamos el eventoId directamente
@@ -16,26 +16,67 @@ const GestionParticipantes = ({ evento, onVolver }) => {
   const [filtro, setFiltro] = useState('todos');
   const [busqueda, setBusqueda] = useState('');
   const [mensaje, setMensaje] = useState('');
+  const [enviandoAsistencias, setEnviandoAsistencias] = useState(false);
 
   const handleMarcarAsistencia = async (alumnoId) => {
     const result = await marcarAsistencia(evento.id, alumnoId);
     if (result.success) {
-      setMensaje('Asistencia marcada exitosamente');
+      setMensaje('✅ Asistencia marcada exitosamente');
       setTimeout(() => setMensaje(''), 3000);
     } else {
-      setMensaje(result.error || 'Error al marcar asistencia');
+      setMensaje(`❌ ${result.error || 'Error al marcar asistencia'}`);
       setTimeout(() => setMensaje(''), 3000);
     }
   };
 
-  const handleExportarLista = () => {
-    const result = exportarParticipantes(evento.titulo);
-    if (result.success) {
-      setMensaje('Lista exportada exitosamente');
-    } else {
-      setMensaje(result.error || 'Error al exportar la lista');
+  // NUEVA FUNCIÓN: Enviar asistencias a n8n
+  const handleEnviarAsistencias = async () => {
+    if (enviandoAsistencias) return;
+    
+    // Confirmar acción
+    const asistentes = participantes.filter(p => evento.asistentes?.includes(p.id || p.uid));
+    const confirmacion = window.confirm(
+      `¿Enviar lista de asistencias a n8n?\n\n` +
+      `📊 Resumen:\n` +
+      `• Total inscritos: ${participantes.length}\n` +
+      `• Total asistentes: ${asistentes.length}\n` +
+      `• Porcentaje: ${(asistentes.length / participantes.length * 100).toFixed(1)}%\n\n` +
+      `Esto iniciará el proceso de:\n` +
+      `✅ Validación de asistencia\n` +
+      `📧 Envío de encuesta de satisfacción\n` +
+      `🎓 Generación de certificados\n\n` +
+      `¿Continuar?`
+    );
+
+    if (!confirmacion) return;
+
+    setEnviandoAsistencias(true);
+    
+    try {
+      console.log('🚀 Enviando asistencias a n8n...');
+      
+      const result = await firestoreService.enviarAsistenciasN8n(evento.id);
+      
+      if (result.success) {
+        setMensaje(
+          `✅ Asistencias enviadas correctamente!\n\n` +
+          `📊 ${result.data.totalAsistentes}/${result.data.totalInscritos} asistentes (${result.data.porcentajeAsistencia}%)\n` +
+          `🤖 Workflow de n8n iniciado:\n` +
+          `• Validación de asistencia\n` +
+          `• Envío de encuestas\n` +
+          `• Preparación de certificados`
+        );
+      } else {
+        throw new Error(result.error || 'Error desconocido');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error enviando asistencias:', error);
+      setMensaje(`❌ Error al enviar asistencias: ${error.message}`);
+    } finally {
+      setEnviandoAsistencias(false);
+      setTimeout(() => setMensaje(''), 8000); // Más tiempo para mensaje largo
     }
-    setTimeout(() => setMensaje(''), 3000);
   };
 
   // Filtrar participantes
@@ -182,12 +223,21 @@ const GestionParticipantes = ({ evento, onVolver }) => {
                 </div>
                 <div className="col-md-4 d-flex align-items-end">
                   <button 
-                    className="btn btn-outline-success w-100"
-                    onClick={handleExportarLista}
-                    disabled={participantes.length === 0}
+                    className="btn btn-primary w-100"
+                    onClick={handleEnviarAsistencias}
+                    disabled={participantes.length === 0 || enviandoAsistencias}
                   >
-                    <i className="bi bi-download me-2"></i>
-                    Exportar Lista
+                    {enviandoAsistencias ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Enviando a n8n...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-send me-2"></i>
+                        Enviar Asistencias
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

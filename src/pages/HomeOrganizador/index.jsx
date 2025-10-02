@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import appFirebase, { db } from "../../config/credenciales";
 import { getAuth, signOut } from "firebase/auth";
-import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import firestoreService from "../../services/firestoreService";
 import GestionParticipantes from "../../components/GestionParticipantes";
 const auth = getAuth(appFirebase);
 
@@ -205,33 +206,40 @@ const HomeOrganizador = ({ correoUsuario }) => {
         }
 
         try {
-            await addDoc(collection(db, "eventos"), {
-                ...nuevoEvento,
-                capacidadMaxima: parseInt(nuevoEvento.capacidadMaxima),
-                organizadorId: usuario.uid,
-                organizadorEmail: usuario.email,
-                fechaCreacion: new Date(),
-                fechaActualizacion: new Date(),
-                participantes: [],
-                asistentes: []
-            });
+            console.log('🚀 Creando evento con integración n8n...');
+            
+            const resultado = await firestoreService.crearEvento(
+                {
+                    ...nuevoEvento,
+                    capacidadMaxima: parseInt(nuevoEvento.capacidadMaxima),
+                    organizadorId: usuario.uid,
+                    organizadorEmail: usuario.email,
+                    participantes: [],
+                    asistentes: []
+                },
+                usuario
+            );
 
-            alert('Evento creado exitosamente!');
-            setNuevoEvento({
-                titulo: '',
-                descripcion: '',
-                fecha: '',
-                hora: '',
-                ubicacion: '',
-                capacidadMaxima: '',
-                tipo: 'conferencia',
-                estado: 'borrador'
-            });
-            setMostrandoFormulario(false);
-            cargarEventos();
+            if (resultado.success) {
+                alert('Evento creado exitosamente! 🎉\n\nEl workflow de n8n ha sido iniciado para automatizar las comunicaciones.');
+                setNuevoEvento({
+                    titulo: '',
+                    descripcion: '',
+                    fecha: '',
+                    hora: '',
+                    ubicacion: '',
+                    capacidadMaxima: '',
+                    tipo: 'conferencia',
+                    estado: 'borrador'
+                });
+                setMostrandoFormulario(false);
+                cargarEventos();
+            } else {
+                alert(`Error al crear el evento: ${resultado.error}`);
+            }
         } catch (error) {
             console.error("Error al crear evento:", error);
-            alert('Error al crear el evento. Verifica que hayas aplicado las reglas de Firestore.');
+            alert('Error al crear el evento. Verifica tu conexión y configuración.');
         }
     };
 

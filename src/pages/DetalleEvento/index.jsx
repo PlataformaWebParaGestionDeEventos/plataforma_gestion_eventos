@@ -39,7 +39,8 @@ const DetalleEvento = ({ eventoId, onVolver }) => {
           setEvento(eventoActualizado);
         }, 1000);
       }
-    } catch (error) {
+    } catch (err) {
+      console.error('Error al procesar la inscripción:', err);
       setMensaje('Error al procesar la inscripción');
     } finally {
       setProcesandoInscripcion(false);
