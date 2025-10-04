@@ -42,13 +42,14 @@ export const firestoreService = {
       const docRef = await addDoc(collection(db, "eventos"), evento);
       const eventoId = docRef.id;
       
-      // 2. Notificar a n8n que se creó un evento (iniciar workflow)
+      // 2. Enviar evento a n8n (iniciar workflow automático)
       try {
-        console.log('🚀 Iniciando workflow n8n para evento creado...');
-        const n8nResult = await n8nService.notificarEventoCreado(
-          { ...evento, id: eventoId },
-          user
-        );
+        console.log('🚀 Enviando evento creado a n8n...');
+        const n8nResult = await n8nService.enviarEventoCreado({
+          ...evento,
+          id: eventoId,
+          participantes: evento.participantes || []
+        });
         
         // Actualizar estado del workflow en Firestore
         await updateDoc(doc(db, "eventos", eventoId), {
