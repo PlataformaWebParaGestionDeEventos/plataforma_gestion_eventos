@@ -15,6 +15,7 @@ import {
 import { db } from "../config/credenciales";
 import { authService } from "./authService";
 import n8nService from "./n8nService";
+import qrService from "./qrService";
 
 export const firestoreService = {
   // Crear evento CON INTEGRACIÓN n8n
@@ -233,7 +234,17 @@ export const firestoreService = {
         return { success: false, error: "Las inscripciones están cerradas" };
       }
 
-      // 5. Inscribir al alumno en Firestore
+      // 5. Generar QR único para esta inscripción
+      const qrResult = qrService.generarQR(eventoId, alumnoId, alumnoEmail);
+      
+      if (!qrResult.success) {
+        console.error('❌ Error generando QR:', qrResult.error);
+        return { success: false, error: "Error generando código QR" };
+      }
+
+      console.log('✅ QR generado exitosamente');
+
+      // 6. Inscribir al alumno en Firestore con QR
       const participanteInfo = {
         id: alumnoId,
         uid: alumnoId,
@@ -241,7 +252,12 @@ export const firestoreService = {
         nombre: alumnoNombre || 'Estudiante',
         fechaInscripcion: new Date().toISOString(),
         estado: 'inscrito',
-        asistio: false
+        asistio: false,
+        qrData: {
+          qrString: qrResult.qrString,
+          token: qrResult.token,
+          generadoEn: new Date().toISOString()
+        }
       };
 
       const eventoRef = doc(db, "eventos", eventoId);
@@ -250,16 +266,17 @@ export const firestoreService = {
         participantesInfo: arrayUnion(participanteInfo)
       });
 
-      console.log('✅ Alumno inscrito en Firestore');
+      console.log('✅ Alumno inscrito en Firestore con QR');
 
-      // 6. Notificar a n8n para enviar confirmación (no bloquear si falla)
+      // 7. Notificar a n8n para enviar confirmación CON QR (no bloquear si falla)
       try {
-        console.log('📧 Enviando confirmación de inscripción via n8n...');
+        console.log('📧 Enviando confirmación de inscripción con QR via n8n...');
         
         const alumno = {
           uid: alumnoId,
           email: alumnoEmail,
-          nombre: alumnoNombre || 'Estudiante'
+          nombre: alumnoNombre || 'Estudiante',
+          qrString: qrResult.qrString  // Agregar QR al payload
         };
         
         const n8nResult = await n8nService.notificarInscripcion(evento, alumno);
@@ -268,18 +285,19 @@ export const firestoreService = {
         await updateDoc(eventoRef, {
           [`workflowN8n.inscripciones.${alumnoId}`]: {
             confirmacionEnviada: n8nResult.success,
+            qrEnviado: n8nResult.success,
             fechaConfirmacion: new Date().toISOString(),
             error: n8nResult.success ? null : n8nResult.error
           }
         });
         
-        console.log('📧 Confirmación n8n:', n8nResult.success ? 'enviada' : 'falló');
+        console.log('📧 Confirmación n8n:', n8nResult.success ? 'enviada con QR' : 'falló');
         
       } catch (n8nError) {
         console.warn('⚠️ Error al enviar confirmación n8n (no crítico):', n8nError);
       }
 
-      // 7. Verificar si se debe cerrar inscripciones
+      // 8. Verificar si se debe cerrar inscripciones
       const nuevosParticipantes = participantesActuales + 1;
       const deberaCerrar = nuevosParticipantes >= evento.capacidadMaxima || 
                            this.esElDiaDelEvento(evento.fecha);
@@ -294,6 +312,10 @@ export const firestoreService = {
         message: "Inscripción exitosa",
         data: {
           participante: participanteInfo,
+          qr: {
+            qrString: qrResult.qrString,
+            token: qrResult.token
+          },
           confirmacionEnviada: true,
           inscripcionesCerradas: deberaCerrar
         }

@@ -4,6 +4,7 @@ import { getAuth, signOut } from "firebase/auth";
 import { collection, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import firestoreService from "../../services/firestoreService";
 import GestionParticipantes from "../../components/GestionParticipantes";
+import GestionAsistencia from "../GestionAsistencia";
 const auth = getAuth(appFirebase);
 
 const HomeOrganizador = ({ correoUsuario }) => {
@@ -13,6 +14,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
     const [mostrandoFormulario, setMostrandoFormulario] = useState(false);
     const [eventoEditando, setEventoEditando] = useState(null);
     const [eventoParticipantes, setEventoParticipantes] = useState(null);
+    const [eventoAsistencia, setEventoAsistencia] = useState(null);
 
     // Estados para el formulario de eventos
     const [nuevoEvento, setNuevoEvento] = useState({
@@ -373,6 +375,20 @@ const HomeOrganizador = ({ correoUsuario }) => {
         setVistaActual('eventos');
     };
 
+    // Función para ver gestión de asistencia
+    const verGestionAsistencia = (evento) => {
+        setEventoAsistencia(evento);
+        setVistaActual('asistencia');
+    };
+
+    // Función para volver de la vista de asistencia
+    const volverDeAsistencia = () => {
+        setEventoAsistencia(null);
+        setVistaActual('eventos');
+        // Recargar eventos para actualizar estadísticas
+        cargarEventos();
+    };
+
     return (
         <div className="min-vh-100 bg-light">
             {/* Navbar Responsive */}
@@ -448,6 +464,13 @@ const HomeOrganizador = ({ correoUsuario }) => {
                     <GestionParticipantes 
                         evento={eventoParticipantes} 
                         onVolver={volverDeParticipantes}
+                    />
+                )}
+
+                {vistaActual === 'asistencia' && eventoAsistencia && (
+                    <GestionAsistencia 
+                        eventoId={eventoAsistencia.id} 
+                        onVolver={volverDeAsistencia}
                     />
                 )}
 
@@ -830,6 +853,17 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                                     >
                                                                         ✏️ Editar
                                                                     </button>
+                                                                    
+                                                                    {/* Botón de Gestión de Asistencia (QR + Manual) */}
+                                                                    <button 
+                                                                        className="btn btn-success btn-sm"
+                                                                        onClick={() => verGestionAsistencia(evento)}
+                                                                        title="Escanear QR y registrar asistencia"
+                                                                    >
+                                                                        <i className="bi bi-qr-code-scan me-1"></i>
+                                                                        Gestión de Asistencia
+                                                                    </button>
+                                                                    
                                                                     <div className="row g-2">
                                                                         <div className="col-6">
                                                                             <button 

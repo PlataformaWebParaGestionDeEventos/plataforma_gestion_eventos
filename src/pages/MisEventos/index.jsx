@@ -1,8 +1,11 @@
 import React from 'react';
 import { useEventosAlumno } from '../../core/hooks/useEventosAlumno';
+import QRGenerator from '../../components/qr/QRGenerator';
+import { authService } from '../../services/authService';
 
 const MisEventos = ({ onVerDetalle }) => {
   const { eventosInscritos, desinscribirseEvento, loading, error } = useEventosAlumno();
+  const currentUser = authService.getCurrentUser();
 
   const handleDesinscripcion = async (eventoId) => {
     if (window.confirm('¿Estás seguro de que quieres desinscribirte de este evento?')) {
@@ -72,8 +75,10 @@ const MisEventos = ({ onVerDetalle }) => {
                     const fechaEvento = new Date(evento.fecha);
                     const hoy = new Date();
                     const esEventoPasado = fechaEvento < hoy;
-                    const participanteInfo = evento.participantesInfo?.find(p => p.id === evento.participantes?.find(id => id));
-                    const asistio = evento.asistentes?.includes(evento.participantes?.find(id => id));
+                    const participanteInfo = evento.participantesInfo?.find(p => 
+                      p.id === currentUser?.uid || p.uid === currentUser?.uid
+                    );
+                    const asistio = evento.asistentes?.includes(currentUser?.uid);
 
                     return (
                       <div key={evento.id} className="col-12 col-md-6 col-xl-4">
@@ -160,6 +165,17 @@ const MisEventos = ({ onVerDetalle }) => {
                           
                           <div className="card-footer bg-white border-0 p-4">
                             <div className="d-grid gap-2">
+                              {/* Botón Ver QR - Solo si tiene datos QR */}
+                              {participanteInfo?.qrData?.qrString && (
+                                <QRGenerator
+                                  qrString={participanteInfo.qrData.qrString}
+                                  eventoNombre={evento.titulo}
+                                  eventoFecha={evento.fecha}
+                                  eventoHora={evento.hora}
+                                  participanteNombre={currentUser?.displayName || currentUser?.email || 'Estudiante'}
+                                />
+                              )}
+
                               <button 
                                 className="btn btn-outline-success btn-sm"
                                 onClick={() => onVerDetalle(evento.id)}
