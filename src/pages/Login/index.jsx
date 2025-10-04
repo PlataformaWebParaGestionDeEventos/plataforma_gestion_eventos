@@ -324,7 +324,7 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
                                                     <div className="col-6">
                                                         <input 
                                                             type="text" 
-                                                            placeholder="Nombre" 
+                                                            placeholder="Nombre(s)" 
                                                             className="form-control" 
                                                             id="nombre" 
                                                             required={registrando}
@@ -333,7 +333,7 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
                                                     <div className="col-6">
                                                         <input 
                                                             type="text" 
-                                                            placeholder="Apellido" 
+                                                            placeholder="Apellidos" 
                                                             className="form-control" 
                                                             id="apellido" 
                                                             required={registrando}

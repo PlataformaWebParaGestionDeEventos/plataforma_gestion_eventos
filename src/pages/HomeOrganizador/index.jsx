@@ -23,7 +23,8 @@ const HomeOrganizador = ({ correoUsuario }) => {
         ubicacion: '',
         capacidadMaxima: '',
         tipo: 'conferencia',
-        estado: 'borrador'
+        estado: 'borrador',
+        expositor: ''
     });
 
     // Estado para mostrar errores de validación en tiempo real
@@ -75,8 +76,13 @@ const HomeOrganizador = ({ correoUsuario }) => {
                 if (campoActualizado.fecha && campoActualizado.hora) {
                     const fechaEvento = new Date(campoActualizado.fecha + 'T' + campoActualizado.hora);
                     const ahora = new Date();
+                    const unAnoDespues = new Date();
+                    unAnoDespues.setFullYear(unAnoDespues.getFullYear() + 1);
+                    
                     if (fechaEvento <= ahora) {
                         errores.fechaHora = 'La fecha y hora deben ser futuras';
+                    } else if (fechaEvento > unAnoDespues) {
+                        errores.fechaHora = 'La fecha no puede ser mayor a 1 año desde hoy';
                     } else {
                         delete errores.fechaHora;
                     }
@@ -116,8 +122,23 @@ const HomeOrganizador = ({ correoUsuario }) => {
     }, []);
 
     useEffect(() => {
-        if (vistaActual === 'eventos') {
+        if (vistaActual === 'eventos' || vistaActual === 'dashboard') {
             cargarEventos();
+        }
+    }, [vistaActual, cargarEventos]);
+
+    // Cargar eventos en tiempo real para el dashboard
+    useEffect(() => {
+        if (vistaActual === 'dashboard') {
+            // Cargar inmediatamente
+            cargarEventos();
+            
+            // Actualizar cada 30 segundos para datos en tiempo real
+            const intervalo = setInterval(() => {
+                cargarEventos();
+            }, 30000); // 30 segundos
+
+            return () => clearInterval(intervalo);
         }
     }, [vistaActual, cargarEventos]);
 
@@ -163,10 +184,9 @@ const HomeOrganizador = ({ correoUsuario }) => {
         return errores;
     };
 
-    // Verificar conflictos de horario
+    // Verificar conflictos de horario (misma fecha Y/O misma ubicación)
     const verificarConflictoHorario = () => {
         const fechaEvento = nuevoEvento.fecha;
-        const horaEvento = nuevoEvento.hora;
         const ubicacionEvento = nuevoEvento.ubicacion.toLowerCase().trim();
         
         return eventos.some(evento => {
@@ -180,10 +200,11 @@ const HomeOrganizador = ({ correoUsuario }) => {
                 return false;
             }
             
-            // Verificar misma fecha, hora y ubicación
-            return evento.fecha === fechaEvento && 
-                   evento.hora === horaEvento && 
-                   evento.ubicacion.toLowerCase().trim() === ubicacionEvento;
+            // Verificar misma fecha Y/O misma ubicación
+            const mismaFecha = evento.fecha === fechaEvento;
+            const mismaUbicacion = evento.ubicacion.toLowerCase().trim() === ubicacionEvento;
+            
+            return mismaFecha || mismaUbicacion;
         });
     };
 
@@ -201,7 +222,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
 
         // Verificar conflictos de horario
         if (verificarConflictoHorario()) {
-            alert('Ya existe un evento en la misma fecha, hora y ubicación. Por favor, elige otro horario o ubicación.');
+            alert('⚠️ CONFLICTO DETECTADO\n\nYa existe un evento en la misma fecha o en la misma ubicación.\n\nPor favor, elige otra fecha u otra ubicación para evitar conflictos.');
             return;
         }
 
@@ -221,7 +242,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
             );
 
             if (resultado.success) {
-                alert('Evento creado exitosamente! 🎉\n\nEl workflow de n8n ha sido iniciado para automatizar las comunicaciones.');
+                alert('Evento creado exitosamente!');
                 setNuevoEvento({
                     titulo: '',
                     descripcion: '',
@@ -230,7 +251,8 @@ const HomeOrganizador = ({ correoUsuario }) => {
                     ubicacion: '',
                     capacidadMaxima: '',
                     tipo: 'conferencia',
-                    estado: 'borrador'
+                    estado: 'borrador',
+                    expositor: ''
                 });
                 setMostrandoFormulario(false);
                 cargarEventos();
@@ -270,7 +292,8 @@ const HomeOrganizador = ({ correoUsuario }) => {
             ubicacion: evento.ubicacion,
             capacidadMaxima: evento.capacidadMaxima,
             tipo: evento.tipo,
-            estado: evento.estado
+            estado: evento.estado,
+            expositor: evento.expositor || ''
         });
         setMostrandoFormulario(true);
     };
@@ -289,7 +312,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
 
         // Verificar conflictos de horario
         if (verificarConflictoHorario()) {
-            alert('Ya existe un evento en la misma fecha, hora y ubicación. Por favor, elige otro horario o ubicación.');
+            alert('⚠️ CONFLICTO DETECTADO\n\nYa existe un evento en la misma fecha o en la misma ubicación.\n\nPor favor, elige otra fecha u otra ubicación para evitar conflictos.');
             return;
         }
 
@@ -309,7 +332,8 @@ const HomeOrganizador = ({ correoUsuario }) => {
                 ubicacion: '',
                 capacidadMaxima: '',
                 tipo: 'conferencia',
-                estado: 'borrador'
+                estado: 'borrador',
+                expositor: ''
             });
             setEventoEditando(null);
             setMostrandoFormulario(false);
@@ -331,7 +355,8 @@ const HomeOrganizador = ({ correoUsuario }) => {
             ubicacion: '',
             capacidadMaxima: '',
             tipo: 'conferencia',
-            estado: 'borrador'
+            estado: 'borrador',
+            expositor: ''
         });
         setMostrandoFormulario(false);
     };
@@ -617,6 +642,12 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                             className={`form-control ${erroresValidacion.fechaHora ? 'is-invalid' : ''}`}
                                                             value={nuevoEvento.fecha}
                                                             onChange={(e) => manejarCambioFormulario('fecha', e.target.value)}
+                                                            min={new Date().toISOString().split('T')[0]}
+                                                            max={(() => {
+                                                                const unAnoDespues = new Date();
+                                                                unAnoDespues.setFullYear(unAnoDespues.getFullYear() + 1);
+                                                                return unAnoDespues.toISOString().split('T')[0];
+                                                            })()}
                                                             required
                                                         />
                                                         {erroresValidacion.fechaHora && (
@@ -662,7 +693,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                 </div>
 
                                                 <div className="row g-3 mt-1">
-                                                    <div className="col-12">
+                                                    <div className="col-12 col-md-6">
                                                         <label className="form-label fw-semibold">Ubicación *</label>
                                                         <input
                                                             type="text"
@@ -672,6 +703,17 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                             onChange={(e) => setNuevoEvento({...nuevoEvento, ubicacion: e.target.value})}
                                                             required
                                                         />
+                                                    </div>
+                                                    <div className="col-12 col-md-6">
+                                                        <label className="form-label fw-semibold">Expositor(es)</label>
+                                                        <input
+                                                            type="text"
+                                                            className="form-control"
+                                                            placeholder="Ej: Dr. Juan Pérez, Ing. María García"
+                                                            value={nuevoEvento.expositor}
+                                                            onChange={(e) => setNuevoEvento({...nuevoEvento, expositor: e.target.value})}
+                                                        />
+                                                        <small className="text-muted">Nombre(s) del/los expositor(es)</small>
                                                     </div>
                                                 </div>
 

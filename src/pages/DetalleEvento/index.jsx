@@ -84,7 +84,7 @@ const DetalleEvento = ({ eventoId, onVolver }) => {
             <div className="card-header bg-gradient-success text-white">
               <div className="d-flex justify-content-between align-items-start">
                 <div>
-                  <h3 className="card-title fw-bold mb-1">{evento.titulo}</h3>
+                  <h3 className="card-title fw-bold mb-1 text-success">{evento.titulo}</h3>
                   <span className="badge bg-light text-success">
                     {evento.tipo}
                   </span>
@@ -119,32 +119,14 @@ const DetalleEvento = ({ eventoId, onVolver }) => {
                       <strong>Ubicación:</strong> {evento.ubicacion}
                     </div>
                     <div className="list-group-item border-0 px-0">
-                      <strong>Duración:</strong> {evento.duracion} horas
+                      <strong>Expositor:</strong> {evento.expositor}
                     </div>
                   </div>
                 </div>
 
                 <div className="col-md-6">
-                  <h5 className="text-success mb-3">👥 Participación</h5>
-                  <div className="list-group list-group-flush">
-                    <div className="list-group-item border-0 px-0">
-                      <strong>Organizador:</strong> {evento.organizadorEmail}
-                    </div>
-                    <div className="list-group-item border-0 px-0">
-                      <strong>Participantes:</strong> {evento.participantes?.length || 0}/{evento.capacidadMaxima}
-                    </div>
-                    <div className="list-group-item border-0 px-0">
-                      <strong>Espacios disponibles:</strong> 
-                      <span className={`ms-1 ${espaciosDisponibles <= 5 ? 'text-warning' : 'text-success'}`}>
-                        {espaciosDisponibles}
-                      </span>
-                    </div>
-                    {evento.requisitos && (
-                      <div className="list-group-item border-0 px-0">
-                        <strong>Requisitos:</strong> {evento.requisitos}
-                      </div>
-                    )}
-                  </div>
+                  <h5 className="text-success mb-3"></h5>
+                  <img src="ruta/a/la/imagen.jpg" alt="Flyer del evento" className="img-fluid" />
                 </div>
               </div>
 

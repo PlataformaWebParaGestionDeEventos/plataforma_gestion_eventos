@@ -15,7 +15,7 @@ export const useEventosAlumno = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  // Query para obtener eventos publicados
+  // Query para obtener eventos publicados con actualización automática
   const {
     data: eventosData,
     isLoading: loadingEventos,
@@ -35,8 +35,10 @@ export const useEventosAlumno = () => {
       return result.eventos;
     },
     enabled: !!user, // Solo ejecuta si hay usuario autenticado
-    staleTime: 2 * 60 * 1000, // 2 minutos para eventos (datos más dinámicos)
+    staleTime: 30 * 1000, // 30 segundos - más corto para datos en tiempo real
     gcTime: 5 * 60 * 1000, // 5 minutos en caché
+    refetchInterval: 30 * 1000, // Refetch automático cada 30 segundos para tiempo real
+    refetchOnWindowFocus: true, // Actualizar al volver al tab
   });
 
   // Separar eventos disponibles e inscritos usando useMemo para optimización

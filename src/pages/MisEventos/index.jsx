@@ -115,14 +115,27 @@ const MisEventos = ({ onVerDetalle }) => {
                                 <i className="bi bi-geo-alt me-2"></i>
                                 {evento.ubicacion}
                               </div>
-                              <div className="mb-1">
-                                <i className="bi bi-clock me-2"></i>
-                                Duración: {evento.duracion} horas
-                              </div>
-                              {participanteInfo && (
+                              {participanteInfo && participanteInfo.fechaInscripcion && (
                                 <div className="mb-1">
                                   <i className="bi bi-person-check me-2"></i>
-                                  Inscrito: {new Date(participanteInfo.fechaInscripcion.toDate()).toLocaleDateString()}
+                                  Inscrito: {(() => {
+                                    try {
+                                      // Manejar diferentes formatos de fecha
+                                      const fecha = participanteInfo.fechaInscripcion;
+                                      if (fecha?.toDate) {
+                                        // Es un Timestamp de Firestore
+                                        return fecha.toDate().toLocaleDateString('es-ES');
+                                      } else if (typeof fecha === 'string') {
+                                        // Es un string ISO
+                                        return new Date(fecha).toLocaleDateString('es-ES');
+                                      } else {
+                                        return 'Fecha no disponible';
+                                      }
+                                    } catch (error) {
+                                      console.error('Error al formatear fecha:', error);
+                                      return 'Fecha no disponible';
+                                    }
+                                  })()}
                                 </div>
                               )}
                             </div>
