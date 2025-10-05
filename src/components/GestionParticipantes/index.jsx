@@ -2,30 +2,67 @@ import React, { useState } from 'react';
 import { useParticipantes } from '../../core/hooks/useParticipantes';
 import firestoreService from '../../services/firestoreService';
 
-const GestionParticipantes = ({ evento, onVolver }) => {
+const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
   const { 
     participantes, 
     estadisticas, 
     loading, 
     error, 
-    marcarAsistencia,
-    // Nuevos estados específicos de React Query
-    isMarcandoAsistencia
+    refetch
   } = useParticipantes(evento?.id); // Ahora pasamos el eventoId directamente
   
   const [filtro, setFiltro] = useState('todos');
   const [busqueda, setBusqueda] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [enviandoAsistencias, setEnviandoAsistencias] = useState(false);
+  const [eliminandoParticipante, setEliminandoParticipante] = useState(null);
 
-  const handleMarcarAsistencia = async (alumnoId) => {
-    const result = await marcarAsistencia(evento.id, alumnoId);
-    if (result.success) {
-      setMensaje('✅ Asistencia marcada exitosamente');
-      setTimeout(() => setMensaje(''), 3000);
-    } else {
-      setMensaje(`❌ ${result.error || 'Error al marcar asistencia'}`);
-      setTimeout(() => setMensaje(''), 3000);
+  /**
+   * Eliminar participante del evento
+   */
+  const handleEliminarParticipante = async (participante) => {
+    // Confirmar acción
+    const confirmacion = window.confirm(
+      `¿Eliminar participante?\n\n` +
+      `📧 ${participante.email}\n` +
+      `👤 ${participante.nombre || 'Sin nombre'}\n\n` +
+      `Esta acción:\n` +
+      `❌ Eliminará al participante de la lista\n` +
+      `❌ Eliminará su asistencia si fue marcada\n` +
+      `❌ Liberará un espacio en el evento\n\n` +
+      `⚠️ Esta acción NO se puede deshacer.\n\n` +
+      `¿Continuar?`
+    );
+
+    if (!confirmacion) return;
+
+    setEliminandoParticipante(participante.id);
+    
+    try {
+      console.log(`🗑️ Eliminando participante: ${participante.email}`);
+      
+      const result = await firestoreService.eliminarParticipante(evento.id, participante.id);
+      
+      if (result.success) {
+        setMensaje(
+          `✅ Participante eliminado correctamente!\n\n` +
+          `📧 ${participante.email}\n` +
+          `El espacio en el evento ha sido liberado.`
+        );
+        
+        // Recargar lista de participantes
+        await refetch();
+        
+      } else {
+        throw new Error(result.error || 'Error desconocido');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error eliminando participante:', error);
+      setMensaje(`❌ Error al eliminar participante: ${error.message}`);
+    } finally {
+      setEliminandoParticipante(null);
+      setTimeout(() => setMensaje(''), 5000);
     }
   };
 
@@ -81,11 +118,16 @@ const GestionParticipantes = ({ evento, onVolver }) => {
 
   // Filtrar participantes
   const participantesFiltrados = participantes.filter(participante => {
+    // Filtro por estado de asistencia (usar campo asistio del sistema nuevo)
     const cumpleFiltro = filtro === 'todos' || 
-      (filtro === 'asistio' && evento.asistentes?.includes(participante.id)) ||
-      (filtro === 'no-asistio' && !evento.asistentes?.includes(participante.id));
+      (filtro === 'asistio' && participante.asistio) ||
+      (filtro === 'no-asistio' && !participante.asistio);
     
-    const cumpleBusqueda = participante.email.toLowerCase().includes(busqueda.toLowerCase());
+    // Búsqueda por nombre o email
+    const busquedaLower = busqueda.toLowerCase();
+    const cumpleBusqueda = 
+      participante.email.toLowerCase().includes(busquedaLower) ||
+      (participante.nombre && participante.nombre.toLowerCase().includes(busquedaLower));
     
     return cumpleFiltro && cumpleBusqueda;
   });
@@ -193,13 +235,36 @@ const GestionParticipantes = ({ evento, onVolver }) => {
         </div>
       </div>
 
+      {/* Botón prominente para ir a Gestión de Asistencia */}
+      <div className="row mb-4">
+        <div className="col-12">
+          <div className="alert alert-info d-flex align-items-center" role="alert">
+            <i className="bi bi-info-circle-fill me-3 fs-3"></i>
+            <div className="flex-grow-1">
+              <h6 className="alert-heading mb-1">📋 Registro de Asistencia</h6>
+              <p className="mb-0">
+                Para marcar asistencia de participantes, usa la nueva página de <strong>Gestión de Asistencia</strong> 
+                que permite escanear códigos QR o registrar manualmente.
+              </p>
+            </div>
+            <button 
+              className="btn btn-success ms-3"
+              onClick={onIrAGestionAsistencia}
+            >
+              <i className="bi bi-qr-code-scan me-2"></i>
+              Gestión de Asistencia
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Controles */}
       <div className="row mb-4">
-        <div className="col-md-8">
+        <div className="col-12">
           <div className="card border-0 shadow-sm">
             <div className="card-body">
               <div className="row g-3">
-                <div className="col-md-4">
+                <div className="col-md-3">
                   <label className="form-label">Filtrar por:</label>
                   <select 
                     className="form-select"
@@ -211,31 +276,44 @@ const GestionParticipantes = ({ evento, onVolver }) => {
                     <option value="no-asistio">No asistieron</option>
                   </select>
                 </div>
-                <div className="col-md-4">
-                  <label className="form-label">Buscar por email:</label>
+                <div className="col-md-3">
+                  <label className="form-label">Buscar:</label>
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="Buscar participante..."
+                    placeholder="Buscar por nombre o email..."
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
                   />
                 </div>
-                <div className="col-md-4 d-flex align-items-end">
+                <div className="col-md-3 d-flex align-items-end">
+                  <button 
+                    className="btn btn-outline-secondary w-100"
+                    onClick={() => {
+                      setFiltro('todos');
+                      setBusqueda('');
+                    }}
+                  >
+                    <i className="bi bi-arrow-clockwise me-2"></i>
+                    Limpiar Filtros
+                  </button>
+                </div>
+                <div className="col-md-3 d-flex align-items-end">
                   <button 
                     className="btn btn-primary w-100"
                     onClick={handleEnviarAsistencias}
                     disabled={participantes.length === 0 || enviandoAsistencias}
+                    title="Enviar lista de asistencias a n8n para certificados"
                   >
                     {enviandoAsistencias ? (
                       <>
                         <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Enviando a n8n...
+                        Enviando...
                       </>
                     ) : (
                       <>
                         <i className="bi bi-send me-2"></i>
-                        Enviar Asistencias
+                        Enviar a n8n
                       </>
                     )}
                   </button>
@@ -284,7 +362,11 @@ const GestionParticipantes = ({ evento, onVolver }) => {
                     </thead>
                     <tbody>
                       {participantesFiltrados.map(participante => {
-                        const asistio = evento.asistentes?.includes(participante.id);
+                        // Usar el campo asistio del sistema nuevo (GestionAsistencia)
+                        const asistio = participante.asistio || false;
+                        // Verificar si hay información de asistencia QR
+                        const asistenciaQR = evento.asistenciaQR?.[participante.id];
+                        const metodoAsistencia = asistenciaQR?.metodo || null;
                         
                         return (
                           <tr key={participante.id}>
@@ -296,44 +378,71 @@ const GestionParticipantes = ({ evento, onVolver }) => {
                                   </div>
                                 </div>
                                 <div>
-                                  <div className="fw-semibold">{participante.email}</div>
-                                  <small className="text-muted">ID: {participante.id}</small>
+                                  <div className="fw-semibold">{participante.nombre || participante.email}</div>
+                                  <small className="text-muted">{participante.email}</small>
                                 </div>
                               </div>
                             </td>
                             <td>
                               <div>
-                                {new Date(participante.fechaInscripcion.toDate()).toLocaleDateString()}
+                                {(() => {
+                                  try {
+                                    const fecha = participante.fechaInscripcion?.toDate 
+                                      ? participante.fechaInscripcion.toDate() 
+                                      : new Date(participante.fechaInscripcion);
+                                    return fecha.toLocaleDateString('es-PE');
+                                  } catch {
+                                    return 'Fecha no disponible';
+                                  }
+                                })()}
                               </div>
                               <small className="text-muted">
-                                {new Date(participante.fechaInscripcion.toDate()).toLocaleTimeString()}
+                                {(() => {
+                                  try {
+                                    const fecha = participante.fechaInscripcion?.toDate 
+                                      ? participante.fechaInscripcion.toDate() 
+                                      : new Date(participante.fechaInscripcion);
+                                    return fecha.toLocaleTimeString('es-PE', { 
+                                      hour: '2-digit', 
+                                      minute: '2-digit' 
+                                    });
+                                  } catch {
+                                    return '';
+                                  }
+                                })()}
                               </small>
                             </td>
                             <td>
-                              <span className={`badge ${asistio ? 'bg-success' : 'bg-secondary'}`}>
-                                {asistio ? '✅ Asistió' : '⏳ Inscrito'}
-                              </span>
+                              <div className="d-flex flex-column gap-1">
+                                <span className={`badge ${asistio ? 'bg-success' : 'bg-secondary'}`}>
+                                  {asistio ? '✅ Asistió' : '⏳ Inscrito'}
+                                </span>
+                                {asistio && metodoAsistencia && (
+                                  <small className="text-muted">
+                                    {metodoAsistencia === 'qr' ? '📱 Via QR' : '✋ Manual'}
+                                  </small>
+                                )}
+                              </div>
                             </td>
                             <td>
-                              {!asistio && (
-                                <button 
-                                  className="btn btn-sm btn-outline-success"
-                                  onClick={() => handleMarcarAsistencia(participante.id)}
-                                  disabled={isMarcandoAsistencia}
-                                >
-                                  {isMarcandoAsistencia ? (
-                                    <>
-                                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                      Marcando...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <i className="bi bi-check-circle me-1"></i>
-                                      Marcar Asistencia
-                                    </>
-                                  )}
-                                </button>
-                              )}
+                              <button 
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => handleEliminarParticipante(participante)}
+                                disabled={eliminandoParticipante === participante.id}
+                                title="Eliminar participante del evento"
+                              >
+                                {eliminandoParticipante === participante.id ? (
+                                  <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Eliminando...
+                                  </>
+                                ) : (
+                                  <>
+                                    <i className="bi bi-trash me-1"></i>
+                                    Eliminar
+                                  </>
+                                )}
+                              </button>
                             </td>
                           </tr>
                         );

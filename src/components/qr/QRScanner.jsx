@@ -13,33 +13,55 @@ const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada }) => {
   const [scanning, setScanning] = useState(false);
   const [resultado, setResultado] = useState(null);
   const [procesando, setProcesando] = useState(false);
+  const [errorCamara, setErrorCamara] = useState(null);
 
   /**
    * Iniciar escáner QR
    */
   const iniciarScanner = () => {
     if (scanner) {
-      scanner.clear();
+      scanner.clear().catch(err => console.log('Error clearing scanner:', err));
     }
 
     setScanning(true);
     setResultado(null);
+    setErrorCamara(null);
 
-    const html5QrcodeScanner = new Html5QrcodeScanner(
-      "qr-reader",
-      { 
+    // Esperar a que el elemento qr-reader esté en el DOM
+    setTimeout(() => {
+      // Detectar si es móvil
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+      const config = {
         fps: 10,
-        qrbox: { width: 250, height: 250 },
+        qrbox: isMobile ? { width: 200, height: 200 } : { width: 250, height: 250 },
         aspectRatio: 1.0,
         showTorchButtonIfSupported: true,
         showZoomSliderIfSupported: true,
         defaultZoomValueIfSupported: 2,
-      },
-      false
-    );
+        // Configuración específica para móviles
+        rememberLastUsedCamera: true,
+        // Preferir cámara trasera en móviles
+        videoConstraints: isMobile ? {
+          facingMode: { ideal: "environment" }
+        } : undefined
+      };
 
-    html5QrcodeScanner.render(onScanSuccess, onScanError);
-    setScanner(html5QrcodeScanner);
+      try {
+        const html5QrcodeScanner = new Html5QrcodeScanner(
+          "qr-reader",
+          config,
+          false
+        );
+
+        html5QrcodeScanner.render(onScanSuccess, onScanError);
+        setScanner(html5QrcodeScanner);
+      } catch (err) {
+        console.error('Error iniciando escáner:', err);
+        setErrorCamara('No se pudo acceder a la cámara. Asegúrate de dar permisos.');
+        setScanning(false);
+      }
+    }, 100); // Pequeño delay para que el DOM se actualice
   };
 
   /**
@@ -47,7 +69,7 @@ const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada }) => {
    */
   const detenerScanner = () => {
     if (scanner) {
-      scanner.clear();
+      scanner.clear().catch(err => console.log('Error clearing scanner:', err));
       setScanner(null);
     }
     setScanning(false);
@@ -133,7 +155,7 @@ const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada }) => {
   useEffect(() => {
     return () => {
       if (scanner) {
-        scanner.clear();
+        scanner.clear().catch(err => console.log('Error clearing scanner:', err));
       }
     };
   }, [scanner]);
@@ -203,6 +225,19 @@ const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada }) => {
             </div>
             <h5>Listo para escanear</h5>
             <p>Presiona el botón para activar la cámara y escanear códigos QR</p>
+            
+            {errorCamara && (
+              <div className="alert alert-warning mb-3" role="alert">
+                <i className="bi bi-exclamation-triangle me-2"></i>
+                {errorCamara}
+                <br />
+                <small>
+                  En tu navegador, permite el acceso a la cámara cuando se solicite.
+                  En configuración de tu navegador, asegúrate de dar permisos de cámara.
+                </small>
+              </div>
+            )}
+            
             <button 
               className="btn-iniciar-scanner"
               onClick={iniciarScanner}
@@ -295,6 +330,8 @@ const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada }) => {
             <li>Mantén el código QR centrado en el cuadro</li>
             <li>Evita reflejos en la pantalla del participante</li>
             <li>El escaneo es automático, no necesitas tomar foto</li>
+            <li><strong>📱 Móvil:</strong> Permitir acceso a la cámara cuando el navegador lo solicite</li>
+            <li><strong>📱 Móvil:</strong> Se usará automáticamente la cámara trasera</li>
           </ul>
         </div>
       </div>

@@ -464,6 +464,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                     <GestionParticipantes 
                         evento={eventoParticipantes} 
                         onVolver={volverDeParticipantes}
+                        onIrAGestionAsistencia={() => verGestionAsistencia(eventoParticipantes)}
                     />
                 )}
 

@@ -364,6 +364,62 @@ export const firestoreService = {
     }
   },
 
+  /**
+   * Eliminar participante de un evento (por organizador)
+   * Elimina al participante de participantes, participantesInfo, asistentes y asistenciaQR
+   */
+  async eliminarParticipante(eventoId, alumnoId) {
+    try {
+      const eventoResult = await this.obtenerEventoPorId(eventoId);
+      if (!eventoResult.success) {
+        return { success: false, error: "Evento no encontrado" };
+      }
+
+      const evento = eventoResult.evento;
+      
+      // Verificar si está inscrito
+      if (!evento.participantes || !evento.participantes.includes(alumnoId)) {
+        return { success: false, error: "El participante no está inscrito en este evento" };
+      }
+
+      // Encontrar la información del participante
+      const participanteInfo = evento.participantesInfo?.find(p => p.id === alumnoId || p.uid === alumnoId);
+      
+      if (!participanteInfo) {
+        return { success: false, error: "No se encontró la información del participante" };
+      }
+
+      // Preparar datos de actualización
+      const eventoRef = doc(db, "eventos", eventoId);
+      const updateData = {
+        participantes: arrayRemove(alumnoId),
+        participantesInfo: arrayRemove(participanteInfo),
+        asistentes: arrayRemove(alumnoId)
+      };
+
+      // Si existe asistenciaQR, eliminar la entrada del participante
+      if (evento.asistenciaQR && evento.asistenciaQR[alumnoId]) {
+        const asistenciaQRActualizada = { ...evento.asistenciaQR };
+        delete asistenciaQRActualizada[alumnoId];
+        updateData.asistenciaQR = asistenciaQRActualizada;
+      }
+
+      await updateDoc(eventoRef, updateData);
+
+      console.log(`✅ Participante ${alumnoId} eliminado del evento ${eventoId}`);
+
+      return { 
+        success: true, 
+        message: "Participante eliminado exitosamente",
+        participanteEliminado: participanteInfo
+      };
+
+    } catch (error) {
+      console.error('Error eliminando participante:', error);
+      return { success: false, error: "Error al eliminar participante" };
+    }
+  },
+
   // Obtener participantes de un evento (para organizadores)
   async obtenerParticipantesEvento(eventoId) {
     try {
