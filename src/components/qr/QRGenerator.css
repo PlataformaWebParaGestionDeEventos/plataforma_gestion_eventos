@@ -1,24 +1,28 @@
 /* Estilos para QRGenerator */
 
 .btn-ver-qr {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1976d2 0%, #2196f3 100%);
   color: white;
   border: none;
-  padding: 8px 16px;
+  padding: 10px 20px;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 8px;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
+  width: 100%;
+  text-align: center;
 }
 
 .btn-ver-qr:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+  background: linear-gradient(135deg, #1565c0 0%, #1976d2 100%);
 }
 
 .btn-ver-qr i {

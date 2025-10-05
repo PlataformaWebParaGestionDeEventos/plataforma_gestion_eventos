@@ -136,7 +136,7 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
     return (
       <div className="container-fluid py-5">
         <div className="text-center">
-          <div className="spinner-border text-success mb-3" role="status">
+          <div className="spinner-border text-primary mb-3" role="status">
             <span className="visually-hidden">Cargando...</span>
           </div>
           <p className="text-muted">Cargando participantes...</p>
@@ -151,14 +151,14 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
       <div className="row mb-4">
         <div className="col-12">
           <button 
-            className="btn btn-outline-success mb-3"
+            className="btn btn-outline-primary mb-3"
             onClick={onVolver}
           >
             <i className="bi bi-arrow-left me-2"></i>
             Volver a mis eventos
           </button>
           
-          <h2 className="fw-bold text-success mb-1">Gestión de Participantes</h2>
+          <h2 className="fw-bold text-primary mb-1">Gestión de Participantes</h2>
           <p className="text-muted mb-0">{evento.titulo}</p>
         </div>
       </div>
@@ -183,7 +183,7 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
         <div className="col-md-3">
           <div className="card border-0 shadow-sm text-center">
             <div className="card-body">
-              <h5 className="card-title text-success">{estadisticas.totalParticipantes}</h5>
+              <h5 className="card-title text-primary">{estadisticas.totalParticipantes}</h5>
               <p className="card-text text-muted mb-0">Total Inscritos</p>
             </div>
           </div>
@@ -222,7 +222,7 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
               <h6 className="card-title">Ocupación del Evento</h6>
               <div className="progress mb-2" style={{ height: '10px' }}>
                 <div 
-                  className={`progress-bar ${estadisticas.porcentajeOcupacion > 80 ? 'bg-warning' : 'bg-success'}`}
+                  className={`progress-bar ${estadisticas.porcentajeOcupacion > 80 ? 'bg-warning' : 'bg-primary'}`}
                   role="progressbar" 
                   style={{ width: `${estadisticas.porcentajeOcupacion}%` }}
                 ></div>
@@ -248,7 +248,7 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
               </p>
             </div>
             <button 
-              className="btn btn-success ms-3"
+              className="btn btn-primary ms-3"
               onClick={onIrAGestionAsistencia}
             >
               <i className="bi bi-qr-code-scan me-2"></i>
@@ -373,8 +373,8 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
                             <td>
                               <div className="d-flex align-items-center">
                                 <div className="me-3">
-                                  <div className="bg-success bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}>
-                                    <i className="bi bi-person text-success"></i>
+                                  <div className="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}>
+                                    <i className="bi bi-person text-primary"></i>
                                   </div>
                                 </div>
                                 <div>
@@ -414,8 +414,8 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
                             </td>
                             <td>
                               <div className="d-flex flex-column gap-1">
-                                <span className={`badge ${asistio ? 'bg-success' : 'bg-secondary'}`}>
-                                  {asistio ? '✅ Asistió' : '⏳ Inscrito'}
+                                <span className={`badge ${asistio ? 'bg-success' : 'bg-secondary'} px-3 py-2`} style={{ minWidth: '100px', width: 'fit-content' }}>
+                                  {asistio ? '✅ Asistió' : 'Inscrito'}
                                 </span>
                                 {asistio && metodoAsistencia && (
                                   <small className="text-muted">

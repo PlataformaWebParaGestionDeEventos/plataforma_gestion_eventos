@@ -430,16 +430,6 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                     Eventos
                                 </button>
                             </li>
-                            {eventoParticipantes && (
-                                <li className="nav-item">
-                                    <button 
-                                        className={`nav-link btn btn-link text-white border-0 ${vistaActual === 'participantes' ? 'active fw-bold' : ''}`}
-                                        onClick={() => setVistaActual('participantes')}
-                                    >
-                                        Participantes
-                                    </button>
-                                </li>
-                            )}
                         </ul>
                         
                         {/* Usuario y logout */}
@@ -502,9 +492,9 @@ const HomeOrganizador = ({ correoUsuario }) => {
                             <div className="col-6 col-md-3">
                                 <div className="card border-0 shadow-sm h-100">
                                     <div className="card-body text-center p-3">
-                                        <div className="fs-2 text-success mb-2">✅</div>
-                                        <h5 className="card-title text-success mb-1 fs-6">Publicados</h5>
-                                        <h3 className="text-success mb-0">{eventos.filter(e => e.estado === 'publicado').length}</h3>
+                                        <div className="fs-2 text-primary mb-2">✅</div>
+                                        <h5 className="card-title text-primary mb-1 fs-6">Publicados</h5>
+                                        <h3 className="text-primary mb-0">{eventos.filter(e => e.estado === 'publicado').length}</h3>
                                     </div>
                                 </div>
                             </div>
@@ -800,10 +790,10 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                         <div className="card h-100 border-0 shadow-sm event-card">
                                                             {/* Header del evento */}
                                                             <div className="card-header bg-gradient border-0 d-flex justify-content-between align-items-center p-3">
-                                                                <span className="badge bg-primary bg-opacity-10 text-primary border border-primary">
+                                                                <span className="badge bg-primary text-white">
                                                                     {evento.tipo}
                                                                 </span>
-                                                                <span className={`badge ${evento.estado === 'publicado' ? 'bg-success' : 'bg-warning'}`}>
+                                                                <span className={`badge ${evento.estado === 'publicado' ? 'bg-primary' : 'bg-warning'}`}>
                                                                     {evento.estado === 'publicado' ? '✅ Publicado' : '📝 Borrador'}
                                                                 </span>
                                                             </div>
@@ -857,7 +847,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                                     
                                                                     {/* Botón de Gestión de Asistencia (QR + Manual) */}
                                                                     <button 
-                                                                        className="btn btn-success btn-sm"
+                                                                        className="btn btn-primary btn-sm"
                                                                         onClick={() => verGestionAsistencia(evento)}
                                                                         title="Escanear QR y registrar asistencia"
                                                                     >

@@ -52,7 +52,7 @@ const HomeAlumno = ({ correoUsuario }) => {
     if (vistaActual === 'detalle-evento' && eventoSeleccionado) {
         return (
             <div className="min-vh-100 bg-light">
-                <nav className="navbar navbar-expand-lg navbar-dark bg-success shadow-sm">
+                <nav className="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm">
                     <div className="container-fluid">
                         <span className="navbar-brand fs-5 fw-bold">
                             UPAO Eventos - Estudiante
@@ -80,7 +80,7 @@ const HomeAlumno = ({ correoUsuario }) => {
 
     return (
         <div className="min-vh-100 bg-light">
-            <nav className="navbar navbar-expand-lg navbar-dark bg-success shadow-sm">
+            <nav className="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm">
                 <div className="container-fluid">
                     <span className="navbar-brand fs-5 fw-bold">
                         UPAO Eventos - Estudiante
@@ -138,7 +138,7 @@ const HomeAlumno = ({ correoUsuario }) => {
                     <div className="container-fluid py-4">
                         <div className="row mb-4">
                             <div className="col-12">
-                                <h2 className="fw-bold text-success mb-1">Eventos Académicos Disponibles</h2>
+                                <h2 className="fw-bold text-primary mb-1">Eventos Académicos Disponibles</h2>
                                 <p className="text-muted mb-0">Explora y regístrate en los eventos que te interesan</p>
                             </div>
                         </div>
@@ -162,7 +162,7 @@ const HomeAlumno = ({ correoUsuario }) => {
                                     <div className="card-body p-4">
                                         {loading ? (
                                             <div className="text-center py-5">
-                                                <div className="spinner-border text-success mb-3" role="status">
+                                                <div className="spinner-border text-primary mb-3" role="status">
                                                     <span className="visually-hidden">Cargando...</span>
                                                 </div>
                                                 <p className="text-muted">Cargando eventos disponibles...</p>
@@ -181,10 +181,10 @@ const HomeAlumno = ({ correoUsuario }) => {
                                                         <div key={evento.id} className="col-12 col-md-6 col-xl-4">
                                                             <div className="card h-100 border-0 shadow-sm">
                                                                 <div className="card-header bg-gradient border-0 d-flex justify-content-between align-items-center p-3">
-                                                                    <span className="badge bg-success bg-opacity-10 text-success border border-success">
+                                                                    <span className="badge bg-primary text-white">
                                                                         {evento.tipo}
                                                                     </span>
-                                                                    <span className={`badge ${yaInscrito ? 'bg-primary' : 'bg-success'}`}>
+                                                                    <span className={`badge ${yaInscrito ? 'bg-info' : 'bg-primary'}`}>
                                                                         {yaInscrito ? '✅ Inscrito' : '📝 Disponible'}
                                                                     </span>
                                                                 </div>
@@ -210,14 +210,14 @@ const HomeAlumno = ({ correoUsuario }) => {
                                                                 <div className="card-footer bg-white border-0 p-4">
                                                                     <div className="d-grid gap-2">
                                                                         <button 
-                                                                            className="btn btn-outline-success btn-sm"
+                                                                            className="btn btn-outline-primary btn-sm"
                                                                             onClick={() => verDetalleEvento(evento.id)}
                                                                             disabled={isInscribiendo || isDesinscribiendo}
                                                                         >
-                                                                            👁️ Ver detalles
+                                                                            Ver detalles
                                                                         </button>
                                                                         <button 
-                                                                            className={`btn fw-semibold ${yaInscrito ? 'btn-primary' : 'btn-success'}`}
+                                                                            className={`btn fw-semibold ${yaInscrito ? 'btn-info' : 'btn-primary'}`}
                                                                             onClick={() => handleInscripcion(evento)}
                                                                             disabled={isInscribiendo || isDesinscribiendo}
                                                                         >

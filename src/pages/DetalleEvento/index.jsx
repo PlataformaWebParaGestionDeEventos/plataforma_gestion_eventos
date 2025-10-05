@@ -51,7 +51,7 @@ const DetalleEvento = ({ eventoId, onVolver }) => {
     return (
       <div className="container-fluid py-5">
         <div className="text-center">
-          <div className="spinner-border text-success mb-3" role="status">
+          <div className="spinner-border text-primary mb-3" role="status">
             <span className="visually-hidden">Cargando...</span>
           </div>
           <p className="text-muted">Cargando detalles del evento...</p>
@@ -69,7 +69,7 @@ const DetalleEvento = ({ eventoId, onVolver }) => {
       <div className="row">
         <div className="col-12">
           <button 
-            className="btn btn-outline-success mb-4"
+            className="btn btn-outline-primary mb-4"
             onClick={onVolver}
           >
             <i className="bi bi-arrow-left me-2"></i>
@@ -81,15 +81,15 @@ const DetalleEvento = ({ eventoId, onVolver }) => {
       <div className="row">
         <div className="col-lg-8 mx-auto">
           <div className="card border-0 shadow-sm">
-            <div className="card-header bg-gradient-success text-white">
+            <div className="card-header bg-light border-0">
               <div className="d-flex justify-content-between align-items-start">
                 <div>
-                  <h3 className="card-title fw-bold mb-1 text-success">{evento.titulo}</h3>
-                  <span className="badge bg-light text-success">
+                  <h3 className="card-title fw-bold mb-2 text-primary">{evento.titulo}</h3>
+                  <span className="badge bg-primary text-white">
                     {evento.tipo}
                   </span>
                 </div>
-                <span className={`badge ${yaInscrito ? 'bg-primary' : eventoLleno ? 'bg-danger' : 'bg-success'}`}>
+                <span className={`badge ${yaInscrito ? 'bg-info' : eventoLleno ? 'bg-danger' : 'bg-primary'}`}>
                   {yaInscrito ? 'Inscrito' : eventoLleno ? 'Lleno' : 'Disponible'}
                 </span>
               </div>
@@ -107,7 +107,7 @@ const DetalleEvento = ({ eventoId, onVolver }) => {
               {/* Información principal */}
               <div className="row mb-4">
                 <div className="col-md-6">
-                  <h5 className="text-success mb-3">📅 Información del Evento</h5>
+                  <h5 className="text-primary mb-3">📅 Información del Evento</h5>
                   <div className="list-group list-group-flush">
                     <div className="list-group-item border-0 px-0">
                       <strong>Fecha:</strong> {evento.fecha}
@@ -125,21 +125,21 @@ const DetalleEvento = ({ eventoId, onVolver }) => {
                 </div>
 
                 <div className="col-md-6">
-                  <h5 className="text-success mb-3"></h5>
+                  <h5 className="text-primary mb-3">Flyer del Evento</h5>
                   <img src="ruta/a/la/imagen.jpg" alt="Flyer del evento" className="img-fluid" />
                 </div>
               </div>
 
               {/* Descripción */}
               <div className="mb-4">
-                <h5 className="text-success mb-3">📝 Descripción</h5>
+                <h5 className="text-primary mb-3">📝 Descripción</h5>
                 <p className="text-muted">{evento.descripcion}</p>
               </div>
 
               {/* Objetivos (si existen) */}
               {evento.objetivos && (
                 <div className="mb-4">
-                  <h5 className="text-success mb-3">🎯 Objetivos</h5>
+                  <h5 className="text-primary mb-3">🎯 Objetivos</h5>
                   <p className="text-muted">{evento.objetivos}</p>
                 </div>
               )}
@@ -147,7 +147,7 @@ const DetalleEvento = ({ eventoId, onVolver }) => {
               {/* Recursos necesarios (si existen) */}
               {evento.recursosNecesarios && (
                 <div className="mb-4">
-                  <h5 className="text-success mb-3">🛠️ Recursos Necesarios</h5>
+                  <h5 className="text-primary mb-3">🛠️ Recursos Necesarios</h5>
                   <p className="text-muted">{evento.recursosNecesarios}</p>
                 </div>
               )}
@@ -157,7 +157,7 @@ const DetalleEvento = ({ eventoId, onVolver }) => {
                 <h6 className="text-muted mb-2">Capacidad del evento</h6>
                 <div className="progress" style={{ height: '10px' }}>
                   <div 
-                    className={`progress-bar ${(evento.participantes?.length / evento.capacidadMaxima) > 0.8 ? 'bg-warning' : 'bg-success'}`}
+                    className={`progress-bar ${(evento.participantes?.length / evento.capacidadMaxima) > 0.8 ? 'bg-warning' : 'bg-primary'}`}
                     role="progressbar" 
                     style={{ width: `${(evento.participantes?.length || 0) / evento.capacidadMaxima * 100}%` }}
                   ></div>
@@ -170,7 +170,7 @@ const DetalleEvento = ({ eventoId, onVolver }) => {
               {/* Botón de inscripción */}
               <div className="d-grid gap-2">
                 <button 
-                  className={`btn btn-lg ${yaInscrito ? 'btn-outline-danger' : 'btn-success'}`}
+                  className={`btn btn-lg ${yaInscrito ? 'btn-outline-danger' : 'btn-primary'}`}
                   onClick={handleInscripcion}
                   disabled={procesandoInscripcion || (!yaInscrito && eventoLleno)}
                 >

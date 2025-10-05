@@ -445,7 +445,7 @@ export const firestoreService = {
   },
 
   // Marcar asistencia de un participante
-  async marcarAsistencia(eventoId, alumnoId) {
+  async marcarAsistencia(eventoId, alumnoId, metodo = 'manual', organizadorUid = null) {
     try {
       const eventoResult = await this.obtenerEventoPorId(eventoId);
       if (!eventoResult.success) {
@@ -464,13 +464,46 @@ export const firestoreService = {
         return { success: false, error: "La asistencia ya fue marcada" };
       }
 
-      // Marcar asistencia
+      // Buscar el participante en participantesInfo
+      const participanteInfo = evento.participantesInfo?.find(p => p.id === alumnoId || p.uid === alumnoId);
+      if (!participanteInfo) {
+        return { success: false, error: "Información del participante no encontrada" };
+      }
+
+      // Crear objeto de actualización con asistio: true
+      const participanteActualizado = {
+        ...participanteInfo,
+        asistio: true,
+        fechaAsistencia: new Date().toISOString(),
+        metodoAsistencia: metodo
+      };
+
+      // Registrar asistencia en asistenciaQR (histórico)
+      const registroAsistencia = {
+        alumnoId,
+        email: participanteInfo.email,
+        nombre: participanteInfo.nombre,
+        metodo,
+        timestamp: new Date().toISOString(),
+        organizadorUid: organizadorUid || 'sistema'
+      };
+
       const eventoRef = doc(db, "eventos", eventoId);
+      
+      // Actualizar en Firestore: remover viejo y agregar actualizado
       await updateDoc(eventoRef, {
-        asistentes: arrayUnion(alumnoId)
+        participantesInfo: arrayRemove(participanteInfo)
       });
 
+      await updateDoc(eventoRef, {
+        asistentes: arrayUnion(alumnoId),
+        participantesInfo: arrayUnion(participanteActualizado),
+        [`asistenciaQR.${alumnoId}`]: registroAsistencia
+      });
+
+      console.log(`✅ Asistencia marcada para ${alumnoId} vía ${metodo}`);
       return { success: true, message: "Asistencia marcada exitosamente" };
+      
     } catch (error) {
       console.error('Error marcando asistencia:', error);
       return { success: false, error: "Error al marcar asistencia" };

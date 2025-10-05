@@ -5,8 +5,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
+import { getAuth } from 'firebase/auth';
+import appFirebase from '../../config/credenciales';
 import qrService from '../../services/qrService';
 import './QRScanner.css';
+
+const auth = getAuth(appFirebase);
 
 const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada }) => {
   const [scanner, setScanner] = useState(null);
@@ -101,7 +105,14 @@ const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada }) => {
       }
 
       // Registrar asistencia
-      const registro = await qrService.registrarAsistenciaQR(eventoId, validacion.qrData.userId);
+      const currentUser = auth.currentUser;
+      const organizadorUid = currentUser?.uid || null;
+      
+      const registro = await qrService.registrarAsistenciaQR(
+        eventoId, 
+        validacion.qrData.userId,
+        organizadorUid
+      );
 
       if (registro.success) {
         setResultado({

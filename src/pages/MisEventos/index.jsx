@@ -22,7 +22,7 @@ const MisEventos = ({ onVerDetalle }) => {
     return (
       <div className="container-fluid py-5">
         <div className="text-center">
-          <div className="spinner-border text-success mb-3" role="status">
+          <div className="spinner-border text-primary mb-3" role="status">
             <span className="visually-hidden">Cargando...</span>
           </div>
           <p className="text-muted">Cargando tus inscripciones...</p>
@@ -35,7 +35,7 @@ const MisEventos = ({ onVerDetalle }) => {
     <div className="container-fluid py-4">
       <div className="row mb-4">
         <div className="col-12">
-          <h2 className="fw-bold text-success mb-1">Mis Inscripciones</h2>
+          <h2 className="fw-bold text-primary mb-1">Mis Inscripciones</h2>
           <p className="text-muted mb-0">Eventos en los que estás inscrito</p>
         </div>
       </div>
@@ -95,7 +95,7 @@ const MisEventos = ({ onVerDetalle }) => {
                           </div>
 
                           <div className="card-header bg-gradient border-0 p-3">
-                            <span className="badge bg-success bg-opacity-10 text-success border border-success">
+                            <span className="badge bg-primary text-white">
                               {evento.tipo}
                             </span>
                           </div>
@@ -155,7 +155,7 @@ const MisEventos = ({ onVerDetalle }) => {
                               </div>
                               <div className="progress mb-2" style={{ height: '6px' }}>
                                 <div 
-                                  className="progress-bar bg-success"
+                                  className="progress-bar bg-primary"
                                   role="progressbar" 
                                   style={{ width: `${(evento.participantes?.length || 0) / evento.capacidadMaxima * 100}%` }}
                                 ></div>
@@ -165,8 +165,20 @@ const MisEventos = ({ onVerDetalle }) => {
                           
                           <div className="card-footer bg-white border-0 p-4">
                             <div className="d-grid gap-2">
-                              {/* Botón Ver QR - Solo si tiene datos QR */}
-                              {participanteInfo?.qrData?.qrString && (
+                              {/* Mostrar estado de asistencia o botón QR */}
+                              {participanteInfo?.asistio ? (
+                                // Si ya asistió, mostrar badge de confirmación
+                                <div className="alert alert-success mb-2 py-2 px-3 d-flex align-items-center justify-content-between">
+                                  <div>
+                                    <i className="bi bi-check-circle-fill me-2"></i>
+                                    <strong>Asistencia Registrada</strong>
+                                  </div>
+                                  <span className="badge bg-success">
+                                    {evento.asistenciaQR?.[currentUser?.uid]?.metodo === 'qr' ? '📱 QR' : '✋ Manual'}
+                                  </span>
+                                </div>
+                              ) : participanteInfo?.qrData?.qrString ? (
+                                // Si NO ha asistido, mostrar botón Ver QR
                                 <QRGenerator
                                   qrString={participanteInfo.qrData.qrString}
                                   eventoNombre={evento.titulo}
@@ -174,17 +186,17 @@ const MisEventos = ({ onVerDetalle }) => {
                                   eventoHora={evento.hora}
                                   participanteNombre={currentUser?.displayName || currentUser?.email || 'Estudiante'}
                                 />
-                              )}
+                              ) : null}
 
                               <button 
-                                className="btn btn-outline-success btn-sm"
+                                className="btn btn-outline-primary-custom btn-sm"
                                 onClick={() => onVerDetalle(evento.id)}
                               >
                                 <i className="bi bi-eye me-2"></i>
                                 Ver detalles
                               </button>
                               
-                              {!esEventoPasado && (
+                              {!esEventoPasado && !participanteInfo?.asistio && (
                                 <button 
                                   className="btn btn-outline-danger btn-sm"
                                   onClick={() => handleDesinscripcion(evento.id)}

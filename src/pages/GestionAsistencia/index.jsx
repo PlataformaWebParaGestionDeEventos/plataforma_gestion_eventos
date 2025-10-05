@@ -4,10 +4,14 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { getAuth } from 'firebase/auth';
+import appFirebase from '../../config/credenciales';
 import QRScanner from '../../components/qr/QRScanner';
 import firestoreService from '../../services/firestoreService';
 import qrService from '../../services/qrService';
 import './GestionAsistencia.css';
+
+const auth = getAuth(appFirebase);
 
 const GestionAsistencia = ({ eventoId, onVolver }) => {
   
@@ -84,7 +88,15 @@ const GestionAsistencia = ({ eventoId, onVolver }) => {
     }
 
     try {
-      const result = await firestoreService.marcarAsistencia(eventoId, participanteId);
+      const currentUser = auth.currentUser;
+      const organizadorUid = currentUser?.uid || null;
+      
+      const result = await firestoreService.marcarAsistencia(
+        eventoId, 
+        participanteId, 
+        'manual', 
+        organizadorUid
+      );
       
       if (result.success) {
         alert('✅ Asistencia registrada exitosamente');
@@ -180,7 +192,7 @@ const GestionAsistencia = ({ eventoId, onVolver }) => {
             {estadisticas && (
               <div className="d-flex gap-3">
                 <div className="text-center">
-                  <div className="fw-bold text-success fs-4">{estadisticas.totalAsistentes}</div>
+                  <div className="fw-bold text-primary fs-4">{estadisticas.totalAsistentes}</div>
                   <small className="text-muted">Asistentes</small>
                 </div>
                 <div className="text-center">
@@ -329,7 +341,7 @@ const GestionAsistencia = ({ eventoId, onVolver }) => {
                                 <small className="text-muted">{participante.email}</small>
                               </div>
                               <button
-                                className="btn btn-sm btn-success"
+                                className="btn btn-sm btn-primary"
                                 onClick={() => marcarAsistenciaManual(participante.uid || participante.id)}
                               >
                                 <i className="bi bi-check-lg me-1"></i>
@@ -416,7 +428,7 @@ const GestionAsistencia = ({ eventoId, onVolver }) => {
                   </div>
                   <div className="col-6 col-md-3">
                     <div className="p-3 border rounded">
-                      <div className="fs-2 fw-bold text-success">{estadisticas.totalAsistentes}</div>
+                      <div className="fs-2 fw-bold text-primary">{estadisticas.totalAsistentes}</div>
                       <small className="text-muted">Total</small>
                     </div>
                   </div>

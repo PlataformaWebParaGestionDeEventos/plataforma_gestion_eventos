@@ -5,7 +5,7 @@
 
 import CryptoJS from 'crypto-js';
 import { db } from '../config/credenciales';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 
 const SECRET_KEY = import.meta.env.VITE_QR_SECRET_KEY || 'upao-eventos-secret-key-2025';
 
@@ -181,45 +181,44 @@ export const qrService = {
    * @param {string} userId - ID del usuario
    * @returns {Object} Resultado del registro
    */
-  async registrarAsistenciaQR(eventoId, userId) {
+  async registrarAsistenciaQR(eventoId, userId, organizadorUid = null) {
     try {
-      const eventoRef = doc(db, 'eventos', eventoId);
-      const eventoSnap = await getDoc(eventoRef);
+      // Importar firestoreService dinámicamente para evitar dependencia circular
+      const { default: firestoreService } = await import('./firestoreService');
+      
+      // Usar la función centralizada marcarAsistencia con metodo='qr'
+      const resultado = await firestoreService.marcarAsistencia(
+        eventoId, 
+        userId, 
+        'qr', 
+        organizadorUid
+      );
 
-      if (!eventoSnap.exists()) {
+      if (!resultado.success) {
         return {
           success: false,
-          error: 'Evento no encontrado'
+          error: resultado.error
         };
       }
 
-      const evento = eventoSnap.data();
-      const asistentesActuales = evento.asistentes || [];
-
-      // Verificar duplicado
-      if (asistentesActuales.includes(userId)) {
+      // Obtener info del participante para devolverla
+      const eventoResult = await firestoreService.obtenerEventoPorId(eventoId);
+      if (eventoResult.success) {
+        const participanteInfo = eventoResult.evento.participantesInfo?.find(
+          p => p.id === userId || p.uid === userId
+        );
+        
         return {
-          success: false,
-          error: 'La asistencia ya fue registrada'
+          success: true,
+          mensaje: 'Asistencia registrada exitosamente',
+          participante: participanteInfo,
+          timestamp: new Date().toISOString()
         };
       }
-
-      // Registrar asistencia
-      await updateDoc(eventoRef, {
-        asistentes: [...asistentesActuales, userId],
-        [`asistenciaQR.${userId}`]: {
-          timestamp: new Date().toISOString(),
-          metodo: 'qr'
-        }
-      });
-
-      // Buscar info del participante
-      const participanteInfo = evento.participantesInfo?.find(p => p.id === userId || p.uid === userId);
 
       return {
         success: true,
         mensaje: 'Asistencia registrada exitosamente',
-        participante: participanteInfo,
         timestamp: new Date().toISOString()
       };
 
