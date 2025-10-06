@@ -464,25 +464,33 @@ export const firestoreService = {
         return { success: false, error: "La asistencia ya fue marcada" };
       }
 
-      // Buscar el participante en participantesInfo
+      // ✅ CORRECCIÓN: Actualizar el participante SIN duplicar usando .map()
+      const participantesInfoActualizados = (evento.participantesInfo || []).map(participante => {
+        // Comparar tanto por id como por uid
+        if (participante.id === alumnoId || participante.uid === alumnoId) {
+          return {
+            ...participante,
+            asistio: true,
+            fechaAsistencia: new Date().toISOString(),
+            metodoAsistencia: metodo
+          };
+        }
+        return participante; // Devolver sin cambios si no es el participante buscado
+      });
+
+      // Agregar a asistentes sin duplicados
+      const asistentesActualizados = Array.from(
+        new Set([...(evento.asistentes || []), alumnoId])
+      );
+
+      // Buscar datos del participante para el registro histórico
       const participanteInfo = evento.participantesInfo?.find(p => p.id === alumnoId || p.uid === alumnoId);
-      if (!participanteInfo) {
-        return { success: false, error: "Información del participante no encontrada" };
-      }
-
-      // Crear objeto de actualización con asistio: true
-      const participanteActualizado = {
-        ...participanteInfo,
-        asistio: true,
-        fechaAsistencia: new Date().toISOString(),
-        metodoAsistencia: metodo
-      };
-
+      
       // Registrar asistencia en asistenciaQR (histórico)
       const registroAsistencia = {
         alumnoId,
-        email: participanteInfo.email,
-        nombre: participanteInfo.nombre,
+        email: participanteInfo?.email || 'desconocido',
+        nombre: participanteInfo?.nombre || 'Estudiante',
         metodo,
         timestamp: new Date().toISOString(),
         organizadorUid: organizadorUid || 'sistema'
@@ -490,14 +498,10 @@ export const firestoreService = {
 
       const eventoRef = doc(db, "eventos", eventoId);
       
-      // Actualizar en Firestore: remover viejo y agregar actualizado
+      // ✅ Actualizar TODO en una sola operación (evita race conditions)
       await updateDoc(eventoRef, {
-        participantesInfo: arrayRemove(participanteInfo)
-      });
-
-      await updateDoc(eventoRef, {
-        asistentes: arrayUnion(alumnoId),
-        participantesInfo: arrayUnion(participanteActualizado),
+        asistentes: asistentesActualizados,
+        participantesInfo: participantesInfoActualizados,
         [`asistenciaQR.${alumnoId}`]: registroAsistencia
       });
 

@@ -243,8 +243,7 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
             <div className="flex-grow-1">
               <h6 className="alert-heading mb-1">📋 Registro de Asistencia</h6>
               <p className="mb-0">
-                Para marcar asistencia de participantes, usa la nueva página de <strong>Gestión de Asistencia</strong> 
-                que permite escanear códigos QR o registrar manualmente.
+                Para marcar asistencia de participantes, usa la página de <strong>Gestión de Asistencia.</strong> 
               </p>
             </div>
             <button 
@@ -365,8 +364,6 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
                         // Usar el campo asistio del sistema nuevo (GestionAsistencia)
                         const asistio = participante.asistio || false;
                         // Verificar si hay información de asistencia QR
-                        const asistenciaQR = evento.asistenciaQR?.[participante.id];
-                        const metodoAsistencia = asistenciaQR?.metodo || null;
                         
                         return (
                           <tr key={participante.id}>
@@ -417,11 +414,6 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
                                 <span className={`badge ${asistio ? 'bg-success' : 'bg-secondary'} px-3 py-2`} style={{ minWidth: '100px', width: 'fit-content' }}>
                                   {asistio ? '✅ Asistió' : 'Inscrito'}
                                 </span>
-                                {asistio && metodoAsistencia && (
-                                  <small className="text-muted">
-                                    {metodoAsistencia === 'qr' ? '📱 Via QR' : '✋ Manual'}
-                                  </small>
-                                )}
                               </div>
                             </td>
                             <td>
