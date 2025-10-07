@@ -5,6 +5,7 @@ import { collection, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc }
 import firestoreService from "../../services/firestoreService";
 import GestionParticipantes from "../../components/GestionParticipantes";
 import GestionAsistencia from "../GestionAsistencia";
+import Reportes from "../Reportes";
 const auth = getAuth(appFirebase);
 
 const HomeOrganizador = ({ correoUsuario }) => {
@@ -419,7 +420,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                     className={`nav-link btn btn-link text-white border-0 ${vistaActual === 'dashboard' ? 'active fw-bold' : ''}`}
                                     onClick={() => setVistaActual('dashboard')}
                                 >
-                                    Dashboard
+                                    Inicio
                                 </button>
                             </li>
                             <li className="nav-item">
@@ -428,6 +429,14 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                     onClick={() => setVistaActual('eventos')}
                                 >
                                     Eventos
+                                </button>
+                            </li>
+                            <li className="nav-item">
+                                <button 
+                                    className={`nav-link btn btn-link text-white border-0 ${vistaActual === 'reportes' ? 'active fw-bold' : ''}`}
+                                    onClick={() => setVistaActual('reportes')}
+                                >
+                                    Reportes
                                 </button>
                             </li>
                         </ul>
@@ -471,7 +480,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                         <div className="row mb-4">
                             <div className="col-12">
                                 <div className="text-center text-md-start">
-                                    <h1 className="h3 fw-bold text-primary mb-1">Dashboard - Gestión de Eventos</h1>
+                                    <h1 className="h3 fw-bold text-primary mb-1">Inicio - Gestión de Eventos</h1>
                                     <p className="text-muted mb-0">Bienvenido, {correoUsuario}</p>
                                 </div>
                             </div>
@@ -548,7 +557,10 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                 </button>
                                             </div>
                                             <div className="col-12 col-sm-6 col-lg-4">
-                                                <button className="btn btn-outline-secondary w-100 py-3">
+                                                <button 
+                                                    className="btn btn-outline-info w-100 py-3"
+                                                    onClick={() => setVistaActual('reportes')}
+                                                >
                                                     <div className="fs-4 mb-1">📊</div>
                                                     <div className="fw-semibold">Reportes</div>
                                                 </button>
@@ -885,6 +897,11 @@ const HomeOrganizador = ({ correoUsuario }) => {
                             </div>
                         </div>
                     </div>
+                )}
+
+                {/* Vista de Reportes */}
+                {vistaActual === 'reportes' && (
+                    <Reportes correoOrganizador={correoUsuario} />
                 )}
             </main>
         </div>

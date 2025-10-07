@@ -218,23 +218,30 @@ export const firestoreService = {
 
       const evento = eventoResult.evento;
       
-      // 2. Verificar si ya está inscrito
+      // 2. ✅ NUEVO: Auto-cerrar inscripciones si ya llegó el día del evento
+      if (this.esElDiaDelEvento(evento.fecha) && !evento.inscripcionesCerradas) {
+        console.log('🔒 Auto-cerrando inscripciones: ya llegó el día del evento');
+        await this.cerrarInscripcionesYEnviarLista(eventoId);
+        return { success: false, error: "Las inscripciones se cerraron automáticamente al llegar el día del evento" };
+      }
+      
+      // 3. Verificar si ya está inscrito
       if (evento.participantes && evento.participantes.includes(alumnoId)) {
         return { success: false, error: "Ya estás inscrito en este evento" };
       }
 
-      // 3. Verificar capacidad
+      // 4. Verificar capacidad
       const participantesActuales = evento.participantes ? evento.participantes.length : 0;
       if (participantesActuales >= evento.capacidadMaxima) {
         return { success: false, error: "El evento ha alcanzado su capacidad máxima" };
       }
 
-      // 4. Verificar si las inscripciones están cerradas
+      // 5. Verificar si las inscripciones están cerradas
       if (evento.inscripcionesCerradas) {
         return { success: false, error: "Las inscripciones están cerradas" };
       }
 
-      // 5. Generar QR único para esta inscripción
+      // 6. Generar QR único para esta inscripción
       const qrResult = qrService.generarQR(eventoId, alumnoId, alumnoEmail);
       
       if (!qrResult.success) {
@@ -244,7 +251,7 @@ export const firestoreService = {
 
       console.log('✅ QR generado exitosamente');
 
-      // 6. Inscribir al alumno en Firestore con QR
+      // 7. Inscribir al alumno en Firestore con QR
       const participanteInfo = {
         id: alumnoId,
         uid: alumnoId,
@@ -255,6 +262,7 @@ export const firestoreService = {
         asistio: false,
         qrData: {
           qrString: qrResult.qrString,
+          qrId: qrResult.qrId,  // ✅ Guardar qrId único
           token: qrResult.token,
           generadoEn: new Date().toISOString()
         }
@@ -268,7 +276,7 @@ export const firestoreService = {
 
       console.log('✅ Alumno inscrito en Firestore con QR');
 
-      // 7. Notificar a n8n para enviar confirmación CON QR (no bloquear si falla)
+      // 8. Notificar a n8n para enviar confirmación CON QR (no bloquear si falla)
       try {
         console.log('📧 Enviando confirmación de inscripción con QR via n8n...');
         
@@ -297,7 +305,7 @@ export const firestoreService = {
         console.warn('⚠️ Error al enviar confirmación n8n (no crítico):', n8nError);
       }
 
-      // 8. Verificar si se debe cerrar inscripciones
+      // 9. Verificar si se debe cerrar inscripciones
       const nuevosParticipantes = participantesActuales + 1;
       const deberaCerrar = nuevosParticipantes >= evento.capacidadMaxima || 
                            this.esElDiaDelEvento(evento.fecha);
@@ -314,6 +322,7 @@ export const firestoreService = {
           participante: participanteInfo,
           qr: {
             qrString: qrResult.qrString,
+            qrId: qrResult.qrId,  // ✅ Incluir qrId en respuesta
             token: qrResult.token
           },
           confirmacionEnviada: true,
@@ -445,7 +454,7 @@ export const firestoreService = {
   },
 
   // Marcar asistencia de un participante
-  async marcarAsistencia(eventoId, alumnoId, metodo = 'manual', organizadorUid = null) {
+  async marcarAsistencia(eventoId, alumnoId, metodo = 'manual', organizadorUid = null, qrId = null) {
     try {
       const eventoResult = await this.obtenerEventoPorId(eventoId);
       if (!eventoResult.success) {
@@ -498,14 +507,27 @@ export const firestoreService = {
 
       const eventoRef = doc(db, "eventos", eventoId);
       
-      // ✅ Actualizar TODO en una sola operación (evita race conditions)
-      await updateDoc(eventoRef, {
+      // Preparar datos de actualización
+      const updateData = {
         asistentes: asistentesActualizados,
         participantesInfo: participantesInfoActualizados,
         [`asistenciaQR.${alumnoId}`]: registroAsistencia
-      });
+      };
 
-      console.log(`✅ Asistencia marcada para ${alumnoId} vía ${metodo}`);
+      // ✅ NUEVO: Guardar qrId en qrUsados para evitar reutilización
+      if (qrId && metodo === 'qr') {
+        updateData[`qrUsados.${qrId}`] = {
+          timestamp: new Date().toISOString(),
+          userId: alumnoId,
+          metodo: 'qr',
+          organizadorUid: organizadorUid || 'sistema'
+        };
+      }
+      
+      // ✅ Actualizar TODO en una sola operación (evita race conditions)
+      await updateDoc(eventoRef, updateData);
+
+      console.log(`✅ Asistencia marcada para ${alumnoId} vía ${metodo}${qrId ? ` (QR: ${qrId})` : ''}`);
       return { success: true, message: "Asistencia marcada exitosamente" };
       
     } catch (error) {
@@ -665,6 +687,80 @@ export const firestoreService = {
 
     } catch (error) {
       console.error('Error verificando eventos para cerrar:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // ========== AUTO-ELIMINACIÓN DE EVENTOS ==========
+
+  /**
+   * ✅ NUEVO: Verificar si el evento ya pasó (después del día del evento)
+   */
+  eventoYaPaso(fechaEvento) {
+    try {
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0); // Normalizar a medianoche
+      
+      const fecha = new Date(fechaEvento);
+      fecha.setHours(0, 0, 0, 0);
+      
+      // El evento pasó si la fecha es MENOR que hoy (estrictamente en el pasado)
+      return fecha < hoy;
+    } catch (error) {
+      console.error('Error verificando fecha del evento:', error);
+      return false;
+    }
+  },
+
+  /**
+   * ✅ NUEVO: Verificar y eliminar eventos pasados automáticamente
+   * Busca todos los eventos cuya fecha ya pasó y los elimina
+   */
+  async verificarYEliminarEventosPasados() {
+    try {
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const ayer = new Date(hoy);
+      ayer.setDate(ayer.getDate() - 1);
+      
+      // Obtener todos los eventos (no podemos hacer where fecha < hoy en Firestore con strings)
+      const q = query(collection(db, "eventos"));
+      const querySnapshot = await getDocs(q);
+      
+      const eventosEliminados = [];
+      const promesasEliminacion = [];
+
+      querySnapshot.forEach((docSnap) => {
+        const evento = { id: docSnap.id, ...docSnap.data() };
+        
+        // Verificar si el evento ya pasó
+        if (this.eventoYaPaso(evento.fecha)) {
+          console.log(`🗑️ Eliminando evento pasado: ${evento.titulo} (${evento.fecha})`);
+          promesasEliminacion.push(
+            this.eliminarEvento(evento.id).then(() => {
+              eventosEliminados.push({
+                id: evento.id,
+                titulo: evento.titulo,
+                fecha: evento.fecha
+              });
+            })
+          );
+        }
+      });
+
+      // Ejecutar todas las eliminaciones en paralelo
+      await Promise.all(promesasEliminacion);
+
+      console.log(`✅ Eliminados ${eventosEliminados.length} eventos pasados`);
+      
+      return { 
+        success: true, 
+        eventosEliminados,
+        totalEliminados: eventosEliminados.length
+      };
+
+    } catch (error) {
+      console.error('Error verificando y eliminando eventos pasados:', error);
       return { success: false, error: error.message };
     }
   }

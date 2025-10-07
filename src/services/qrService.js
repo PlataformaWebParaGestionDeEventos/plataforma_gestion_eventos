@@ -11,7 +11,7 @@ const SECRET_KEY = import.meta.env.VITE_QR_SECRET_KEY || 'upao-eventos-secret-ke
 
 export const qrService = {
   /**
-   * Generar código QR único para una inscripción
+   * Generar código QR único e irrepetible para una inscripción
    * @param {string} eventoId - ID del evento
    * @param {string} userId - ID del usuario
    * @param {string} userEmail - Email del usuario
@@ -21,17 +21,22 @@ export const qrService = {
     try {
       const timestamp = new Date().toISOString();
       
+      // Generar ID único para el QR (UUID v4 simulado)
+      const qrId = `qr_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+      
       // Crear payload con información del QR
       const payload = {
+        qrId,           // ✅ ID único del QR
         eventoId,
         userId,
         userEmail,
         timestamp,
-        version: '1.0'
+        usado: false,   // ✅ Estado inicial: no usado
+        version: '2.0'  // ✅ Nueva versión con qrId
       };
 
-      // Generar token de seguridad (hash)
-      const dataString = JSON.stringify(payload);
+      // Generar token de seguridad (hash con qrId)
+      const dataString = `${qrId}|${eventoId}|${userId}|${timestamp}`;
       const token = CryptoJS.SHA256(dataString + SECRET_KEY).toString();
 
       // Estructura completa del QR
@@ -49,7 +54,8 @@ export const qrService = {
         success: true,
         qrString,
         qrData,
-        token
+        token,
+        qrId  // ✅ Devolver qrId para guardarlo en Firestore
       };
 
     } catch (error) {
@@ -62,7 +68,7 @@ export const qrService = {
   },
 
   /**
-   * Validar código QR escaneado
+   * Validar código QR escaneado (ahora con validación de QR único)
    * @param {string} qrString - String del QR escaneado
    * @param {string} eventoIdEsperado - ID del evento actual
    * @returns {Object} Resultado de la validación
@@ -71,6 +77,15 @@ export const qrService = {
     try {
       // Parsear datos del QR
       const qrData = JSON.parse(qrString);
+      
+      // ✅ Validar que tenga qrId (nueva versión)
+      if (!qrData.qrId) {
+        return {
+          success: false,
+          error: 'QR inválido: Formato antiguo o corrupto',
+          estado: 'invalido'
+        };
+      }
       
       // Validaciones básicas
       if (!qrData.eventoId || !qrData.userId || !qrData.token) {
@@ -90,22 +105,14 @@ export const qrService = {
         };
       }
 
-      // Verificar integridad del token
-      const payloadSinToken = {
-        eventoId: qrData.eventoId,
-        userId: qrData.userId,
-        userEmail: qrData.userEmail,
-        timestamp: qrData.timestamp,
-        version: qrData.version
-      };
-      
-      const dataString = JSON.stringify(payloadSinToken);
+      // ✅ Verificar integridad del token (nueva fórmula con qrId)
+      const dataString = `${qrData.qrId}|${qrData.eventoId}|${qrData.userId}|${qrData.timestamp}`;
       const tokenCalculado = CryptoJS.SHA256(dataString + SECRET_KEY).toString();
 
       if (tokenCalculado !== qrData.token) {
         return {
           success: false,
-          error: 'QR inválido: Token de seguridad no válido',
+          error: 'QR inválido: Token de seguridad no válido o QR falsificado',
           estado: 'token_invalido'
         };
       }
@@ -133,7 +140,18 @@ export const qrService = {
         };
       }
 
-      // Verificar si ya marcó asistencia
+      // ✅ VALIDACIÓN CRÍTICA: Verificar si este QR específico ya fue usado
+      if (evento.qrUsados && evento.qrUsados[qrData.qrId]) {
+        const usoAnterior = evento.qrUsados[qrData.qrId];
+        return {
+          success: false,
+          error: `⚠️ Este QR ya fue escaneado el ${new Date(usoAnterior.timestamp).toLocaleString('es-ES')}`,
+          estado: 'qr_ya_usado',
+          usoAnterior
+        };
+      }
+
+      // Verificar si ya marcó asistencia (protección adicional)
       if (evento.asistentes && evento.asistentes.includes(qrData.userId)) {
         return {
           success: false,
@@ -176,22 +194,25 @@ export const qrService = {
   },
 
   /**
-   * Registrar asistencia usando QR validado
+   * Registrar asistencia usando QR validado (ahora marca el QR como usado)
    * @param {string} eventoId - ID del evento
    * @param {string} userId - ID del usuario
+   * @param {string} organizadorUid - UID del organizador
+   * @param {string} qrId - ID único del QR escaneado
    * @returns {Object} Resultado del registro
    */
-  async registrarAsistenciaQR(eventoId, userId, organizadorUid = null) {
+  async registrarAsistenciaQR(eventoId, userId, organizadorUid = null, qrId = null) {
     try {
       // Importar firestoreService dinámicamente para evitar dependencia circular
       const { default: firestoreService } = await import('./firestoreService');
       
-      // Usar la función centralizada marcarAsistencia con metodo='qr'
+      // ✅ Usar la función centralizada marcarAsistencia con metodo='qr' y qrId
       const resultado = await firestoreService.marcarAsistencia(
         eventoId, 
         userId, 
         'qr', 
-        organizadorUid
+        organizadorUid,
+        qrId  // ✅ Pasar el qrId para marcarlo como usado
       );
 
       if (!resultado.success) {
@@ -210,16 +231,18 @@ export const qrService = {
         
         return {
           success: true,
-          mensaje: 'Asistencia registrada exitosamente',
+          mensaje: '✅ Asistencia registrada exitosamente',
           participante: participanteInfo,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          qrId  // ✅ Devolver qrId usado
         };
       }
 
       return {
         success: true,
-        mensaje: 'Asistencia registrada exitosamente',
-        timestamp: new Date().toISOString()
+        mensaje: '✅ Asistencia registrada exitosamente',
+        timestamp: new Date().toISOString(),
+        qrId
       };
 
     } catch (error) {

@@ -1,12 +1,3 @@
-/**
- * Servicio de int    const url = `${this.baseUrl}${this.endpoints.eventoCreado}`;
-    
-    console.log('🚀 [n8n] Enviando evento a n8n...');
-    
-    try {console.log('🚀 [n8n] Enviando evento a n8n...');ción con n8n para automatización de eventos académicos
- * Conecta con el servidor n8n alojado en https://n8n-gestioneventos.duckdns.org
- */
-
 class N8nService {
   constructor() {
     this.baseUrl = import.meta.env.VITE_N8N_BASE_URL;

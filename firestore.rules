@@ -43,8 +43,12 @@ service cloud.firestore {
       // Permitir lectura pública de eventos publicados
       allow read: if isAuthenticated() && resource.data.estado == 'publicado';
       
-      // Permitir lectura completa solo al organizador del evento
+      // Permitir lectura completa solo al organizador del evento (por UID)
       allow read: if isOwner(resource.data.organizadorId);
+      
+      // ✅ NUEVO: Permitir lectura por email del organizador (para reportes)
+      allow read: if isAuthenticated() 
+        && resource.data.organizador == request.auth.token.email;
       
       // -------------------------------------------
       // CREACIÓN DE EVENTOS
@@ -88,7 +92,7 @@ service cloud.firestore {
       // -------------------------------------------
       
       allow update: if isAuthenticated() && (
-        // CASO 1: El organizador actualiza su evento
+        // CASO 1: El organizador actualiza su evento (por UID)
         (isOwner(resource.data.organizadorId) &&
          isOwner(request.resource.data.organizadorId) &&
          // Validaciones de campos editables
@@ -101,6 +105,10 @@ service cloud.firestore {
          (!request.resource.data.keys().hasAny(['expositor']) 
              || (request.resource.data.expositor is string && request.resource.data.expositor.size() <= 200))) ||
         
+        // CASO 1B: El organizador actualiza su evento (por email - para mantenimiento automático)
+        (resource.data.organizador == request.auth.token.email &&
+         request.resource.data.organizador == request.auth.token.email) ||
+        
         // CASO 2: Operaciones de inscripción/desinscripción de participantes
         (isValidParticipantOperation() && onlyUpdatingParticipantFields())
       );
@@ -109,7 +117,8 @@ service cloud.firestore {
       // ELIMINACIÓN DE EVENTOS
       // -------------------------------------------
       
-      allow delete: if isOwner(resource.data.organizadorId);
+      allow delete: if isOwner(resource.data.organizadorId)
+        || (isAuthenticated() && resource.data.organizador == request.auth.token.email);
       
       // ============================================
       // SUBCOLLECCIÓN: INSCRITOS
@@ -219,7 +228,11 @@ service cloud.firestore {
         (request.auth.uid == resource.data.organizadorId &&
          request.resource.data.participantes == resource.data.participantes &&
          request.resource.data.get('participantesInfo', []).size() == resource.data.get('participantesInfo', []).size() &&
-         isValidQRAttendanceUpdate())
+         isValidQRAttendanceUpdate()) ||
+        
+        // ✅ NUEVO CASO 5: Organizador elimina participante
+        (request.auth.uid == resource.data.organizadorId &&
+         isValidParticipantRemoval())
       );
     }
     
@@ -273,6 +286,30 @@ service cloud.firestore {
              (affectedKeys.hasOnly(['asistentes', 'asistenciaQR', 'participantesInfo']) ||
               affectedKeys.hasOnly(['asistentes', 'asistenciaQR']) ||
               affectedKeys.hasOnly(['asistentes', 'participantesInfo']));
+    }
+    
+    // ✅ NUEVA FUNCIÓN: Validar eliminación de participante por organizador
+    function isValidParticipantRemoval() {
+      let currentParticipants = resource.data.get('participantes', []);
+      let newParticipants = request.resource.data.get('participantes', []);
+      let currentParticipantesInfo = resource.data.get('participantesInfo', []);
+      let newParticipantesInfo = request.resource.data.get('participantesInfo', []);
+      let currentAsistentes = resource.data.get('asistentes', []);
+      let newAsistentes = request.resource.data.get('asistentes', []);
+      
+      // Validar que:
+      // 1. Se eliminó exactamente 1 participante
+      // 2. Todos los participantes nuevos estaban en la lista anterior
+      // 3. Se eliminó la info correspondiente de participantesInfo
+      // 4. Si el participante estaba en asistentes, también se eliminó de ahí
+      // 5. La cantidad de participantesInfo se redujo en 1
+      return currentParticipants.size() == newParticipants.size() + 1 &&
+             currentParticipants.hasAll(newParticipants) &&
+             currentParticipantesInfo.size() == newParticipantesInfo.size() + 1 &&
+             // Los asistentes solo pueden reducirse, no aumentar
+             newAsistentes.size() <= currentAsistentes.size() &&
+             // Los nuevos asistentes deben estar en la lista actual de asistentes
+             currentAsistentes.hasAll(newAsistentes);
     }
   }
 }

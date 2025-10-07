@@ -108,10 +108,14 @@ const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada }) => {
       const currentUser = auth.currentUser;
       const organizadorUid = currentUser?.uid || null;
       
+      // Extraer qrId del QR validado
+      const qrId = validacion.qrData?.qrId || null;
+      
       const registro = await qrService.registrarAsistenciaQR(
         eventoId, 
         validacion.qrData.userId,
-        organizadorUid
+        organizadorUid,
+        qrId
       );
 
       if (registro.success) {
@@ -337,12 +341,10 @@ const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada }) => {
             <i className="bi bi-lightbulb"></i> Consejos para escanear:
           </h6>
           <ul>
+            <li>Permitir acceso a la cámara</li>
             <li>Asegúrate de tener buena iluminación</li>
             <li>Mantén el código QR centrado en el cuadro</li>
             <li>Evita reflejos en la pantalla del participante</li>
-            <li>El escaneo es automático, no necesitas tomar foto</li>
-            <li><strong>📱 Móvil:</strong> Permitir acceso a la cámara cuando el navegador lo solicite</li>
-            <li><strong>📱 Móvil:</strong> Se usará automáticamente la cámara trasera</li>
           </ul>
         </div>
       </div>
