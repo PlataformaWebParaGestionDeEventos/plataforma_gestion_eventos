@@ -1,20 +1,32 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useEventosAlumno } from '../../core/hooks/useEventosAlumno';
 import QRGenerator from '../../components/qr/QRGenerator';
 import { authService } from '../../services/authService';
+import toastHelper from '../../core/utils/toastHelper';
+import logger from '../../core/utils/logger';
 
-const MisEventos = ({ onVerDetalle }) => {
+const MisEventos = () => {
+  const navigate = useNavigate();
   const { eventosInscritos, desinscribirseEvento, loading, error } = useEventosAlumno();
   const currentUser = authService.getCurrentUser();
 
   const handleDesinscripcion = async (eventoId) => {
-    if (window.confirm('¿Estás seguro de que quieres desinscribirte de este evento?')) {
+    const confirmed = await toastHelper.confirm('¿Estás seguro de que quieres desinscribirte de este evento?');
+    if (!confirmed) return;
+    
+    try {
       const result = await desinscribirseEvento(eventoId);
       if (result.success) {
-        alert('Te has desinscrito exitosamente del evento');
+        toastHelper.success('✅ Te has desinscrito exitosamente del evento');
+        logger.log('Desinscripción exitosa:', eventoId);
       } else {
-        alert(result.error || 'Error al desinscribirse del evento');
+        toastHelper.error(result.error || 'Error al desinscribirse del evento');
+        logger.error('Error en desinscripción:', result.error);
       }
+    } catch (err) {
+      toastHelper.error('Error inesperado al procesar la desinscripción');
+      logger.error('Error inesperado en desinscripción:', err);
     }
   };
 
@@ -33,12 +45,12 @@ const MisEventos = ({ onVerDetalle }) => {
 
   return (
     <div className="container-fluid py-4">
-      <div className="row mb-4">
-        <div className="col-12">
-          <h2 className="fw-bold text-primary mb-1">Mis Inscripciones</h2>
-          <p className="text-muted mb-0">Eventos en los que estás inscrito</p>
+        <div className="row mb-4">
+          <div className="col-12">
+            <h2 className="fw-bold text-primary mb-1">Mis Inscripciones</h2>
+            <p className="text-muted mb-0">Eventos en los que estás inscrito</p>
+          </div>
         </div>
-      </div>
 
       {error && (
         <div className="row mb-3">
@@ -72,7 +84,7 @@ const MisEventos = ({ onVerDetalle }) => {
               ) : (
                 <div className="row g-4">
                   {eventosInscritos.map(evento => {
-                    const fechaEvento = new Date(evento.fecha);
+                    const fechaEvento = new Date(evento.fecha + 'T' + evento.hora);
                     const hoy = new Date();
                     const esEventoPasado = fechaEvento < hoy;
                     const participanteInfo = evento.participantesInfo?.find(p => 
@@ -82,15 +94,26 @@ const MisEventos = ({ onVerDetalle }) => {
 
                     return (
                       <div key={evento.id} className="col-12 col-md-6 col-xl-4">
-                        <div className="card h-100 border-0 shadow-sm position-relative">
+                        <div className={`card h-100 border-0 shadow-sm position-relative ${esEventoPasado ? 'opacity-75' : ''}`}>
                           {/* Badge de estado */}
-                          <div className="position-absolute top-0 end-0 m-3">
+                          <div className="position-absolute top-0 end-0 m-3 d-flex flex-column gap-1">
                             {esEventoPasado ? (
-                              <span className={`badge ${asistio ? 'bg-success' : 'bg-secondary'}`}>
-                                {asistio ? '✅ Asistió' : '❌ No asistió'}
-                              </span>
+                              <>
+                                <span className="badge badge-gray-custom">
+                                  🏁 Evento Finalizado
+                                </span>
+                                {asistio ? (
+                                  <span className="badge badge-success-custom">
+                                    ✅ Asististe
+                                  </span>
+                                ) : (
+                                  <span className="badge bg-danger">
+                                    ❌ Faltaste
+                                  </span>
+                                )}
+                              </>
                             ) : (
-                              <span className="badge bg-primary">📅 Próximo</span>
+                              <span className="badge badge-primary-custom">📅 Próximo</span>
                             )}
                           </div>
 
@@ -114,16 +137,22 @@ const MisEventos = ({ onVerDetalle }) => {
                             <div className="small text-muted mb-3">
                               <div className="mb-1">
                                 <i className="bi bi-calendar-event me-2"></i>
-                                <strong>{evento.fecha} - {evento.hora}</strong>
+                                <strong>Fecha(s):</strong> {evento.fechaInicio || evento.fecha || 'No especificada'} 
+                                    {evento.fechaFin && evento.fechaFin !== evento.fechaInicio && ` al ${evento.fechaFin}`}
+                              </div>
+                              <div className="mb-1">
+                                <i className="bi bi-calendar-event me-2"></i>
+                                <strong>Horario:</strong> {evento.horaInicio || evento.hora || 'No especificada'} 
+                                    {evento.horaFin && ` - ${evento.horaFin}`}
                               </div>
                               <div className="mb-1">
                                 <i className="bi bi-geo-alt me-2"></i>
-                                {evento.ubicacion}
+                                <strong>Ubicación:</strong> {evento.ubicacion}
                               </div>
                               {participanteInfo && participanteInfo.fechaInscripcion && (
                                 <div className="mb-1">
                                   <i className="bi bi-person-check me-2"></i>
-                                  Inscrito: {(() => {
+                                  <strong>Inscrito:</strong> {(() => {
                                     try {
                                       // Manejar diferentes formatos de fecha
                                       const fecha = participanteInfo.fechaInscripcion;
@@ -165,45 +194,99 @@ const MisEventos = ({ onVerDetalle }) => {
                           
                           <div className="card-footer bg-white border-0 p-4">
                             <div className="d-grid gap-2">
-                              {/* Mostrar estado de asistencia o botón QR */}
-                              {participanteInfo?.asistio ? (
-                                // Si ya asistió, mostrar badge de confirmación
-                                <div className="alert alert-success mb-2 py-2 px-3 d-flex align-items-center justify-content-between">
-                                  <div>
-                                    <i className="bi bi-check-circle-fill me-2"></i>
-                                    <strong>Asistencia Registrada</strong>
-                                  </div>
-                                  <span className="badge bg-success">
-                                    {evento.asistenciaQR?.[currentUser?.uid]?.metodo === 'qr' ? '📱 QR' : '✋ Manual'}
-                                  </span>
-                                </div>
-                              ) : participanteInfo?.qrData?.qrString ? (
-                                // Si NO ha asistido, mostrar botón Ver QR
-                                <QRGenerator
-                                  qrString={participanteInfo.qrData.qrString}
-                                  eventoNombre={evento.titulo}
-                                  eventoFecha={evento.fecha}
-                                  eventoHora={evento.hora}
-                                  participanteNombre={currentUser?.displayName || currentUser?.email || 'Estudiante'}
-                                />
-                              ) : null}
+                              {/* EVENTOS FINALIZADOS */}
+                              {esEventoPasado ? (
+                                <>
+                                  {asistio ? (
+                                    <>
+                                      {/* Asistió al evento - Mostrar botón certificado */}
+                                      <div className="alert alert-success-custom mb-2 py-2 px-3">
+                                        <i className="bi bi-check-circle-fill me-2"></i>
+                                        <strong>¡Asistencia Registrada!</strong>
+                                        <small className="d-block mt-1">
+                                          {evento.asistenciaQR?.[currentUser?.uid]?.metodo === 'qr' ? '📱 Método: QR' : '✋ Método: Manual'}
+                                        </small>
+                                      </div>
+                                      <button 
+                                        className="btn btn-success btn-sm"
+                                        onClick={() => {
+                                          toastHelper.info('📜 Certificado en proceso - Recibirás un email');
+                                          logger.log('📜 Certificado solicitado para evento:', evento.id);
+                                        }}
+                                      >
+                                        <i className="bi bi-award-fill me-2"></i>
+                                        📜 Descargar Certificado
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      {/* No asistió al evento */}
+                                      <div className="alert alert-danger-custom mb-2 py-2 px-3">
+                                        <i className="bi bi-x-circle-fill me-2"></i>
+                                        <strong>No Asististe</strong>
+                                        <small className="d-block mt-1">
+                                          No se registró tu asistencia a este evento
+                                        </small>
+                                      </div>
+                                    </>
+                                  )}
+                                  
+                                  <button 
+                                    className="btn btn-outline-primary-custom btn-sm"
+                                    onClick={() => navigate(`/alumno/evento/${evento.id}`)}
+                                  >
+                                    <i className="bi bi-eye me-2"></i>
+                                    Ver Detalles del Evento
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  {/* EVENTOS PRÓXIMOS */}
+                                  {participanteInfo?.asistio ? (
+                                    // Ya asistió (llegó temprano)
+                                    <div className="alert alert-success-custom mb-2 py-2 px-3 d-flex align-items-center justify-content-between">
+                                      <div>
+                                        <i className="bi bi-check-circle-fill me-2"></i>
+                                        <strong>Asistencia Registrada</strong>
+                                      </div>
+                                      <span className="badge bg-success">
+                                        {evento.asistenciaQR?.[currentUser?.uid]?.metodo === 'qr' ? '📱 QR' : '✋ Manual'}
+                                      </span>
+                                    </div>
+                                  ) : participanteInfo?.qrData?.qrString ? (
+                                    // Mostrar QR para marcar asistencia
+                                    <QRGenerator
+                                      qrString={participanteInfo.qrData.qrString}
+                                      eventoNombre={evento.titulo}
+                                      eventoFecha={evento.fecha}
+                                      eventoHora={evento.hora}
+                                      participanteNombre={currentUser?.displayName || currentUser?.email || 'Estudiante'}
+                                    />
+                                  ) : null}
 
-                              <button 
-                                className="btn btn-outline-primary-custom btn-sm"
-                                onClick={() => onVerDetalle(evento.id)}
-                              >
-                                <i className="bi bi-eye me-2"></i>
-                                Ver detalles
-                              </button>
-                              
-                              {!esEventoPasado && !participanteInfo?.asistio && (
-                                <button 
-                                  className="btn btn-outline-danger btn-sm"
-                                  onClick={() => handleDesinscripcion(evento.id)}
-                                >
-                                  <i className="bi bi-x-circle me-2"></i>
-                                  Desinscribirse
-                                </button>
+                                  <button 
+                                    className="btn btn-outline-primary-custom btn-sm"
+                                    onClick={() => navigate(`/alumno/evento/${evento.id}`)}
+                                  >
+                                    <i className="bi bi-eye me-2"></i>
+                                    Ver Detalles
+                                  </button>
+                                  
+                                  {!participanteInfo?.asistio ? (
+                                    <button 
+                                      className="btn btn-outline-danger btn-sm"
+                                      onClick={() => handleDesinscripcion(evento.id)}
+                                    >
+                                      <i className="bi bi-x-circle me-2"></i>
+                                      Desinscribirse
+                                    </button>
+                                  ) : (
+                                    <div className="alert alert-info-custom mb-0 py-2 px-3 small">
+                                      <i className="bi bi-info-circle me-2"></i>
+                                      No puedes desinscribirte después de marcar asistencia
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
                           </div>

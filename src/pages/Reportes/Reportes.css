@@ -28,14 +28,14 @@
 }
 
 .nav-tabs .nav-link:hover {
-  color: #0d6efd;
+  color: #2196f3;
   border-color: transparent;
 }
 
 .nav-tabs .nav-link.active {
-  color: #0d6efd;
+  color: #2196f3;
   background: white;
-  border-bottom: 3px solid #0d6efd;
+  border-bottom: 3px solid #2196f3;
 }
 
 /* ========== TARJETAS DE ESTADÍSTICAS ========== */
@@ -80,12 +80,12 @@
 
 /* Colores específicos por tipo */
 .card-total-eventos {
-  border-left-color: #0d6efd;
+  border-left-color: #2196f3;
 }
 
 .card-total-eventos .stat-icon {
-  background: rgba(13, 110, 253, 0.1);
-  color: #0d6efd;
+  background: rgba(33, 150, 243, 0.1);
+  color: #2196f3;
 }
 
 .card-inscritos {
@@ -187,7 +187,7 @@
 }
 
 .table tbody tr:hover {
-  background-color: rgba(13, 110, 253, 0.03);
+  background-color: rgba(33, 150, 243, 0.03);
 }
 
 .table tbody td {
@@ -332,7 +332,7 @@
 }
 
 .text-primary {
-  color: #0d6efd !important;
+  color: #2196f3 !important;
 }
 
 .text-success {

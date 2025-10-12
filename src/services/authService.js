@@ -5,7 +5,9 @@ import {
   signInWithEmailAndPassword,
   signOut,
   sendEmailVerification,
-  onAuthStateChanged
+  onAuthStateChanged,
+  updatePassword,
+  updateProfile
 } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "../config/credenciales";

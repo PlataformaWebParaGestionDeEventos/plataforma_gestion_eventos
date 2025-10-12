@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useEventosAlumno } from '../../core/hooks/useEventosAlumno';
+import toastHelper from '../../core/utils/toastHelper';
+import logger from '../../core/utils/logger';
 
-const DetalleEvento = ({ eventoId, onVolver }) => {
-  const { obtenerEvento, inscribirseEvento, desinscribirseEvento, estaInscrito, loading } = useEventosAlumno();
+const DetalleEvento = () => {
+  const { eventoId } = useParams();
+  const navigate = useNavigate();
+  const { obtenerEvento, inscribirseEvento, estaInscrito, loading } = useEventosAlumno();
   const [evento, setEvento] = useState(null);
   const [procesandoInscripcion, setProcesandoInscripcion] = useState(false);
-  const [mensaje, setMensaje] = useState('');
 
   useEffect(() => {
     if (eventoId) {
@@ -17,31 +21,35 @@ const DetalleEvento = ({ eventoId, onVolver }) => {
   const handleInscripcion = async () => {
     if (!evento) return;
 
+    // Validar si las inscripciones están cerradas
+    if (!evento.inscripcionesAbiertas) {
+      toastHelper.warning('⚠️ Las inscripciones para este evento están cerradas');
+      return;
+    }
+
     setProcesandoInscripcion(true);
-    setMensaje('');
 
     try {
-      const yaInscrito = estaInscrito(evento.id);
-      let result;
-
-      if (yaInscrito) {
-        result = await desinscribirseEvento(evento.id);
-        setMensaje(result.success ? 'Te has desinscrito exitosamente' : result.error);
-      } else {
-        result = await inscribirseEvento(evento.id);
-        setMensaje(result.success ? '¡Inscripción exitosa!' : result.error);
-      }
-
-      // Actualizar el evento después de la inscripción/desinscripción
+      logger.log('📝 Iniciando inscripción al evento:', evento.id);
+      
+      const result = await inscribirseEvento(evento.id);
+      
       if (result.success) {
+        toastHelper.success('✅ ¡Inscripción exitosa! Revisa tu email para más detalles');
+        logger.log('✅ Inscripción exitosa');
+        
+        // Actualizar el evento después de la inscripción
         setTimeout(() => {
           const eventoActualizado = obtenerEvento(eventoId);
           setEvento(eventoActualizado);
         }, 1000);
+      } else {
+        toastHelper.error(result.error || '❌ Error al inscribirse al evento');
+        logger.error('❌ Error en inscripción:', result.error);
       }
     } catch (err) {
-      console.error('Error al procesar la inscripción:', err);
-      setMensaje('Error al procesar la inscripción');
+      logger.error('❌ Error al procesar la inscripción:', err);
+      toastHelper.error('❌ Error inesperado al procesar la inscripción');
     } finally {
       setProcesandoInscripcion(false);
     }
@@ -63,17 +71,18 @@ const DetalleEvento = ({ eventoId, onVolver }) => {
   const yaInscrito = estaInscrito(evento.id);
   const espaciosDisponibles = evento.capacidadMaxima - (evento.participantes?.length || 0);
   const eventoLleno = espaciosDisponibles <= 0;
+  const inscripcionesCerradas = !evento.inscripcionesAbiertas;
 
   return (
     <div className="container-fluid py-4">
       <div className="row">
         <div className="col-12">
           <button 
-            className="btn btn-outline-primary mb-4"
-            onClick={onVolver}
+            className="btn btn-outline-primary-custom mb-4"
+            onClick={() => navigate(-1)}
           >
             <i className="bi bi-arrow-left me-2"></i>
-            Volver a eventos
+            Volver
           </button>
         </div>
       </div>
@@ -96,43 +105,37 @@ const DetalleEvento = ({ eventoId, onVolver }) => {
             </div>
 
             <div className="card-body p-4">
-              {/* Mensaje de estado */}
-              {mensaje && (
-                <div className={`alert ${mensaje.includes('Error') || mensaje.includes('error') ? 'alert-danger' : 'alert-success'} alert-dismissible fade show`} role="alert">
-                  {mensaje}
-                  <button type="button" className="btn-close" onClick={() => setMensaje('')}></button>
-                </div>
-              )}
-
               {/* Información principal */}
               <div className="row mb-4">
                 <div className="col-md-6">
-                  <h5 className="text-primary mb-3">📅 Información del Evento</h5>
+                  <h5 className="text-primary mb-3">Información del Evento</h5>
                   <div className="list-group list-group-flush">
                     <div className="list-group-item border-0 px-0">
-                      <strong>Fecha:</strong> {evento.fecha}
+                      <strong>📅 Fecha(s) :</strong> {evento.fechaInicio || evento.fecha || 'No especificada'}
+                      {evento.fechaFin && evento.fechaFin !== evento.fechaInicio && ` al ${evento.fechaFin}`}
                     </div>
                     <div className="list-group-item border-0 px-0">
-                      <strong>Hora:</strong> {evento.hora}
+                      <strong>🕐 Horario:</strong> {evento.horaInicio || evento.hora || 'No especificada'}
+                      {evento.horaFin && ` - ${evento.horaFin}`}
                     </div>
                     <div className="list-group-item border-0 px-0">
-                      <strong>Ubicación:</strong> {evento.ubicacion}
-                    </div>
-                    <div className="list-group-item border-0 px-0">
-                      <strong>Expositor:</strong> {evento.expositor}
+                      <strong>📍 Ubicación:</strong> {evento.ubicacion}
                     </div>
                   </div>
                 </div>
 
                 <div className="col-md-6">
                   <h5 className="text-primary mb-3">Flyer del Evento</h5>
-                  <img src="ruta/a/la/imagen.jpg" alt="Flyer del evento" className="img-fluid" />
+                  <div className="alert alert-info-custom" role="alert">
+                    <i className="bi bi-info-circle me-2"></i>
+                    <strong>El flyer con el cronograma de expositores será generado y enviado por correo al inscribirte.</strong>
+                  </div>
                 </div>
               </div>
 
               {/* Descripción */}
               <div className="mb-4">
-                <h5 className="text-primary mb-3">📝 Descripción</h5>
+                <h5 className="text-primary mb-3">Descripción</h5>
                 <p className="text-muted">{evento.descripcion}</p>
               </div>
 
@@ -169,28 +172,49 @@ const DetalleEvento = ({ eventoId, onVolver }) => {
 
               {/* Botón de inscripción */}
               <div className="d-grid gap-2">
-                <button 
-                  className={`btn btn-lg ${yaInscrito ? 'btn-outline-danger' : 'btn-primary'}`}
-                  onClick={handleInscripcion}
-                  disabled={procesandoInscripcion || (!yaInscrito && eventoLleno)}
-                >
-                  {procesandoInscripcion ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                      Procesando...
-                    </>
-                  ) : yaInscrito ? (
-                    '🚪 Desinscribirse del evento'
-                  ) : eventoLleno ? (
-                    '🚫 Evento lleno'
-                  ) : (
-                    '✅ Inscribirse al evento'
-                  )}
-                </button>
+                {yaInscrito ? (
+                  <div className="alert alert-success-custom mb-0">
+                    <i className="bi bi-check-circle-fill me-2"></i>
+                    <strong>Ya estás inscrito en este evento</strong>
+                    <p className="mb-0 mt-2 small">
+                      Para desinscribirte, ve a la sección "Mis Inscripciones"
+                    </p>
+                  </div>
+                ) : inscripcionesCerradas ? (
+                  <button 
+                    className="btn btn-lg btn-secondary"
+                    disabled
+                  >
+                    🔒 Inscripciones Cerradas
+                  </button>
+                ) : (
+                  <button 
+                    className="btn btn-lg btn-primary-custom"
+                    onClick={handleInscripcion}
+                    disabled={procesandoInscripcion || eventoLleno}
+                  >
+                    {procesandoInscripcion ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                        Procesando...
+                      </>
+                    ) : eventoLleno ? (
+                      '🚫 Evento lleno'
+                    ) : (
+                      '✅ Inscribirse al evento'
+                    )}
+                  </button>
+                )}
                 
-                {!yaInscrito && espaciosDisponibles <= 5 && espaciosDisponibles > 0 && (
+                {!yaInscrito && !inscripcionesCerradas && espaciosDisponibles <= 5 && espaciosDisponibles > 0 && (
                   <small className="text-warning text-center">
                     ⚠️ ¡Solo quedan {espaciosDisponibles} espacios disponibles!
+                  </small>
+                )}
+                
+                {inscripcionesCerradas && !yaInscrito && (
+                  <small className="text-muted text-center">
+                    El organizador ha cerrado las inscripciones para este evento
                   </small>
                 )}
               </div>

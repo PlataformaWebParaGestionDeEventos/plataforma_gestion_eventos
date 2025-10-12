@@ -4,7 +4,6 @@ import firestoreService from '../../services/firestoreService';
 /**
  * ✅ Hook para mantenimiento automático de eventos:
  * - Auto-cerrar inscripciones el día del evento
- * - Auto-eliminar eventos pasados
  * 
  * Ejecuta verificaciones periódicas cada 5 minutos
  */
@@ -39,34 +38,13 @@ const useEventosMantenimiento = () => {
   }, []);
 
   /**
-   * Verificar y eliminar eventos que ya pasaron
-   */
-  const verificarEliminacionEventos = useCallback(async () => {
-    try {
-      console.log('🔍 Verificando eventos pasados para eliminar...');
-      
-      const resultado = await firestoreService.verificarYEliminarEventosPasados();
-      
-      if (resultado.success && resultado.totalEliminados > 0) {
-        console.log(`🗑️ Eliminados ${resultado.totalEliminados} eventos pasados:`, resultado.eventosEliminados);
-      } else {
-        console.log('✓ No hay eventos pasados para eliminar');
-      }
-      
-    } catch (error) {
-      console.error('Error verificando eliminación de eventos:', error);
-    }
-  }, []);
-
-  /**
-   * Ejecutar ambas verificaciones
+   * Ejecutar verificaciones
    */
   const ejecutarMantenimiento = useCallback(async () => {
     console.log('⚙️ Ejecutando mantenimiento automático de eventos...');
     await verificarCierreInscripciones();
-    await verificarEliminacionEventos();
     console.log('✅ Mantenimiento completado');
-  }, [verificarCierreInscripciones, verificarEliminacionEventos]);
+  }, [verificarCierreInscripciones]);
 
   /**
    * Configurar intervalo de verificación (cada 5 minutos)
@@ -90,7 +68,6 @@ const useEventosMantenimiento = () => {
 
   return {
     verificarCierreInscripciones,
-    verificarEliminacionEventos,
     ejecutarMantenimiento
   };
 };

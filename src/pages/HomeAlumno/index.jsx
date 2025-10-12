@@ -1,19 +1,14 @@
-import React, { useState } from "react";
-import appFirebase from "../../config/credenciales";
-import { getAuth, signOut } from "firebase/auth";
+import React from "react";
+import { useNavigate } from "react-router-dom";
 import { useEventosAlumno } from "../../core/hooks/useEventosAlumno";
-import DetalleEvento from "../DetalleEvento";
-import MisEventos from "../MisEventos";
+import { useAuth } from "../../core/hooks/useAuth";
 
-const auth = getAuth(appFirebase);
-
-const HomeAlumno = ({ correoUsuario }) => {
-    const [vistaActual, setVistaActual] = useState('eventos');
-    const [eventoSeleccionado, setEventoSeleccionado] = useState(null);
+const HomeAlumno = () => {
+    const navigate = useNavigate();
+    const { user, userData } = useAuth();
     
     const { 
         eventosDisponibles,
-        eventosInscritos,
         inscribirseEvento,
         estaInscrito,
         loading,
@@ -27,126 +22,39 @@ const HomeAlumno = ({ correoUsuario }) => {
         const yaInscrito = estaInscrito(evento.id);
         
         if (yaInscrito) {
-            setEventoSeleccionado(evento.id);
-            setVistaActual('detalle-evento');
+            navigate(`/alumno/evento/${evento.id}`);
         } else {
             // React Query maneja automáticamente el loading state
             const result = await inscribirseEvento(evento.id);
             if (result.success) {
-                setEventoSeleccionado(evento.id);
-                setVistaActual('detalle-evento');
+                navigate(`/alumno/evento/${evento.id}`);
             }
         }
     };
 
-    const volverAEventos = () => {
-        setVistaActual('eventos');
-        setEventoSeleccionado(null);
-    };
-
     const verDetalleEvento = (eventoId) => {
-        setEventoSeleccionado(eventoId);
-        setVistaActual('detalle-evento');
+        navigate(`/alumno/evento/${eventoId}`);
     };
-
-    if (vistaActual === 'detalle-evento' && eventoSeleccionado) {
-        return (
-            <div className="min-vh-100 bg-light">
-                <nav className="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm">
-                    <div className="container-fluid">
-                        <span className="navbar-brand fs-5 fw-bold">
-                            UPAO Eventos - Estudiante
-                        </span>
-                        <div className="d-flex align-items-center">
-                            <span className="navbar-text text-light me-3 small">
-                                {correoUsuario}
-                            </span>
-                            <button 
-                                className="btn btn-outline-light btn-sm" 
-                                onClick={() => signOut(auth)}
-                            >
-                                Cerrar Sesión
-                            </button>
-                        </div>
-                    </div>
-                </nav>
-                <DetalleEvento 
-                    eventoId={eventoSeleccionado} 
-                    onVolver={volverAEventos}
-                />
-            </div>
-        );
-    }
 
     return (
-        <div className="min-vh-100 bg-light">
-            <nav className="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm">
-                <div className="container-fluid">
-                    <span className="navbar-brand fs-5 fw-bold">
-                        UPAO Eventos - Estudiante
-                    </span>
-                    
-                    <button 
-                        className="navbar-toggler" 
-                        type="button" 
-                        data-bs-toggle="collapse" 
-                        data-bs-target="#navbarNav"
-                        aria-controls="navbarNav" 
-                        aria-expanded="false" 
-                        aria-label="Toggle navigation"
-                    >
-                        <span className="navbar-toggler-icon"></span>
-                    </button>
-                    
-                    <div className="collapse navbar-collapse" id="navbarNav">
-                        <ul className="navbar-nav mx-auto mb-2 mb-lg-0">
-                            <li className="nav-item">
-                                <button 
-                                    className="nav-link btn btn-link text-white border-0"
-                                    onClick={() => setVistaActual('eventos')}
-                                >
-                                    Eventos Académicos
-                                </button>
-                            </li>
-                            <li className="nav-item">
-                                <button 
-                                    className="nav-link btn btn-link text-white border-0"
-                                    onClick={() => setVistaActual('mis-inscripciones')}
-                                >
-                                    Mis Inscripciones ({eventosInscritos.length})
-                                </button>
-                            </li>
-                        </ul>
-                        
-                        <div className="d-flex align-items-center">
-                            <span className="navbar-text text-light me-3 small">
-                                {correoUsuario}
-                            </span>
-                            <button 
-                                className="btn btn-outline-light btn-sm" 
-                                onClick={() => signOut(auth)}
-                            >
-                                Cerrar Sesión
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </nav>
-
-            <main className="flex-grow-1">
-                {vistaActual === 'eventos' && (
-                    <div className="container-fluid py-4">
+        <div className="container-fluid py-4">
                         <div className="row mb-4">
                             <div className="col-12">
                                 <h2 className="fw-bold text-primary mb-1">Eventos Académicos Disponibles</h2>
-                                <p className="text-muted mb-0">Explora y regístrate en los eventos que te interesan</p>
+                                <p className="text-muted mb-0">
+                                    {userData?.nombre && userData?.apellido 
+                                        ? `Bienvenido, ${userData.nombre} ${userData.apellido}` 
+                                        : user?.email 
+                                            ? `Bienvenido, ${user.email}`
+                                            : 'Explora y regístrate en los eventos que te interesan'}
+                                </p>
                             </div>
                         </div>
 
                         {error && (
                             <div className="row mb-3">
                                 <div className="col-12">
-                                    <div className="alert alert-warning" role="alert">
+                                    <div className="alert alert-warning-custom" role="alert">
                                         {error}
                                     </div>
                                 </div>
@@ -157,7 +65,7 @@ const HomeAlumno = ({ correoUsuario }) => {
                             <div className="col-12">
                                 <div className="card border-0 shadow-sm">
                                     <div className="card-header bg-white border-0">
-                                        <h5 className="mb-0 fw-bold text-dark">🎯 Eventos Activos ({eventosDisponibles.length})</h5>
+                                        <h5 className="mb-0 fw-bold text-dark">Eventos Activos ({eventosDisponibles.length})</h5>
                                     </div>
                                     <div className="card-body p-4">
                                         {loading ? (
@@ -176,6 +84,7 @@ const HomeAlumno = ({ correoUsuario }) => {
                                             <div className="row g-4">
                                                 {eventosDisponibles.map(evento => {
                                                     const yaInscrito = estaInscrito(evento.id);
+                                                    const inscripcionesCerradas = evento.inscripcionesAbiertas === false;  // ✅ Corregido: usar inscripcionesAbiertas
                                                     
                                                     return (
                                                         <div key={evento.id} className="col-12 col-md-6 col-xl-4">
@@ -184,8 +93,8 @@ const HomeAlumno = ({ correoUsuario }) => {
                                                                     <span className="badge bg-primary text-white">
                                                                         {evento.tipo}
                                                                     </span>
-                                                                    <span className={`badge ${yaInscrito ? 'bg-info' : 'bg-primary'}`}>
-                                                                        {yaInscrito ? '✅ Inscrito' : '📝 Disponible'}
+                                                                    <span className={`badge ${yaInscrito ? 'bg-info' : inscripcionesCerradas ? 'bg-danger' : 'bg-primary'}`}>
+                                                                        {yaInscrito ? '✅ Inscrito' : inscripcionesCerradas ? 'Cerrado' : 'Disponible'}
                                                                     </span>
                                                                 </div>
                                                                 
@@ -201,9 +110,16 @@ const HomeAlumno = ({ correoUsuario }) => {
                                                                     </p>
                                                                     
                                                                     <div className="small text-muted mb-3">
-                                                                        <div><strong>📅 {evento.fecha} - {evento.hora}</strong></div>
-                                                                        <div>📍 {evento.ubicacion}</div>
-                                                                        <div>👥 {evento.participantes?.length || 0}/{evento.capacidadMaxima}</div>
+                                                                        <div className="mb-1">
+                                                                            <strong>Fecha(s):</strong> {evento.fechaInicio || evento.fecha || 'No especificada'} 
+                                                                            {evento.fechaFin && evento.fechaFin !== evento.fechaInicio && ` al ${evento.fechaFin}`}
+                                                                        </div>
+                                                                        <div className="mb-1">
+                                                                            <strong>Horario:</strong> {evento.horaInicio || evento.hora || 'No especificada'}
+                                                                            {evento.horaFin && ` - ${evento.horaFin}`}
+                                                                        </div>
+                                                                        <div className="mb-1"><strong>Ubicación:</strong> {evento.ubicacion}</div>
+                                                                        <div><strong>Participantes:</strong> {evento.participantes?.length || 0}/{evento.capacidadMaxima}</div>
                                                                     </div>
                                                                 </div>
                                                                 
@@ -217,16 +133,16 @@ const HomeAlumno = ({ correoUsuario }) => {
                                                                             Ver detalles
                                                                         </button>
                                                                         <button 
-                                                                            className={`btn fw-semibold ${yaInscrito ? 'btn-info' : 'btn-primary'}`}
+                                                                            className={`btn fw-semibold ${yaInscrito ? 'btn-info-custom' : inscripcionesCerradas ? 'btn-secondary' : 'btn-primary-custom'}`}
                                                                             onClick={() => handleInscripcion(evento)}
-                                                                            disabled={isInscribiendo || isDesinscribiendo}
+                                                                            disabled={isInscribiendo || isDesinscribiendo || (inscripcionesCerradas && !yaInscrito)}
                                                                         >
                                                                             {(isInscribiendo || isDesinscribiendo) ? (
                                                                                 <>
                                                                                     <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                                                                                     {isInscribiendo ? 'Inscribiendo...' : 'Procesando...'}
                                                                                 </>
-                                                                            ) : yaInscrito ? '✅ Ya inscrito' : '📝 Inscribirme'}
+                                                                            ) : yaInscrito ? '✅ Ya inscrito' : inscripcionesCerradas ? '🔒 Inscripciones cerradas' : '📝 Inscribirme'}
                                                                         </button>
                                                                     </div>
                                                                 </div>
@@ -241,13 +157,6 @@ const HomeAlumno = ({ correoUsuario }) => {
                             </div>
                         </div>
                     </div>
-                )}
-
-                {vistaActual === 'mis-inscripciones' && (
-                    <MisEventos onVerDetalle={verDetalleEvento} />
-                )}
-            </main>
-        </div>
     );
 };
 

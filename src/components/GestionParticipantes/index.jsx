@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useParticipantes } from '../../core/hooks/useParticipantes';
 import firestoreService from '../../services/firestoreService';
+import toastHelper from '../../core/utils/toastHelper';
+import logger from '../../core/utils/logger';
 
 const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
   const { 
@@ -14,7 +16,6 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
   const [filtro, setFiltro] = useState('todos');
   const [busqueda, setBusqueda] = useState('');
   const [mensaje, setMensaje] = useState('');
-  const [enviandoAsistencias, setEnviandoAsistencias] = useState(false);
   const [eliminandoParticipante, setEliminandoParticipante] = useState(null);
 
   /**
@@ -22,7 +23,7 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
    */
   const handleEliminarParticipante = async (participante) => {
     // Confirmar acción
-    const confirmacion = window.confirm(
+    const confirmacion = await toastHelper.confirm(
       `¿Eliminar participante?\n\n` +
       `📧 ${participante.email}\n` +
       `👤 ${participante.nombre || 'Sin nombre'}\n\n` +
@@ -37,18 +38,16 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
     if (!confirmacion) return;
 
     setEliminandoParticipante(participante.id);
+    toastHelper.info('🔄 Eliminando participante...');
     
     try {
-      console.log(`🗑️ Eliminando participante: ${participante.email}`);
+      logger.log(`🗑️ Eliminando participante: ${participante.email}`);
       
       const result = await firestoreService.eliminarParticipante(evento.id, participante.id);
       
       if (result.success) {
-        setMensaje(
-          `✅ Participante eliminado correctamente!\n\n` +
-          `📧 ${participante.email}\n` +
-          `El espacio en el evento ha sido liberado.`
-        );
+        toastHelper.success(`✅ Participante ${participante.email} eliminado correctamente`);
+        logger.log('✅ Participante eliminado:', participante.id);
         
         // Recargar lista de participantes
         await refetch();
@@ -58,61 +57,10 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
       }
       
     } catch (error) {
-      console.error('❌ Error eliminando participante:', error);
-      setMensaje(`❌ Error al eliminar participante: ${error.message}`);
+      logger.error('❌ Error eliminando participante:', error);
+      toastHelper.error(`Error al eliminar participante: ${error.message}`);
     } finally {
       setEliminandoParticipante(null);
-      setTimeout(() => setMensaje(''), 5000);
-    }
-  };
-
-  // NUEVA FUNCIÓN: Enviar asistencias a n8n
-  const handleEnviarAsistencias = async () => {
-    if (enviandoAsistencias) return;
-    
-    // Confirmar acción
-    const asistentes = participantes.filter(p => evento.asistentes?.includes(p.id || p.uid));
-    const confirmacion = window.confirm(
-      `¿Enviar lista de asistencias a n8n?\n\n` +
-      `📊 Resumen:\n` +
-      `• Total inscritos: ${participantes.length}\n` +
-      `• Total asistentes: ${asistentes.length}\n` +
-      `• Porcentaje: ${(asistentes.length / participantes.length * 100).toFixed(1)}%\n\n` +
-      `Esto iniciará el proceso de:\n` +
-      `✅ Validación de asistencia\n` +
-      `📧 Envío de encuesta de satisfacción\n` +
-      `🎓 Generación de certificados\n\n` +
-      `¿Continuar?`
-    );
-
-    if (!confirmacion) return;
-
-    setEnviandoAsistencias(true);
-    
-    try {
-      console.log('🚀 Enviando asistencias a n8n...');
-      
-      const result = await firestoreService.enviarAsistenciasN8n(evento.id);
-      
-      if (result.success) {
-        setMensaje(
-          `✅ Asistencias enviadas correctamente!\n\n` +
-          `📊 ${result.data.totalAsistentes}/${result.data.totalInscritos} asistentes (${result.data.porcentajeAsistencia}%)\n` +
-          `🤖 Workflow de n8n iniciado:\n` +
-          `• Validación de asistencia\n` +
-          `• Envío de encuestas\n` +
-          `• Preparación de certificados`
-        );
-      } else {
-        throw new Error(result.error || 'Error desconocido');
-      }
-      
-    } catch (error) {
-      console.error('❌ Error enviando asistencias:', error);
-      setMensaje(`❌ Error al enviar asistencias: ${error.message}`);
-    } finally {
-      setEnviandoAsistencias(false);
-      setTimeout(() => setMensaje(''), 8000); // Más tiempo para mensaje largo
     }
   };
 
@@ -151,11 +99,11 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
       <div className="row mb-4">
         <div className="col-12">
           <button 
-            className="btn btn-outline-primary mb-3"
+            className="btn btn-outline-primary-custom mb-3"
             onClick={onVolver}
           >
             <i className="bi bi-arrow-left me-2"></i>
-            Volver a mis eventos
+            Volver
           </button>
           
           <h2 className="fw-bold text-primary mb-1">Gestión de Participantes</h2>
@@ -238,16 +186,16 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
       {/* Botón prominente para ir a Gestión de Asistencia */}
       <div className="row mb-4">
         <div className="col-12">
-          <div className="alert alert-info d-flex align-items-center" role="alert">
-            <i className="bi bi-info-circle-fill me-3 fs-3"></i>
+          <div className="alert alert-info-custom d-flex align-items-center" role="alert">
+            <i className="bi bi-info-circle-fill me-3 fs-3 text-primary"></i>
             <div className="flex-grow-1">
-              <h6 className="alert-heading mb-1">📋 Registro de Asistencia</h6>
+              <h6 className="alert-heading mb-1 fw-bold">📋 Registro de Asistencia</h6>
               <p className="mb-0">
                 Para marcar asistencia de participantes, usa la página de <strong>Gestión de Asistencia.</strong> 
               </p>
             </div>
             <button 
-              className="btn btn-primary ms-3"
+              className="btn btn-primary-custom ms-3"
               onClick={onIrAGestionAsistencia}
             >
               <i className="bi bi-qr-code-scan me-2"></i>
@@ -295,26 +243,6 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
                   >
                     <i className="bi bi-arrow-clockwise me-2"></i>
                     Limpiar Filtros
-                  </button>
-                </div>
-                <div className="col-md-3 d-flex align-items-end">
-                  <button 
-                    className="btn btn-primary w-100"
-                    onClick={handleEnviarAsistencias}
-                    disabled={participantes.length === 0 || enviandoAsistencias}
-                    title="Enviar lista de asistencias a n8n para certificados"
-                  >
-                    {enviandoAsistencias ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Enviando...
-                      </>
-                    ) : (
-                      <>
-                        <i className="bi bi-send me-2"></i>
-                        Enviar a n8n
-                      </>
-                    )}
                   </button>
                 </div>
               </div>
@@ -375,7 +303,11 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
                                   </div>
                                 </div>
                                 <div>
-                                  <div className="fw-semibold">{participante.nombre || participante.email}</div>
+                                  <div className="fw-semibold">
+                                    {participante.nombre && participante.apellido 
+                                      ? `${participante.nombre} ${participante.apellido}`
+                                      : participante.nombre || 'Estudiante'}
+                                  </div>
                                   <small className="text-muted">{participante.email}</small>
                                 </div>
                               </div>
@@ -411,8 +343,8 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
                             </td>
                             <td>
                               <div className="d-flex flex-column gap-1">
-                                <span className={`badge ${asistio ? 'bg-success' : 'bg-secondary'} px-3 py-2`} style={{ minWidth: '100px', width: 'fit-content' }}>
-                                  {asistio ? '✅ Asistió' : 'Inscrito'}
+                                <span className={`badge ${asistio ? 'badge-success-custom' : 'badge-primary-custom'} px-3 py-2`} style={{ minWidth: '100px', width: 'fit-content' }}>
+                                  {asistio ? '✅ Asistió' : '📝 Inscrito'}
                                 </span>
                               </div>
                             </td>

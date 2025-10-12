@@ -31,25 +31,38 @@
 ## ✨ Características Principales
 
 ### 🔐 Autenticación y Seguridad
-- Login/registro con verificación por email
-- Firebase Authentication con gestión de roles (Alumno / Organizador)
-- Reglas de seguridad con Firebase Security Rules
+- ✅ **Login/registro con cualquier correo electrónico** (gmail, hotmail, upao.edu.pe, etc.)
+- ✅ Verificación por email obligatoria
+- ✅ Firebase Authentication con gestión de roles (Alumno / Organizador)
+- ✅ Reglas de seguridad con Firebase Security Rules
 
 ### 🏠 Panel de Organizador
-- Dashboard de eventos con estado (borrador/publicado)
-- CRUD de eventos académicos
-- Validación de horarios y aforos
-- Visualización de estadísticas (en desarrollo)
+- ✅ Dashboard de eventos con estado (borrador/publicado)
+- ✅ CRUD de eventos académicos
+- ✅ **Rangos de fecha y hora** (eventos de uno o múltiples días)
+- ✅ **Gestión de múltiples expositores** con horarios específicos
+- ✅ Validación de horarios (06:00 AM - 11:00 PM)
+- ✅ Validación de aforos (1-1000 participantes)
+- ✅ Detección de conflictos de horario
+
+### 👥 Sistema de Expositores
+- ✅ **Tabla de expositores obligatoria** (mínimo 1, máximo 20)
+- ✅ Gestión de horarios por expositor
+- ✅ Temas específicos por exposición
+- ✅ Validación de horas únicas (sin duplicados)
+- ✅ Horas de expositores dentro del rango del evento
 
 ### 🎓 Portal del Estudiante
-- Navegación de eventos abiertos
-- Registro a eventos con control de cupo (en desarrollo)
-- Seguimiento de inscripciones y asistencias (futuro)
+- ✅ Navegación de eventos abiertos
+- ✅ Registro a eventos con control de cupo
+- ✅ Vista detallada de eventos con cronograma de expositores
+- ✅ Seguimiento de inscripciones
 
 ### 🧩 Diseño Modular y Responsive
-- Bootstrap 5 + CSS personalizado
-- Componentes reutilizables tipo Atomic Design
-- Optimizado para desktop y móvil
+- ✅ Bootstrap 5 + CSS personalizado
+- ✅ Componentes reutilizables tipo Atomic Design
+- ✅ Optimizado para desktop y móvil
+- ✅ Interfaz intuitiva con validaciones en tiempo real
 
 ---
 
@@ -79,20 +92,31 @@
 ### **👤 Para Organizadores**
 
 1. **Registro/Inicio de Sesión**
-   - Registrarse con email @gmail.com
+   - Registrarse con cualquier email válido
    - Verificar email recibido
    - Iniciar sesión
 
 2. **Gestión de Eventos**
    - Acceder al Dashboard
-   - Crear nuevo evento con formulario completo
+   - Crear nuevo evento con formulario completo:
+     * Rango de fechas (inicio - fin)
+     * Rango de horarios (06:00 - 23:00)
+     * Lista de expositores con cronograma
    - Editar eventos existentes
    - Publicar o mantener como borrador
-   - Ver estadísticas en tiempo real
 
-3. **Validaciones Automáticas**
+3. **Gestión de Expositores**
+   - Agregar expositor con nombre, hora y tema
+   - Validación automática de horarios
+   - Vista de cronograma ordenado
+   - Eliminación de expositores
+
+4. **Validaciones Automáticas**
    - Fechas futuras obligatorias
    - Capacidad entre 1-1000 personas
+   - Horarios entre 06:00 AM y 11:00 PM
+   - Mínimo 1 expositor por evento
+   - Horas de expositores dentro del rango del evento
    - Detección de conflictos de horario
 
 ### **🎓 Para Estudiantes**
@@ -147,13 +171,19 @@ src/
 ## 🧪 Testing y Validaciones
 
 ### **Validaciones Implementadas**
-- ✅ Email con formato @gmail.com
+- ✅ Email válido (cualquier dominio)
 - ✅ Contraseñas seguras (8+ chars, mayús, minús, números, símbolos)
 - ✅ Fechas futuras obligatorias
+- ✅ FechaFin >= FechaInicio
+- ✅ Horarios entre 06:00 AM y 11:00 PM
+- ✅ HoraFin > HoraInicio (mismo día)
 - ✅ Capacidad 1-1000 participantes
 - ✅ Títulos 10-100 caracteres
 - ✅ Descripciones 20-500 caracteres
-- ✅ Detección de conflictos de horario
+- ✅ Mínimo 1 expositor, máximo 20
+- ✅ Horas de expositores únicas (no duplicados)
+- ✅ Horas de expositores dentro del rango del evento
+- ✅ Detección de conflictos de horario con rangos de fechas
 
 ### **Testing Manual**
 - ✅ Registro y verificación de email

@@ -4,6 +4,7 @@
  */
 
 import CryptoJS from 'crypto-js';
+import logger from '../core/utils/logger';
 import { db } from '../config/credenciales';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -59,7 +60,7 @@ export const qrService = {
       };
 
     } catch (error) {
-      console.error('Error generando QR:', error);
+      logger.error('Error generando QR:', error);
       return {
         success: false,
         error: 'Error al generar código QR'
@@ -184,7 +185,7 @@ export const qrService = {
       };
 
     } catch (error) {
-      console.error('Error validando QR:', error);
+      logger.error('Error validando QR:', error);
       return {
         success: false,
         error: 'Error al validar QR: ' + error.message,
@@ -246,7 +247,7 @@ export const qrService = {
       };
 
     } catch (error) {
-      console.error('Error registrando asistencia:', error);
+      logger.error('Error registrando asistencia:', error);
       return {
         success: false,
         error: 'Error al registrar asistencia: ' + error.message
@@ -295,9 +296,28 @@ export const qrService = {
       const asistenciaQR = evento.asistenciaQR || {};
       
       const totalInscritos = evento.participantes?.length || 0;
-      const totalAsistentes = evento.asistentes?.length || 0;
-      const asistentesPorQR = Object.keys(asistenciaQR).length;
-      const asistentesManual = totalAsistentes - asistentesPorQR;
+      
+      // Obtener participantes con asistencia
+      const participantes = evento.participantes || [];
+      let asistentesPorQR = 0;
+      let asistentesManual = 0;
+      
+      // Contar por método de registro
+      participantes.forEach(participante => {
+        if (participante.asistio) {
+          // Si tiene metodoRegistro, usarlo, sino verificar si está en asistenciaQR
+          const metodo = participante.metodoRegistro || 
+                        (asistenciaQR[participante.uid || participante.id] ? 'qr' : 'manual');
+          
+          if (metodo === 'qr') {
+            asistentesPorQR++;
+          } else {
+            asistentesManual++;
+          }
+        }
+      });
+      
+      const totalAsistentes = asistentesPorQR + asistentesManual;
 
       return {
         success: true,
@@ -306,13 +326,13 @@ export const qrService = {
           totalAsistentes,
           asistentesPorQR,
           asistentesManual,
-          porcentajeAsistencia: ((totalAsistentes / totalInscritos) * 100).toFixed(1),
-          porcentajeQR: ((asistentesPorQR / totalAsistentes) * 100).toFixed(1)
+          porcentajeAsistencia: totalInscritos > 0 ? ((totalAsistentes / totalInscritos) * 100).toFixed(1) : '0.0',
+          porcentajeQR: totalAsistentes > 0 ? ((asistentesPorQR / totalAsistentes) * 100).toFixed(1) : '0.0'
         }
       };
 
     } catch (error) {
-      console.error('Error obteniendo estadísticas:', error);
+      logger.error('Error obteniendo estadísticas:', error);
       return {
         success: false,
         error: error.message

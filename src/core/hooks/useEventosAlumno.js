@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { firestoreService } from '../../services/firestoreService';
 import { useAuth } from './useAuth';
+import logger from '../utils/logger';
+import toastHelper from '../utils/toastHelper';
 
 // Claves de queries para React Query
 export const eventosQueryKeys = {
@@ -13,7 +15,7 @@ export const eventosQueryKeys = {
 
 export const useEventosAlumno = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, userData } = useAuth();
 
   // Query para obtener eventos publicados con actualización automática
   const {
@@ -24,20 +26,23 @@ export const useEventosAlumno = () => {
   } = useQuery({
     queryKey: eventosQueryKeys.publicados(),
     queryFn: async () => {
-      console.log('React Query: Obteniendo eventos publicados...');
+      logger.log('📊 React Query: Obteniendo eventos publicados...');
       const result = await firestoreService.obtenerEventosPublicados();
       
       if (!result.success) {
-        throw new Error(result.error || 'Error al obtener eventos');
+        const errorMsg = result.error || 'Error al obtener eventos';
+        logger.error('❌ Error obteniendo eventos:', errorMsg);
+        toastHelper.error(`Error al cargar eventos: ${errorMsg}`);
+        throw new Error(errorMsg);
       }
       
-      console.log('React Query: Eventos obtenidos:', result.eventos.length);
+      logger.log(`✅ ${result.eventos.length} eventos obtenidos`);
       return result.eventos;
     },
     enabled: !!user, // Solo ejecuta si hay usuario autenticado
-    staleTime: 30 * 1000, // 30 segundos - más corto para datos en tiempo real
+    staleTime: 60 * 1000, // ⚡ 60 segundos - Optimizado (antes 30s)
     gcTime: 5 * 60 * 1000, // 5 minutos en caché
-    refetchInterval: 30 * 1000, // Refetch automático cada 30 segundos para tiempo real
+    refetchInterval: 60 * 1000, // ⚡ Refetch cada 60 segundos - Optimizado (antes 30s)
     refetchOnWindowFocus: true, // Actualizar al volver al tab
   });
 
@@ -61,24 +66,37 @@ export const useEventosAlumno = () => {
   const inscripcionMutation = useMutation({
     mutationFn: async (eventoId) => {
       if (!user) {
-        throw new Error('Usuario no autenticado');
+        const errorMsg = 'Usuario no autenticado';
+        logger.error('❌', errorMsg);
+        toastHelper.error(errorMsg);
+        throw new Error(errorMsg);
       }
       
-      console.log('React Query: Inscribiendo usuario al evento:', eventoId);
-      const result = await firestoreService.inscribirAlumnoEvento(eventoId, user.uid, user.email);
+      logger.log('📝 Inscribiendo usuario al evento:', eventoId);
+      const result = await firestoreService.inscribirAlumnoEvento(
+        eventoId, 
+        user.uid, 
+        user.email,
+        userData?.nombre || null,
+        userData?.apellido || null
+      );
       
       if (!result.success) {
-        throw new Error(result.error || 'Error al inscribirse al evento');
+        const errorMsg = result.error || 'Error al inscribirse al evento';
+        logger.error('❌ Error en inscripción:', errorMsg);
+        throw new Error(errorMsg);
       }
       
       return result;
     },
     onSuccess: (data, eventoId) => {
-      console.log('React Query: Inscripción exitosa, invalidando caché');
+      logger.log('✅ Inscripción exitosa, actualizando caché');
+      toastHelper.success('✅ ¡Inscripción exitosa! Revisa tu email');
+      
       // Invalidar caché para recargar eventos
       queryClient.invalidateQueries({ queryKey: eventosQueryKeys.publicados() });
       
-      // Opcional: Actualización optimista del caché
+      // Actualización optimista del caché
       queryClient.setQueryData(eventosQueryKeys.publicados(), (oldData) => {
         if (!oldData) return oldData;
         
@@ -94,7 +112,8 @@ export const useEventosAlumno = () => {
       });
     },
     onError: (error) => {
-      console.error('React Query: Error en inscripción:', error);
+      logger.error('❌ Error en inscripción:', error);
+      toastHelper.error(error.message || 'Error al inscribirse');
     }
   });
 
@@ -102,24 +121,31 @@ export const useEventosAlumno = () => {
   const desinscripcionMutation = useMutation({
     mutationFn: async (eventoId) => {
       if (!user) {
-        throw new Error('Usuario no autenticado');
+        const errorMsg = 'Usuario no autenticado';
+        logger.error('❌', errorMsg);
+        toastHelper.error(errorMsg);
+        throw new Error(errorMsg);
       }
       
-      console.log('React Query: Desinscribiendo usuario del evento:', eventoId);
+      logger.log('🚪 Desinscribiendo usuario del evento:', eventoId);
       const result = await firestoreService.desinscribirAlumnoEvento(eventoId, user.uid);
       
       if (!result.success) {
-        throw new Error(result.error || 'Error al desinscribirse del evento');
+        const errorMsg = result.error || 'Error al desinscribirse del evento';
+        logger.error('❌ Error en desinscripción:', errorMsg);
+        throw new Error(errorMsg);
       }
       
       return result;
     },
     onSuccess: (data, eventoId) => {
-      console.log('React Query: Desinscripción exitosa, invalidando caché');
+      logger.log('✅ Desinscripción exitosa, actualizando caché');
+      toastHelper.info('ℹ️ Te has desinscrito del evento');
+      
       // Invalidar caché para recargar eventos
       queryClient.invalidateQueries({ queryKey: eventosQueryKeys.publicados() });
       
-      // Opcional: Actualización optimista del caché
+      // Actualización optimista del caché
       queryClient.setQueryData(eventosQueryKeys.publicados(), (oldData) => {
         if (!oldData) return oldData;
         
@@ -135,7 +161,8 @@ export const useEventosAlumno = () => {
       });
     },
     onError: (error) => {
-      console.error('React Query: Error en desinscripción:', error);
+      logger.error('❌ Error en desinscripción:', error);
+      toastHelper.error(error.message || 'Error al desinscribirse');
     }
   });
 

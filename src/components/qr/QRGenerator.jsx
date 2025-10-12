@@ -5,6 +5,7 @@
 
 import React, { useState, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
+import toastHelper from '../../core/utils/toastHelper';
 import './QRGenerator.css';
 
 const QRGenerator = ({ 
@@ -24,7 +25,7 @@ const QRGenerator = ({
     try {
       const canvas = qrRef.current?.querySelector('canvas');
       if (!canvas) {
-        alert('Error al obtener el código QR');
+        toastHelper.error('Error al obtener el código QR');
         return;
       }
 
@@ -86,11 +87,11 @@ const QRGenerator = ({
       link.download = `QR-${eventoNombre.replace(/\s+/g, '_')}-${Date.now()}.png`;
       link.click();
 
-      alert('✅ Código QR descargado exitosamente');
+      toastHelper.success('✅ Código QR descargado exitosamente');
 
     } catch (error) {
       console.error('Error descargando QR:', error);
-      alert('❌ Error al descargar el código QR');
+      toastHelper.error('❌ Error al descargar el código QR');
     }
   };
 
@@ -101,14 +102,14 @@ const QRGenerator = ({
     try {
       const canvas = qrRef.current?.querySelector('canvas');
       if (!canvas) {
-        alert('Error al obtener el código QR');
+        toastHelper.error('Error al obtener el código QR');
         return;
       }
 
       // Convertir canvas a blob
       canvas.toBlob(async (blob) => {
         if (!blob) {
-          alert('Error al generar imagen');
+          toastHelper.error('Error al generar imagen');
           return;
         }
 
@@ -121,13 +122,13 @@ const QRGenerator = ({
             files: [file]
           });
         } else {
-          alert('Tu navegador no soporta la función de compartir. Descarga el QR e envíalo manualmente.');
+          toastHelper.info('Tu navegador no soporta la función de compartir. Descarga el QR e envíalo manualmente.');
         }
       }, 'image/png');
 
     } catch (error) {
       console.error('Error compartiendo QR:', error);
-      alert('❌ Error al compartir el código QR');
+      toastHelper.error('❌ Error al compartir el código QR');
     }
   };
 

@@ -1,4 +1,5 @@
 // Servicio de Firestore para gestión de eventos
+import logger from '../core/utils/logger';
 import { 
   collection, 
   addDoc, 
@@ -35,7 +36,7 @@ export const firestoreService = {
         fechaActualizacion: new Date(),
         participantes: [],
         asistentes: [],
-        inscripcionesCerradas: false,
+        inscripcionesAbiertas: true,  // ✅ Cambiado de inscripcionesCerradas a inscripcionesAbiertas
         estadoWorkflow: 'iniciado'
       };
 
@@ -45,7 +46,7 @@ export const firestoreService = {
       
       // 2. Enviar evento a n8n (iniciar workflow automático)
       try {
-        console.log('🚀 Enviando evento creado a n8n...');
+        logger.log('🚀 Enviando evento creado a n8n...');
         const n8nResult = await n8nService.enviarEventoCreado({
           ...evento,
           id: eventoId,
@@ -62,10 +63,10 @@ export const firestoreService = {
           }
         });
         
-        console.log('✅ Workflow n8n iniciado:', n8nResult.success);
+        logger.log('✅ Workflow n8n iniciado:', n8nResult.success);
         
       } catch (n8nError) {
-        console.warn('⚠️ Error en n8n (no crítico):', n8nError);
+        logger.warn('⚠️ Error en n8n (no crítico):', n8nError);
         // No fallar la creación del evento si n8n falla
       }
       
@@ -84,7 +85,7 @@ export const firestoreService = {
   // Obtener eventos publicados
   async obtenerEventosPublicados() {
     try {
-      console.log('Intentando obtener eventos publicados...');
+      logger.log('Intentando obtener eventos publicados...');
       const q = query(
         collection(db, "eventos"),
         where("estado", "==", "publicado")
@@ -92,7 +93,7 @@ export const firestoreService = {
       );
       
       const querySnapshot = await getDocs(q);
-      console.log('Eventos encontrados:', querySnapshot.size);
+      logger.log('Eventos encontrados:', querySnapshot.size);
       
       const eventos = querySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -101,7 +102,7 @@ export const firestoreService = {
       // Ordenar en el cliente por fecha
       .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
-      console.log('Eventos mapeados:', eventos);
+      logger.log('Eventos mapeados:', eventos);
       return { success: true, eventos };
     } catch (error) {
       console.error('Error en obtenerEventosPublicados:', error);
@@ -165,23 +166,35 @@ export const firestoreService = {
     }
   },
 
-  // Verificar conflictos de horario
-  async verificarConflictoHorario(fecha, hora, ubicacion, excludeEventId = null) {
+  // Verificar conflictos de horario (actualizado para rangos de fechas)
+  async verificarConflictoHorario(fechaInicio, fechaFin, ubicacion, excludeEventId = null) {
     try {
+      // Obtener todos los eventos para verificar solapamientos
       const q = query(
         collection(db, "eventos"),
-        where("fecha", "==", fecha),
-        where("hora", "==", hora),
         where("ubicacion", "==", ubicacion)
       );
 
       const querySnapshot = await getDocs(q);
       const conflictingEvents = querySnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(evento => 
-          evento.id !== excludeEventId && 
-          (evento.estado === 'publicado' || evento.estado === 'borrador')
-        );
+        .filter(evento => {
+          // No comparar con el mismo evento si estamos editando
+          if (evento.id === excludeEventId) return false;
+          
+          // Solo verificar eventos publicados o en borrador
+          if (evento.estado !== 'publicado' && evento.estado !== 'borrador') return false;
+          
+          // Obtener fechas del evento existente (compatibilidad con modelo antiguo)
+          const eventoInicio = evento.fechaInicio || evento.fecha;
+          const eventoFin = evento.fechaFin || evento.fecha;
+          
+          // Verificar solapamiento de fechas
+          const fechasSeSuperponen = 
+            (fechaInicio <= eventoFin && fechaFin >= eventoInicio);
+          
+          return fechasSeSuperponen;
+        });
 
       return { hasConflict: conflictingEvents.length > 0, events: conflictingEvents };
     } catch (error) {
@@ -208,7 +221,7 @@ export const firestoreService = {
   },
 
   // Inscribir alumno a un evento CON INTEGRACIÓN n8n
-  async inscribirAlumnoEvento(eventoId, alumnoId, alumnoEmail, alumnoNombre = null) {
+  async inscribirAlumnoEvento(eventoId, alumnoId, alumnoEmail, alumnoNombre = null, alumnoApellido = null) {
     try {
       // 1. Verificar si el evento existe y tiene espacio
       const eventoResult = await this.obtenerEventoPorId(eventoId);
@@ -219,8 +232,8 @@ export const firestoreService = {
       const evento = eventoResult.evento;
       
       // 2. ✅ NUEVO: Auto-cerrar inscripciones si ya llegó el día del evento
-      if (this.esElDiaDelEvento(evento.fecha) && !evento.inscripcionesCerradas) {
-        console.log('🔒 Auto-cerrando inscripciones: ya llegó el día del evento');
+      if (this.esElDiaDelEvento(evento.fecha) && evento.inscripcionesAbiertas) {
+        logger.log('🔒 Auto-cerrando inscripciones: ya llegó el día del evento');
         await this.cerrarInscripcionesYEnviarLista(eventoId);
         return { success: false, error: "Las inscripciones se cerraron automáticamente al llegar el día del evento" };
       }
@@ -237,7 +250,7 @@ export const firestoreService = {
       }
 
       // 5. Verificar si las inscripciones están cerradas
-      if (evento.inscripcionesCerradas) {
+      if (!evento.inscripcionesAbiertas) {
         return { success: false, error: "Las inscripciones están cerradas" };
       }
 
@@ -249,7 +262,7 @@ export const firestoreService = {
         return { success: false, error: "Error generando código QR" };
       }
 
-      console.log('✅ QR generado exitosamente');
+      logger.log('✅ QR generado exitosamente');
 
       // 7. Inscribir al alumno en Firestore con QR
       const participanteInfo = {
@@ -257,6 +270,7 @@ export const firestoreService = {
         uid: alumnoId,
         email: alumnoEmail,
         nombre: alumnoNombre || 'Estudiante',
+        apellido: alumnoApellido || '',
         fechaInscripcion: new Date().toISOString(),
         estado: 'inscrito',
         asistio: false,
@@ -274,11 +288,11 @@ export const firestoreService = {
         participantesInfo: arrayUnion(participanteInfo)
       });
 
-      console.log('✅ Alumno inscrito en Firestore con QR');
+      logger.log('✅ Alumno inscrito en Firestore con QR');
 
       // 8. Notificar a n8n para enviar confirmación CON QR (no bloquear si falla)
       try {
-        console.log('📧 Enviando confirmación de inscripción con QR via n8n...');
+        logger.log('📧 Enviando confirmación de inscripción con QR via n8n...');
         
         const alumno = {
           uid: alumnoId,
@@ -299,10 +313,10 @@ export const firestoreService = {
           }
         });
         
-        console.log('📧 Confirmación n8n:', n8nResult.success ? 'enviada con QR' : 'falló');
+        logger.log('📧 Confirmación n8n:', n8nResult.success ? 'enviada con QR' : 'falló');
         
       } catch (n8nError) {
-        console.warn('⚠️ Error al enviar confirmación n8n (no crítico):', n8nError);
+        logger.warn('⚠️ Error al enviar confirmación n8n (no crítico):', n8nError);
       }
 
       // 9. Verificar si se debe cerrar inscripciones
@@ -311,7 +325,7 @@ export const firestoreService = {
                            this.esElDiaDelEvento(evento.fecha);
       
       if (deberaCerrar) {
-        console.log('🔒 Cerrando inscripciones y enviando lista a n8n...');
+        logger.log('🔒 Cerrando inscripciones y enviando lista a n8n...');
         await this.cerrarInscripcionesYEnviarLista(eventoId);
       }
 
@@ -415,7 +429,7 @@ export const firestoreService = {
 
       await updateDoc(eventoRef, updateData);
 
-      console.log(`✅ Participante ${alumnoId} eliminado del evento ${eventoId}`);
+      logger.log(`✅ Participante ${alumnoId} eliminado del evento ${eventoId}`);
 
       return { 
         success: true, 
@@ -527,7 +541,7 @@ export const firestoreService = {
       // ✅ Actualizar TODO en una sola operación (evita race conditions)
       await updateDoc(eventoRef, updateData);
 
-      console.log(`✅ Asistencia marcada para ${alumnoId} vía ${metodo}${qrId ? ` (QR: ${qrId})` : ''}`);
+      logger.log(`✅ Asistencia marcada para ${alumnoId} vía ${metodo}${qrId ? ` (QR: ${qrId})` : ''}`);
       return { success: true, message: "Asistencia marcada exitosamente" };
       
     } catch (error) {
@@ -554,12 +568,12 @@ export const firestoreService = {
       // 1. Cerrar inscripciones en Firestore
       const eventoRef = doc(db, "eventos", eventoId);
       await updateDoc(eventoRef, {
-        inscripcionesCerradas: true,
+        inscripcionesAbiertas: false,  // ✅ Cambiado de inscripcionesCerradas: true
         fechaCierreInscripciones: new Date().toISOString(),
         estadoWorkflow: 'inscripciones_cerradas'
       });
 
-      console.log('🔒 Inscripciones cerradas en Firestore');
+      logger.log('🔒 Inscripciones cerradas en Firestore');
 
       // 2. Enviar lista a n8n
       try {
@@ -574,10 +588,10 @@ export const firestoreService = {
           }
         });
 
-        console.log('📋 Lista de inscritos enviada a n8n:', n8nResult.success);
+        logger.log('📋 Lista de inscritos enviada a n8n:', n8nResult.success);
 
       } catch (n8nError) {
-        console.warn('⚠️ Error enviando lista a n8n:', n8nError);
+        logger.warn('⚠️ Error enviando lista a n8n:', n8nError);
       }
 
       return {
@@ -609,7 +623,7 @@ export const firestoreService = {
       const inscritos = evento.participantesInfo || [];
       const asistentes = inscritos.filter(p => evento.asistentes?.includes(p.uid || p.id));
 
-      console.log(`📊 Enviando asistencias: ${asistentes.length}/${inscritos.length}`);
+      logger.log(`📊 Enviando asistencias: ${asistentes.length}/${inscritos.length}`);
 
       // Enviar a n8n
       const n8nResult = await n8nService.enviarAsistencias(evento, asistentes, inscritos);
@@ -663,7 +677,7 @@ export const firestoreService = {
       const q = query(
         collection(db, "eventos"),
         where("estado", "==", "publicado"),
-        where("inscripcionesCerradas", "==", false)
+        where("inscripcionesAbiertas", "==", true)  // ✅ Cambiado de inscripcionesCerradas
       );
 
       const querySnapshot = await getDocs(q);
@@ -687,80 +701,6 @@ export const firestoreService = {
 
     } catch (error) {
       console.error('Error verificando eventos para cerrar:', error);
-      return { success: false, error: error.message };
-    }
-  },
-
-  // ========== AUTO-ELIMINACIÓN DE EVENTOS ==========
-
-  /**
-   * ✅ NUEVO: Verificar si el evento ya pasó (después del día del evento)
-   */
-  eventoYaPaso(fechaEvento) {
-    try {
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0); // Normalizar a medianoche
-      
-      const fecha = new Date(fechaEvento);
-      fecha.setHours(0, 0, 0, 0);
-      
-      // El evento pasó si la fecha es MENOR que hoy (estrictamente en el pasado)
-      return fecha < hoy;
-    } catch (error) {
-      console.error('Error verificando fecha del evento:', error);
-      return false;
-    }
-  },
-
-  /**
-   * ✅ NUEVO: Verificar y eliminar eventos pasados automáticamente
-   * Busca todos los eventos cuya fecha ya pasó y los elimina
-   */
-  async verificarYEliminarEventosPasados() {
-    try {
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      const ayer = new Date(hoy);
-      ayer.setDate(ayer.getDate() - 1);
-      
-      // Obtener todos los eventos (no podemos hacer where fecha < hoy en Firestore con strings)
-      const q = query(collection(db, "eventos"));
-      const querySnapshot = await getDocs(q);
-      
-      const eventosEliminados = [];
-      const promesasEliminacion = [];
-
-      querySnapshot.forEach((docSnap) => {
-        const evento = { id: docSnap.id, ...docSnap.data() };
-        
-        // Verificar si el evento ya pasó
-        if (this.eventoYaPaso(evento.fecha)) {
-          console.log(`🗑️ Eliminando evento pasado: ${evento.titulo} (${evento.fecha})`);
-          promesasEliminacion.push(
-            this.eliminarEvento(evento.id).then(() => {
-              eventosEliminados.push({
-                id: evento.id,
-                titulo: evento.titulo,
-                fecha: evento.fecha
-              });
-            })
-          );
-        }
-      });
-
-      // Ejecutar todas las eliminaciones en paralelo
-      await Promise.all(promesasEliminacion);
-
-      console.log(`✅ Eliminados ${eventosEliminados.length} eventos pasados`);
-      
-      return { 
-        success: true, 
-        eventosEliminados,
-        totalEliminados: eventosEliminados.length
-      };
-
-    } catch (error) {
-      console.error('Error verificando y eliminando eventos pasados:', error);
       return { success: false, error: error.message };
     }
   }

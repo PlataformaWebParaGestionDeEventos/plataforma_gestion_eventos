@@ -1,33 +1,73 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import appFirebase, { db } from "../../config/credenciales";
-import { getAuth, signOut } from "firebase/auth";
+import { getAuth } from "firebase/auth";
 import { collection, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import firestoreService from "../../services/firestoreService";
+import { useAuth } from "../../core/hooks/useAuth";
 import GestionParticipantes from "../../components/GestionParticipantes";
-import GestionAsistencia from "../GestionAsistencia";
-import Reportes from "../Reportes";
+import toastHelper from "../../core/utils/toastHelper";
+import logger from "../../core/utils/logger";
 const auth = getAuth(appFirebase);
 
-const HomeOrganizador = ({ correoUsuario }) => {
-    const [vistaActual, setVistaActual] = useState('dashboard');
+const HomeOrganizador = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { user, userData } = useAuth();
+    
+    // Detectar vista actual según la ruta
+    const [vistaLocal, setVistaLocal] = useState(null); // Para vistas internas como 'participantes'
+    const vistaActual = vistaLocal || (location.pathname === '/organizador' ? 'dashboard' : 
+                        location.pathname.startsWith('/organizador/eventos') ? 'eventos' : 'dashboard');
+    
+    // Limpiar vistaLocal cuando cambia la ruta
+    useEffect(() => {
+        setVistaLocal(null);
+    }, [location.pathname]);
+    
+    const setVistaActual = (vista) => {
+        if (vista === 'participantes') {
+            // Manejo especial para vista de participantes (no es una ruta)
+            setVistaLocal('participantes');
+        } else {
+            // Limpiar vista local y navegar a ruta
+            setVistaLocal(null);
+            if (vista === 'dashboard') {
+                navigate('/organizador');
+            } else if (vista === 'eventos') {
+                navigate('/organizador/eventos');
+            } else if (vista === 'reportes') {
+                navigate('/organizador/reportes');
+            }
+        }
+    };
     const [eventos, setEventos] = useState([]);
     const [cargandoEventos, setCargandoEventos] = useState(false);
     const [mostrandoFormulario, setMostrandoFormulario] = useState(false);
     const [eventoEditando, setEventoEditando] = useState(null);
     const [eventoParticipantes, setEventoParticipantes] = useState(null);
-    const [eventoAsistencia, setEventoAsistencia] = useState(null);
 
     // Estados para el formulario de eventos
     const [nuevoEvento, setNuevoEvento] = useState({
         titulo: '',
         descripcion: '',
-        fecha: '',
-        hora: '',
+        fechaInicio: '',
+        fechaFin: '',
+        horaInicio: '',
+        horaFin: '',
         ubicacion: '',
         capacidadMaxima: '',
         tipo: 'conferencia',
         estado: 'borrador',
-        expositor: ''
+        expositores: [] // Array de {nombre, correo, hora, tema}
+    });
+
+    // Estado para el formulario de expositores
+    const [expositorActual, setExpositorActual] = useState({
+        nombre: '',
+        correo: '',
+        hora: '',
+        tema: ''
     });
 
     // Estado para mostrar errores de validación en tiempo real
@@ -118,7 +158,8 @@ const HomeOrganizador = ({ correoUsuario }) => {
             }));
             setEventos(eventosData);
         } catch (error) {
-            console.error("Error al cargar eventos:", error);
+            logger.error("❌ Error al cargar eventos:", error);
+            toastHelper.error('❌ Error al cargar eventos. Verifica tu conexión.');
         } finally {
             setCargandoEventos(false);
         }
@@ -149,12 +190,76 @@ const HomeOrganizador = ({ correoUsuario }) => {
     const validarFormulario = () => {
         const errores = [];
         
-        // Validar fecha futura
-        const fechaEvento = new Date(nuevoEvento.fecha + 'T' + nuevoEvento.hora);
-        const ahora = new Date();
+        // Validar fechas
+        if (!nuevoEvento.fechaInicio || !nuevoEvento.fechaFin) {
+            errores.push('Las fechas de inicio y fin son obligatorias');
+        } else {
+            // Validar fecha futura
+            const fechaInicio = new Date(nuevoEvento.fechaInicio + 'T' + nuevoEvento.horaInicio);
+            const ahora = new Date();
+            
+            if (fechaInicio <= ahora) {
+                errores.push('La fecha y hora de inicio debe ser futura');
+            }
+            
+            // Validar que fechaFin >= fechaInicio
+            if (!validarFechas(nuevoEvento.fechaInicio, nuevoEvento.fechaFin)) {
+                errores.push('La fecha de fin debe ser igual o posterior a la fecha de inicio');
+            }
+        }
         
-        if (fechaEvento <= ahora) {
-            errores.push('La fecha y hora del evento debe ser futura');
+        // Validar horas
+        if (!nuevoEvento.horaInicio || !nuevoEvento.horaFin) {
+            errores.push('Las horas de inicio y fin son obligatorias');
+        } else {
+            // Validar rango de horas (06:00 - 23:00)
+            if (!validarRangoHora(nuevoEvento.horaInicio)) {
+                errores.push('La hora de inicio debe estar entre 06:00 y 23:00');
+            }
+            
+            if (!validarRangoHora(nuevoEvento.horaFin)) {
+                errores.push('La hora de fin debe estar entre 06:00 y 23:00');
+            }
+            
+            // Validar que horaFin > horaInicio si es el mismo día
+            if (!validarHoras(
+                nuevoEvento.horaInicio, 
+                nuevoEvento.horaFin,
+                nuevoEvento.fechaInicio,
+                nuevoEvento.fechaFin
+            )) {
+                errores.push('La hora de fin debe ser posterior a la hora de inicio para eventos del mismo día');
+            }
+        }
+        
+        // Validar expositores
+        if (nuevoEvento.expositores.length === 0) {
+            errores.push('Debe agregar al menos 1 expositor');
+        } else {
+            // Validar que todos los expositores tengan campos completos
+            const expositoresIncompletos = nuevoEvento.expositores.some(exp => !validarExpositorCompleto(exp));
+            if (expositoresIncompletos) {
+                errores.push('Todos los expositores deben tener nombre, hora y tema completos');
+            }
+            
+            // Validar que no haya horas duplicadas
+            if (!validarExpositoresUnicos(nuevoEvento.expositores)) {
+                errores.push('No puede haber dos expositores a la misma hora');
+            }
+            
+            // Validar que todas las horas de expositores estén dentro del rango del evento
+            const expositoresFueraDeRango = nuevoEvento.expositores.some(exp => 
+                !validarHoraExpositor(
+                    exp.hora, 
+                    nuevoEvento.horaInicio, 
+                    nuevoEvento.horaFin,
+                    nuevoEvento.fechaInicio,
+                    nuevoEvento.fechaFin
+                )
+            );
+            if (expositoresFueraDeRango) {
+                errores.push('Todas las horas de los expositores deben estar dentro del horario del evento');
+            }
         }
         
         // Validar capacidad máxima
@@ -189,7 +294,8 @@ const HomeOrganizador = ({ correoUsuario }) => {
 
     // Verificar conflictos de horario (misma fecha Y/O misma ubicación)
     const verificarConflictoHorario = () => {
-        const fechaEvento = nuevoEvento.fecha;
+        const fechaInicio = nuevoEvento.fechaInicio;
+        const fechaFin = nuevoEvento.fechaFin;
         const ubicacionEvento = nuevoEvento.ubicacion.toLowerCase().trim();
         
         return eventos.some(evento => {
@@ -203,12 +309,124 @@ const HomeOrganizador = ({ correoUsuario }) => {
                 return false;
             }
             
-            // Verificar misma fecha Y/O misma ubicación
-            const mismaFecha = evento.fecha === fechaEvento;
+            // Verificar solapamiento de fechas Y/O misma ubicación
+            const eventoInicio = evento.fechaInicio || evento.fecha;
+            const eventoFin = evento.fechaFin || evento.fecha;
+            const fechasSeSuperponen = 
+                (fechaInicio <= eventoFin && fechaFin >= eventoInicio);
             const mismaUbicacion = evento.ubicacion.toLowerCase().trim() === ubicacionEvento;
             
-            return mismaFecha || mismaUbicacion;
+            return fechasSeSuperponen || mismaUbicacion;
         });
+    };
+
+    // ===== FUNCIONES DE VALIDACIÓN PARA NUEVO MODELO =====
+    
+    // Validar que la hora esté en el rango permitido (06:00 - 23:00)
+    const validarRangoHora = (hora) => {
+        if (!hora) return false;
+        const [hours] = hora.split(':').map(Number);
+        return hours >= 6 && hours <= 23;
+    };
+
+    // Validar que fechaFin >= fechaInicio
+    const validarFechas = (fechaInicio, fechaFin) => {
+        if (!fechaInicio || !fechaFin) return false;
+        return new Date(fechaFin) >= new Date(fechaInicio);
+    };
+
+    // Validar que horaFin > horaInicio
+    const validarHoras = (horaInicio, horaFin, fechaInicio, fechaFin) => {
+        if (!horaInicio || !horaFin) return false;
+        
+        // Si es el mismo día, horaFin debe ser mayor que horaInicio
+        if (fechaInicio === fechaFin) {
+            return horaFin > horaInicio;
+        }
+        
+        // Si son días diferentes, cualquier combinación es válida
+        return true;
+    };
+
+    // Validar que la hora del expositor esté dentro del rango del evento
+    const validarHoraExpositor = (horaExpositor, horaInicio, horaFin, fechaInicio, fechaFin) => {
+        if (!horaExpositor || !horaInicio || !horaFin) return false;
+        
+        // Si el evento es de un solo día
+        if (fechaInicio === fechaFin) {
+            return horaExpositor >= horaInicio && horaExpositor <= horaFin;
+        }
+        
+        // Si el evento es de múltiples días, solo verificar rango general
+        return horaExpositor >= horaInicio && horaExpositor <= horaFin;
+    };
+
+    // Validar que no haya horas duplicadas de expositores
+    const validarExpositoresUnicos = (expositores) => {
+        const horas = expositores.map(exp => exp.hora);
+        return horas.length === new Set(horas).size;
+    };
+
+    // Validar que un expositor tenga todos los campos completos
+    const validarExpositorCompleto = (expositor) => {
+        return expositor.nombre.trim() !== '' && 
+               expositor.correo.trim() !== '' &&
+               expositor.hora.trim() !== '' && 
+               expositor.tema.trim() !== '';
+    };
+
+    // Agregar expositor a la lista
+    const agregarExpositor = () => {
+        // Validar que todos los campos estén completos
+        if (!validarExpositorCompleto(expositorActual)) {
+            toastHelper.error('❌ Todos los campos del expositor son obligatorios');
+            return;
+        }
+
+        // Validar que la hora esté en el rango permitido
+        if (!validarRangoHora(expositorActual.hora)) {
+            toastHelper.error('❌ La hora del expositor debe estar entre 06:00 y 23:00');
+            return;
+        }
+
+        // Validar que la hora del expositor esté dentro del horario del evento
+        if (!validarHoraExpositor(
+            expositorActual.hora, 
+            nuevoEvento.horaInicio, 
+            nuevoEvento.horaFin,
+            nuevoEvento.fechaInicio,
+            nuevoEvento.fechaFin
+        )) {
+            toastHelper.error('❌ La hora del expositor debe estar dentro del horario del evento');
+            return;
+        }
+
+        // Validar que no exista otra exposición a la misma hora
+        const horaExiste = nuevoEvento.expositores.some(exp => exp.hora === expositorActual.hora);
+        if (horaExiste) {
+            toastHelper.error('❌ Ya existe una exposición programada a esa hora');
+            return;
+        }
+
+        // Agregar a la lista
+        setNuevoEvento({
+            ...nuevoEvento,
+            expositores: [...nuevoEvento.expositores, { ...expositorActual }]
+        });
+
+        // Limpiar formulario
+        setExpositorActual({ nombre: '', correo: '', hora: '', tema: '' });
+        toastHelper.success('✅ Expositor agregado correctamente');
+    };
+
+    // Eliminar expositor de la lista
+    const eliminarExpositor = (index) => {
+        const nuevosExpositores = nuevoEvento.expositores.filter((_, i) => i !== index);
+        setNuevoEvento({
+            ...nuevoEvento,
+            expositores: nuevosExpositores
+        });
+        toastHelper.info('🗑️ Expositor eliminado');
     };
 
     // Función para crear evento
@@ -219,18 +437,21 @@ const HomeOrganizador = ({ correoUsuario }) => {
         // Validar formulario
         const errores = validarFormulario();
         if (errores.length > 0) {
-            alert('Errores de validación:\n' + errores.join('\n'));
+            toastHelper.error(`❌ Errores de validación:\n${errores.join('\n')}`);
+            logger.warn('Errores de validación:', errores);
             return;
         }
 
         // Verificar conflictos de horario
         if (verificarConflictoHorario()) {
-            alert('⚠️ CONFLICTO DETECTADO\n\nYa existe un evento en la misma fecha o en la misma ubicación.\n\nPor favor, elige otra fecha u otra ubicación para evitar conflictos.');
+            toastHelper.warning('⚠️ Ya existe un evento en la misma fecha o ubicación. Elige otra fecha u otra ubicación.');
+            logger.warn('Conflicto de horario detectado');
             return;
         }
 
         try {
-            console.log('🚀 Creando evento con integración n8n...');
+            logger.log('🚀 Creando evento con integración n8n...');
+            toastHelper.info('🔄 Creando evento...');
             
             const resultado = await firestoreService.crearEvento(
                 {
@@ -245,42 +466,48 @@ const HomeOrganizador = ({ correoUsuario }) => {
             );
 
             if (resultado.success) {
-                alert('Evento creado exitosamente!');
+                toastHelper.success('✅ Evento creado exitosamente!');
+                logger.log('✅ Evento creado:', resultado);
                 setNuevoEvento({
                     titulo: '',
                     descripcion: '',
-                    fecha: '',
-                    hora: '',
+                    fechaInicio: '',
+                    fechaFin: '',
+                    horaInicio: '09:00',
+                    horaFin: '18:00',
                     ubicacion: '',
                     capacidadMaxima: '',
                     tipo: 'conferencia',
                     estado: 'borrador',
-                    expositor: ''
+                    expositores: []
                 });
+                setExpositorActual({ nombre: '', hora: '', tema: '' });
                 setMostrandoFormulario(false);
                 cargarEventos();
             } else {
-                alert(`Error al crear el evento: ${resultado.error}`);
+                toastHelper.error(`❌ Error al crear el evento: ${resultado.error}`);
+                logger.error('Error creando evento:', resultado.error);
             }
         } catch (error) {
-            console.error("Error al crear evento:", error);
-            alert('Error al crear el evento. Verifica tu conexión y configuración.');
+            logger.error("❌ Error al crear evento:", error);
+            toastHelper.error('❌ Error al crear el evento. Verifica tu conexión.');
         }
     };
 
     // Función para eliminar evento
     const eliminarEvento = async (eventoId, tituloEvento) => {
-        if (!window.confirm(`¿Estás seguro de que quieres eliminar el evento "${tituloEvento}"?`)) {
-            return;
-        }
+        const confirmed = await toastHelper.confirm(`¿Estás seguro de que quieres eliminar el evento "${tituloEvento}"?`);
+        if (!confirmed) return;
 
         try {
+            toastHelper.info('🔄 Eliminando evento...');
             await deleteDoc(doc(db, "eventos", eventoId));
-            alert('Evento eliminado exitosamente!');
+            toastHelper.success('🗑️ Evento eliminado exitosamente!');
+            logger.log('✅ Evento eliminado:', eventoId);
             cargarEventos();
         } catch (error) {
-            console.error("Error al eliminar evento:", error);
-            alert('Error al eliminar el evento. Intenta de nuevo.');
+            logger.error("❌ Error al eliminar evento:", error);
+            toastHelper.error('❌ Error al eliminar el evento. Intenta de nuevo.');
         }
     };
 
@@ -290,13 +517,15 @@ const HomeOrganizador = ({ correoUsuario }) => {
         setNuevoEvento({
             titulo: evento.titulo,
             descripcion: evento.descripcion,
-            fecha: evento.fecha,
-            hora: evento.hora,
+            fechaInicio: evento.fechaInicio || evento.fecha || '',
+            fechaFin: evento.fechaFin || evento.fecha || '',
+            horaInicio: evento.horaInicio || evento.hora || '09:00',
+            horaFin: evento.horaFin || '18:00',
             ubicacion: evento.ubicacion,
             capacidadMaxima: evento.capacidadMaxima,
             tipo: evento.tipo,
             estado: evento.estado,
-            expositor: evento.expositor || ''
+            expositores: evento.expositores || []
         });
         setMostrandoFormulario(true);
     };
@@ -309,41 +538,48 @@ const HomeOrganizador = ({ correoUsuario }) => {
         // Validar formulario
         const errores = validarFormulario();
         if (errores.length > 0) {
-            alert('Errores de validación:\n' + errores.join('\n'));
+            toastHelper.error(`❌ Errores de validación:\n${errores.join('\n')}`);
+            logger.warn('Errores de validación:', errores);
             return;
         }
 
         // Verificar conflictos de horario
         if (verificarConflictoHorario()) {
-            alert('⚠️ CONFLICTO DETECTADO\n\nYa existe un evento en la misma fecha o en la misma ubicación.\n\nPor favor, elige otra fecha u otra ubicación para evitar conflictos.');
+            toastHelper.warning('⚠️ Ya existe un evento en la misma fecha o ubicación. Elige otra fecha u otra ubicación.');
+            logger.warn('Conflicto de horario detectado');
             return;
         }
 
         try {
+            toastHelper.info('🔄 Actualizando evento...');
             await updateDoc(doc(db, "eventos", eventoEditando.id), {
                 ...nuevoEvento,
                 capacidadMaxima: parseInt(nuevoEvento.capacidadMaxima),
                 fechaActualizacion: new Date()
             });
 
-            alert('Evento actualizado exitosamente!');
+            toastHelper.success('✅ Evento actualizado exitosamente!');
+            logger.log('✅ Evento actualizado:', eventoEditando.id);
             setNuevoEvento({
                 titulo: '',
                 descripcion: '',
-                fecha: '',
-                hora: '',
+                fechaInicio: '',
+                fechaFin: '',
+                horaInicio: '09:00',
+                horaFin: '18:00',
                 ubicacion: '',
                 capacidadMaxima: '',
                 tipo: 'conferencia',
                 estado: 'borrador',
-                expositor: ''
+                expositores: []
             });
+            setExpositorActual({ nombre: '', hora: '', tema: '' });
             setEventoEditando(null);
             setMostrandoFormulario(false);
             cargarEventos();
         } catch (error) {
-            console.error("Error al actualizar evento:", error);
-            alert('Error al actualizar el evento. Verifica que hayas aplicado las reglas de Firestore.');
+            logger.error("❌ Error al actualizar evento:", error);
+            toastHelper.error('❌ Error al actualizar el evento. Verifica las reglas de Firestore.');
         }
     };
 
@@ -353,14 +589,17 @@ const HomeOrganizador = ({ correoUsuario }) => {
         setNuevoEvento({
             titulo: '',
             descripcion: '',
-            fecha: '',
-            hora: '',
+            fechaInicio: '',
+            fechaFin: '',
+            horaInicio: '09:00',
+            horaFin: '18:00',
             ubicacion: '',
             capacidadMaxima: '',
             tipo: 'conferencia',
             estado: 'borrador',
-            expositor: ''
+            expositores: []
         });
+        setExpositorActual({ nombre: '', hora: '', tema: '' });
         setMostrandoFormulario(false);
     };
 
@@ -373,104 +612,55 @@ const HomeOrganizador = ({ correoUsuario }) => {
     // Función para volver de la vista de participantes
     const volverDeParticipantes = () => {
         setEventoParticipantes(null);
-        setVistaActual('eventos');
+        setVistaLocal(null); // Limpiar vista local para que se muestre la vista por defecto (eventos)
     };
 
     // Función para ver gestión de asistencia
     const verGestionAsistencia = (evento) => {
-        setEventoAsistencia(evento);
-        setVistaActual('asistencia');
+        navigate(`/organizador/asistencia/${evento.id}`);
     };
 
-    // Función para volver de la vista de asistencia
-    const volverDeAsistencia = () => {
-        setEventoAsistencia(null);
-        setVistaActual('eventos');
-        // Recargar eventos para actualizar estadísticas
-        cargarEventos();
+    // Función para cerrar inscripciones manualmente
+    const cerrarInscripcionesManual = async (evento) => {
+        const confirmacion = await toastHelper.confirm(
+            `¿Cerrar inscripciones del evento "${evento.titulo}"?\n\n` +
+            `📊 Inscritos: ${evento.participantes?.length || 0}/${evento.capacidadMaxima}\n\n` +
+            `Esta acción:\n` +
+            `🔒 Cerrará las inscripciones inmediatamente\n` +
+            `📧 Enviará la lista final de inscritos a n8n\n` +
+            `❌ Los alumnos NO podrán inscribirse después\n\n` +
+            `¿Continuar?`
+        );
+
+        if (!confirmacion) return;
+
+        try {
+            logger.log('🔒 Cerrando inscripciones manualmente:', evento.id);
+            toastHelper.info('🔄 Cerrando inscripciones...');
+            
+            const result = await firestoreService.cerrarInscripcionesYEnviarLista(evento.id);
+            
+            if (result.success) {
+                toastHelper.success('✅ Inscripciones cerradas y lista enviada a n8n');
+                logger.log('✅ Cierre manual exitoso:', result);
+                await cargarEventos(); // Recargar para mostrar estado actualizado
+            } else {
+                throw new Error(result.error || 'Error desconocido');
+            }
+        } catch (error) {
+            logger.error('❌ Error cerrando inscripciones:', error);
+            toastHelper.error(`Error al cerrar inscripciones: ${error.message}`);
+        }
     };
 
     return (
-        <div className="min-vh-100 bg-light">
-            {/* Navbar Responsive */}
-            <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
-                <div className="container-fluid">
-                    <span className="navbar-brand fs-5 fw-bold">
-                        UPAO Eventos - Organizador
-                    </span>
-                    
-                    {/* Botón hamburguesa para móvil */}
-                    <button 
-                        className="navbar-toggler" 
-                        type="button" 
-                        data-bs-toggle="collapse" 
-                        data-bs-target="#navbarNav"
-                        aria-controls="navbarNav" 
-                        aria-expanded="false" 
-                        aria-label="Toggle navigation"
-                    >
-                        <span className="navbar-toggler-icon"></span>
-                    </button>
-                    
-                    {/* Menú colapsable */}
-                    <div className="collapse navbar-collapse" id="navbarNav">
-                        <ul className="navbar-nav mx-auto mb-2 mb-lg-0">
-                            <li className="nav-item">
-                                <button 
-                                    className={`nav-link btn btn-link text-white border-0 ${vistaActual === 'dashboard' ? 'active fw-bold' : ''}`}
-                                    onClick={() => setVistaActual('dashboard')}
-                                >
-                                    Inicio
-                                </button>
-                            </li>
-                            <li className="nav-item">
-                                <button 
-                                    className={`nav-link btn btn-link text-white border-0 ${vistaActual === 'eventos' ? 'active fw-bold' : ''}`}
-                                    onClick={() => setVistaActual('eventos')}
-                                >
-                                    Eventos
-                                </button>
-                            </li>
-                            <li className="nav-item">
-                                <button 
-                                    className={`nav-link btn btn-link text-white border-0 ${vistaActual === 'reportes' ? 'active fw-bold' : ''}`}
-                                    onClick={() => setVistaActual('reportes')}
-                                >
-                                    Reportes
-                                </button>
-                            </li>
-                        </ul>
-                        
-                        {/* Usuario y logout */}
-                        <div className="d-flex flex-column flex-lg-row align-items-start align-items-lg-center">
-                            <span className="navbar-text text-light me-lg-3 mb-2 mb-lg-0 small">
-                                {correoUsuario}
-                            </span>
-                            <button 
-                                className="btn btn-outline-light btn-sm" 
-                                onClick={() => signOut(auth)}
-                            >
-                                Cerrar Sesión
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </nav>
-
-            {/* Contenido principal */}
-            <main className="flex-grow-1">
-                {vistaActual === 'participantes' && eventoParticipantes && (
+        <>
+            {/* Contenido principal sin navbar (el layout lo maneja) */}
+            {vistaActual === 'participantes' && eventoParticipantes && (
                     <GestionParticipantes 
                         evento={eventoParticipantes} 
                         onVolver={volverDeParticipantes}
                         onIrAGestionAsistencia={() => verGestionAsistencia(eventoParticipantes)}
-                    />
-                )}
-
-                {vistaActual === 'asistencia' && eventoAsistencia && (
-                    <GestionAsistencia 
-                        eventoId={eventoAsistencia.id} 
-                        onVolver={volverDeAsistencia}
                     />
                 )}
 
@@ -481,7 +671,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                             <div className="col-12">
                                 <div className="text-center text-md-start">
                                     <h1 className="h3 fw-bold text-primary mb-1">Inicio - Gestión de Eventos</h1>
-                                    <p className="text-muted mb-0">Bienvenido, {correoUsuario}</p>
+                                    <p className="text-muted mb-0">Bienvenido, {userData?.nombre && userData?.apellido ? `${userData.nombre} ${userData.apellido}` : user?.email}</p>
                                 </div>
                             </div>
                         </div>
@@ -558,7 +748,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                             </div>
                                             <div className="col-12 col-sm-6 col-lg-4">
                                                 <button 
-                                                    className="btn btn-outline-info w-100 py-3"
+                                                    className="btn btn-outline-primary w-100 py-3" 
                                                     onClick={() => setVistaActual('reportes')}
                                                 >
                                                     <div className="fs-4 mb-1">📊</div>
@@ -661,13 +851,13 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                 </div>
 
                                                 <div className="row g-3 mt-1">
-                                                    <div className="col-6 col-md-3">
-                                                        <label className="form-label fw-semibold">Fecha *</label>
+                                                    <div className="col-12 col-md-6">
+                                                        <label className="form-label fw-semibold">Fecha de Inicio *</label>
                                                         <input
                                                             type="date"
                                                             className={`form-control ${erroresValidacion.fechaHora ? 'is-invalid' : ''}`}
-                                                            value={nuevoEvento.fecha}
-                                                            onChange={(e) => manejarCambioFormulario('fecha', e.target.value)}
+                                                            value={nuevoEvento.fechaInicio}
+                                                            onChange={(e) => setNuevoEvento({...nuevoEvento, fechaInicio: e.target.value})}
                                                             min={new Date().toISOString().split('T')[0]}
                                                             max={(() => {
                                                                 const unAnoDespues = new Date();
@@ -680,15 +870,51 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                             <div className="invalid-feedback">{erroresValidacion.fechaHora}</div>
                                                         )}
                                                     </div>
-                                                    <div className="col-6 col-md-3">
-                                                        <label className="form-label fw-semibold">Hora *</label>
+                                                    <div className="col-12 col-md-6">
+                                                        <label className="form-label fw-semibold">Fecha de Fin *</label>
                                                         <input
-                                                            type="time"
-                                                            className={`form-control ${erroresValidacion.fechaHora ? 'is-invalid' : ''}`}
-                                                            value={nuevoEvento.hora}
-                                                            onChange={(e) => manejarCambioFormulario('hora', e.target.value)}
+                                                            type="date"
+                                                            className="form-control"
+                                                            value={nuevoEvento.fechaFin}
+                                                            onChange={(e) => setNuevoEvento({...nuevoEvento, fechaFin: e.target.value})}
+                                                            min={nuevoEvento.fechaInicio || new Date().toISOString().split('T')[0]}
+                                                            max={(() => {
+                                                                const unAnoDespues = new Date();
+                                                                unAnoDespues.setFullYear(unAnoDespues.getFullYear() + 1);
+                                                                return unAnoDespues.toISOString().split('T')[0];
+                                                            })()}
                                                             required
                                                         />
+                                                        <small className="text-muted">Puede ser igual o posterior a la fecha de inicio</small>
+                                                    </div>
+                                                </div>
+
+                                                <div className="row g-3 mt-1">
+                                                    <div className="col-6 col-md-3">
+                                                        <label className="form-label fw-semibold">Hora de Inicio *</label>
+                                                        <input
+                                                            type="time"
+                                                            className="form-control"
+                                                            value={nuevoEvento.horaInicio}
+                                                            onChange={(e) => setNuevoEvento({...nuevoEvento, horaInicio: e.target.value})}
+                                                            min="06:00"
+                                                            max="23:00"
+                                                            required
+                                                        />
+                                                        <small className="text-muted">6:00 AM - 11:00 PM</small>
+                                                    </div>
+                                                    <div className="col-6 col-md-3">
+                                                        <label className="form-label fw-semibold">Hora de Fin *</label>
+                                                        <input
+                                                            type="time"
+                                                            className="form-control"
+                                                            value={nuevoEvento.horaFin}
+                                                            onChange={(e) => setNuevoEvento({...nuevoEvento, horaFin: e.target.value})}
+                                                            min="06:00"
+                                                            max="23:00"
+                                                            required
+                                                        />
+                                                        <small className="text-muted">6:00 AM - 11:00 PM</small>
                                                     </div>
                                                     <div className="col-6 col-md-3">
                                                         <label className="form-label fw-semibold">Capacidad *</label>
@@ -719,7 +945,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                 </div>
 
                                                 <div className="row g-3 mt-1">
-                                                    <div className="col-12 col-md-6">
+                                                    <div className="col-12">
                                                         <label className="form-label fw-semibold">Ubicación *</label>
                                                         <input
                                                             type="text"
@@ -730,16 +956,122 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                             required
                                                         />
                                                     </div>
-                                                    <div className="col-12 col-md-6">
-                                                        <label className="form-label fw-semibold">Expositor(es)</label>
-                                                        <input
-                                                            type="text"
-                                                            className="form-control"
-                                                            placeholder="Ej: Dr. Juan Pérez, Ing. María García"
-                                                            value={nuevoEvento.expositor}
-                                                            onChange={(e) => setNuevoEvento({...nuevoEvento, expositor: e.target.value})}
-                                                        />
-                                                        <small className="text-muted">Nombre(s) del/los expositor(es)</small>
+                                                </div>
+
+                                                {/* Sección de Expositores */}
+                                                <div className="row g-3 mt-3">
+                                                    <div className="col-12">
+                                                        <div className="card border-primary">
+                                                            <div className="card-header bg-primary text-white">
+                                                                <h6 className="mb-0">
+                                                                    <i className="bi bi-people-fill me-2"></i>
+                                                                    Expositores * (Mínimo 1)
+                                                                </h6>
+                                                            </div>
+                                                            <div className="card-body">
+                                                                {/* Formulario para agregar expositor */}
+                                                                <div className="row g-2 mb-3">
+                                                                    <div className="col-12 col-md-3">
+                                                                        <input
+                                                                            type="text"
+                                                                            className="form-control"
+                                                                            placeholder="Nombre del expositor"
+                                                                            value={expositorActual.nombre}
+                                                                            onChange={(e) => setExpositorActual({...expositorActual, nombre: e.target.value})}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="col-12 col-md-3">
+                                                                        <input
+                                                                            type="email"
+                                                                            className="form-control"
+                                                                            placeholder="Correo del expositor"
+                                                                            value={expositorActual.correo}
+                                                                            onChange={(e) => setExpositorActual({...expositorActual, correo: e.target.value})}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="col-6 col-md-2">
+                                                                        <input
+                                                                            type="time"
+                                                                            className="form-control"
+                                                                            placeholder="Hora"
+                                                                            value={expositorActual.hora}
+                                                                            onChange={(e) => setExpositorActual({...expositorActual, hora: e.target.value})}
+                                                                            min="06:00"
+                                                                            max="23:00"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="col-6 col-md-2">
+                                                                        <input
+                                                                            type="text"
+                                                                            className="form-control"
+                                                                            placeholder="Tema a exponer"
+                                                                            value={expositorActual.tema}
+                                                                            onChange={(e) => setExpositorActual({...expositorActual, tema: e.target.value})}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="col-12 col-md-2">
+                                                                        <button
+                                                                            type="button"
+                                                                            className="btn btn-primary w-100"
+                                                                            onClick={agregarExpositor}
+                                                                        >
+                                                                            <i className="bi bi-plus-circle me-1"></i>
+                                                                            Agregar
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                <small className="text-muted d-block mb-3">
+                                                                    <i className="bi bi-info-circle me-1"></i>
+                                                                    Las horas de los expositores deben estar entre {nuevoEvento.horaInicio} y {nuevoEvento.horaFin}
+                                                                </small>
+
+                                                                {/* Tabla de expositores agregados */}
+                                                                {nuevoEvento.expositores.length > 0 ? (
+                                                                    <div className="table-responsive">
+                                                                        <table className="table table-sm table-bordered">
+                                                                            <thead className="table-light">
+                                                                                <tr>
+                                                                                    <th>Expositor</th>
+                                                                                    <th>Correo</th>
+                                                                                    <th style={{width: '100px'}}>Hora</th>
+                                                                                    <th>Tema</th>
+                                                                                    <th style={{width: '80px'}}>Acción</th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                {nuevoEvento.expositores
+                                                                                    .sort((a, b) => a.hora.localeCompare(b.hora))
+                                                                                    .map((exp, index) => (
+                                                                                    <tr key={index}>
+                                                                                        <td>{exp.nombre}</td>
+                                                                                        <td className="text-muted small">{exp.correo}</td>
+                                                                                        <td className="text-center">
+                                                                                            <span className="badge bg-info">{exp.hora}</span>
+                                                                                        </td>
+                                                                                        <td>{exp.tema}</td>
+                                                                                        <td className="text-center">
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                className="btn btn-sm btn-outline-danger"
+                                                                                                onClick={() => eliminarExpositor(index)}
+                                                                                            >
+                                                                                                <i className="bi bi-trash"></i>
+                                                                                            </button>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                ))}
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="alert alert-warning mb-0">
+                                                                        <i className="bi bi-exclamation-triangle me-2"></i>
+                                                                        Debe agregar al menos 1 expositor para crear el evento
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -824,25 +1156,17 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                                 
                                                                 {/* Información del evento */}
                                                                 <div className="border rounded p-3 bg-light">
-                                                                    <div className="row g-1 small">
-                                                                        <div className="col-12">
-                                                                            <div className="d-flex align-items-center">
-                                                                                <span className="me-2">📅</span>
-                                                                                <span>{evento.fecha} - {evento.hora}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="col-12">
-                                                                            <div className="d-flex align-items-center">
-                                                                                <span className="me-2">📍</span>
-                                                                                <span>{evento.ubicacion}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="col-12">
-                                                                            <div className="d-flex align-items-center">
-                                                                                <span className="me-2">👥</span>
-                                                                                <span>{evento.participantes?.length || 0}/{evento.capacidadMaxima}</span>
-                                                                            </div>
-                                                                        </div>
+                                                                    <div className="small text-muted mb-3">
+                                                                    <div className="mb-1">
+                                                                        <strong>Fecha(s):</strong> {evento.fechaInicio || evento.fecha || 'No especificada'} 
+                                                                        {evento.fechaFin && evento.fechaFin !== evento.fechaInicio && ` al ${evento.fechaFin}`}
+                                                                    </div>
+                                                                    <div className="mb-1">
+                                                                        <strong>Horario:</strong> {evento.horaInicio || evento.hora || 'No especificada'}
+                                                                        {evento.horaFin && ` - ${evento.horaFin}`}
+                                                                    </div>
+                                                                    <div className="mb-1"><strong>Ubicación:</strong> {evento.ubicacion}</div>
+                                                                    <div><strong>Participantes:</strong> {evento.participantes?.length || 0}/{evento.capacidadMaxima}</div>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -854,34 +1178,51 @@ const HomeOrganizador = ({ correoUsuario }) => {
                                                                         className="btn btn-outline-primary btn-sm"
                                                                         onClick={() => iniciarEdicion(evento)}
                                                                     >
-                                                                        ✏️ Editar
+                                                                        Editar
                                                                     </button>
                                                                     
-                                                                    {/* Botón de Gestión de Asistencia (QR + Manual) */}
-                                                                    <button 
-                                                                        className="btn btn-primary btn-sm"
-                                                                        onClick={() => verGestionAsistencia(evento)}
-                                                                        title="Escanear QR y registrar asistencia"
-                                                                    >
-                                                                        <i className="bi bi-qr-code-scan me-1"></i>
-                                                                        Gestión de Asistencia
-                                                                    </button>
-                                                                    
-                                                                    <div className="row g-2">
+                                                                    {/* Botones de acciones principales */}
+                                                                    <div className="row g-2 mb-2">
                                                                         <div className="col-6">
                                                                             <button 
-                                                                                className="btn btn-outline-info btn-sm w-100"
-                                                                                onClick={() => verParticipantes(evento)}
+                                                                                className="btn btn-outline-primary btn-sm w-100"
+                                                                                onClick={() => verGestionAsistencia(evento)}
+                                                                                title="Escanear QR y registrar asistencia"
                                                                             >
-                                                                                👥 Participantes
+                                                                                <i className="bi bi-qr-code-scan me-1"></i>
+                                                                                Gestión Asistencia
                                                                             </button>
                                                                         </div>
                                                                         <div className="col-6">
                                                                             <button 
+                                                                                className={`btn btn-sm w-100 ${evento.inscripcionesAbiertas ? 'btn-outline-danger' : 'btn-secondary'}`}
+                                                                                onClick={() => cerrarInscripcionesManual(evento)}
+                                                                                disabled={!evento.inscripcionesAbiertas}
+                                                                                title={evento.inscripcionesAbiertas ? 'Cerrar inscripciones manualmente' : 'Inscripciones ya cerradas'}
+                                                                            >
+                                                                                <i className={`bi ${evento.inscripcionesAbiertas ? 'bi-lock-fill' : 'bi-lock'} me-1`}></i>
+                                                                                {evento.inscripcionesAbiertas ? 'Cerrar Inscripciones' : 'Cerrado'}
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                    
+                                                                    <div className="row g-2 mb-2">
+                                                                        <div className="col-12">
+                                                                            <button 
+                                                                                className="btn btn-outline-primary btn-sm w-100"
+                                                                                onClick={() => verParticipantes(evento)}
+                                                                            >
+                                                                                Participantes
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="row g-2">
+                                                                        <div className="col-12">
+                                                                            <button 
                                                                                 className="btn btn-outline-danger btn-sm w-100"
                                                                                 onClick={() => eliminarEvento(evento.id, evento.titulo)}
                                                                             >
-                                                                                Eliminar
+                                                                                Eliminar Evento
                                                                             </button>
                                                                         </div>
                                                                     </div>
@@ -898,13 +1239,7 @@ const HomeOrganizador = ({ correoUsuario }) => {
                         </div>
                     </div>
                 )}
-
-                {/* Vista de Reportes */}
-                {vistaActual === 'reportes' && (
-                    <Reportes correoOrganizador={correoUsuario} />
-                )}
-            </main>
-        </div>
+        </>
     );
 };
 

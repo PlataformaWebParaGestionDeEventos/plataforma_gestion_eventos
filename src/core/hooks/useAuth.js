@@ -4,6 +4,7 @@ import { authService } from '../../services/authService';
 
 export const useAuth = () => {
   const [user, setUser] = useState(null);
+  const [userData, setUserData] = useState(null);
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -18,19 +19,23 @@ export const useAuth = () => {
           
           if (result.success) {
             setUser(firebaseUser);
+            setUserData(result.userData);
             setRole(result.userData.role);
           } else {
             // Si no existen datos en Firestore, crear perfil básico
             setUser(firebaseUser);
+            setUserData(null);
             setRole('alumno'); // rol por defecto
           }
         } else {
           setUser(null);
+          setUserData(null);
           setRole(null);
         }
       } catch (error) {
         console.error('Error en useAuth:', error);
         setUser(null);
+        setUserData(null);
         setRole(null);
       } finally {
         setLoading(false);
@@ -58,6 +63,7 @@ export const useAuth = () => {
 
   return {
     user,
+    userData,
     role,
     loading,
     login,

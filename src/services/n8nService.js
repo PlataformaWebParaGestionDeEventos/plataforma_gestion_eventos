@@ -1,3 +1,5 @@
+import logger from '../core/utils/logger';
+
 class N8nService {
   constructor() {
     this.baseUrl = import.meta.env.VITE_N8N_BASE_URL;
@@ -18,8 +20,8 @@ class N8nService {
   async enviarEventoCreado(eventoData) {
     const url = `${this.baseUrl}${this.endpoints.eventoCreado}`;
     
-    console.log('� [n8n] Enviando evento creado a:', url);
-    console.log('� [n8n] Datos del evento:', eventoData);
+    logger.log('� [n8n] Enviando evento creado a:', url);
+    logger.log('� [n8n] Datos del evento:', eventoData);
     
     try {
       const response = await fetch(url, {
@@ -52,11 +54,11 @@ class N8nService {
         })
       });
 
-      console.log(`✅ [n8n] Response status: ${response.status}`);
+      logger.log(`✅ [n8n] Response status: ${response.status}`);
 
       // Manejo especial para CORS - Si es un error CORS pero se envió
       if (response.status === 0 || response.type === 'opaque') {
-        console.log('✅ [n8n] Evento enviado correctamente');
+        logger.log('✅ [n8n] Evento enviado correctamente');
         return {
           success: true,
           data: { corsHandled: true, message: 'Webhook enviado' },
@@ -73,7 +75,7 @@ class N8nService {
         message: 'Respuesta procesada' 
       }));
       
-      console.log('✅ [n8n] Evento enviado exitosamente');
+      logger.log('✅ [n8n] Evento enviado exitosamente');
       
       return {
         success: true,
@@ -88,7 +90,7 @@ class N8nService {
           error.message.includes('CORS') ||
           error.message.includes('Failed to fetch')
         )) {
-        console.log('✅ [n8n] Evento enviado correctamente');
+        logger.log('✅ [n8n] Evento enviado correctamente');
         return {
           success: true,
           data: { corsHandled: true },
@@ -114,10 +116,10 @@ class N8nService {
   async enviarWebhook(endpoint, datos, descripcion = 'webhook') {
     const url = `${this.baseUrl}${endpoint}`;
     
-    console.log(`🔄 [n8n] Enviando ${descripcion} a:`, url);
+    logger.log(`🔄 [n8n] Enviando ${descripcion} a:`, url);
     
     if (!this.baseUrl) {
-      console.warn('⚠️ [n8n] Base URL no configurada');
+      logger.warn('⚠️ [n8n] Base URL no configurada');
       return {
         success: false,
         error: 'Base URL de n8n no configurada',
@@ -142,7 +144,7 @@ class N8nService {
 
       // Manejo especial para CORS
       if (response.status === 0 || response.type === 'opaque') {
-        console.log(`ℹ️ [n8n] CORS detectado en ${descripcion} - Asumiendo éxito`);
+        logger.log(`ℹ️ [n8n] CORS detectado en ${descripcion} - Asumiendo éxito`);
         return {
           success: true,
           data: { corsHandled: true },
@@ -157,7 +159,7 @@ class N8nService {
       }
 
       const resultado = await response.json().catch(() => ({ success: true }));
-      console.log(`✅ [n8n] ${descripcion} enviado exitosamente:`, resultado);
+      logger.log(`✅ [n8n] ${descripcion} enviado exitosamente:`, resultado);
       
       return {
         success: true,
@@ -174,7 +176,7 @@ class N8nService {
           error.message.includes('CORS') ||
           error.message.includes('Failed to fetch')
         )) {
-        console.log(`ℹ️ [n8n] Error CORS en ${descripcion} - Webhook probablemente procesado`);
+        logger.log(`ℹ️ [n8n] Error CORS en ${descripcion} - Webhook probablemente procesado`);
         return {
           success: true,
           data: { corsError: true },
@@ -280,7 +282,7 @@ class N8nService {
     }
 
     try {
-      console.log('🧪 [n8n] Probando conexión con:', this.baseUrl);
+      logger.log('🧪 [n8n] Probando conexión con:', this.baseUrl);
       
       // Intentar hacer ping al servidor
       const response = await fetch(`${this.baseUrl}/health`, {

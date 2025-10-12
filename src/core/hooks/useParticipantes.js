@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { firestoreService } from '../../services/firestoreService';
 import { useAuth } from './useAuth';
+import logger from '../utils/logger';
+import toastHelper from '../utils/toastHelper';
 
 // Claves de queries para participantes
 export const participantesQueryKeys = {
@@ -24,21 +26,29 @@ export const useParticipantes = (eventoId = null) => {
   } = useQuery({
     queryKey: participantesQueryKeys.byEvento(eventoId),
     queryFn: async () => {
-      if (!eventoId) throw new Error('ID de evento requerido');
+      if (!eventoId) {
+        const errorMsg = 'ID de evento requerido';
+        logger.error('❌', errorMsg);
+        throw new Error(errorMsg);
+      }
       
-      console.log('React Query: Obteniendo participantes del evento:', eventoId);
+      logger.log('👥 Obteniendo participantes del evento:', eventoId);
       const result = await firestoreService.obtenerParticipantesEvento(eventoId);
       
       if (!result.success) {
-        throw new Error(result.error || 'Error al obtener participantes');
+        const errorMsg = result.error || 'Error al obtener participantes';
+        logger.error('❌ Error obteniendo participantes:', errorMsg);
+        toastHelper.error(`Error al cargar participantes: ${errorMsg}`);
+        throw new Error(errorMsg);
       }
       
-      console.log('React Query: Participantes obtenidos:', result.participantes.length);
+      logger.log(`✅ ${result.participantes.length} participantes obtenidos`);
       return result;
     },
     enabled: !!user && !!eventoId, // Solo ejecuta si hay usuario y eventoId
-    staleTime: 1 * 60 * 1000, // 1 minuto (datos más dinámicos)
+    staleTime: 1 * 60 * 1000, // 1 minuto (datos más dinámicos, OK para participantes)
     gcTime: 3 * 60 * 1000, // 3 minutos en caché
+    refetchInterval: 45 * 1000, // ⚡ Refetch cada 45 segundos - Balanceado para tiempo real
   });
 
   // Calcular estadísticas usando useMemo
@@ -70,20 +80,27 @@ export const useParticipantes = (eventoId = null) => {
   const asistenciaMutation = useMutation({
     mutationFn: async ({ eventoId: evId, alumnoId }) => {
       if (!user) {
-        throw new Error('Usuario no autenticado');
+        const errorMsg = 'Usuario no autenticado';
+        logger.error('❌', errorMsg);
+        toastHelper.error(errorMsg);
+        throw new Error(errorMsg);
       }
       
-      console.log('React Query: Marcando asistencia para alumno:', alumnoId);
+      logger.log('✅ Marcando asistencia para alumno:', alumnoId);
       const result = await firestoreService.marcarAsistencia(evId, alumnoId);
       
       if (!result.success) {
-        throw new Error(result.error || 'Error al marcar asistencia');
+        const errorMsg = result.error || 'Error al marcar asistencia';
+        logger.error('❌ Error marcando asistencia:', errorMsg);
+        throw new Error(errorMsg);
       }
       
       return result;
     },
     onSuccess: (data, variables) => {
-      console.log('React Query: Asistencia marcada exitosamente, invalidando caché');
+      logger.log('✅ Asistencia marcada exitosamente');
+      toastHelper.success('✅ Asistencia registrada correctamente');
+      
       // Invalidar caché para recargar participantes
       queryClient.invalidateQueries({ 
         queryKey: participantesQueryKeys.byEvento(variables.eventoId) 
@@ -93,7 +110,8 @@ export const useParticipantes = (eventoId = null) => {
       queryClient.invalidateQueries({ queryKey: ['eventos'] });
     },
     onError: (error) => {
-      console.error('React Query: Error al marcar asistencia:', error);
+      logger.error('❌ Error al marcar asistencia:', error);
+      toastHelper.error(error.message || 'Error al marcar asistencia');
     }
   });
 

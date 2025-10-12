@@ -4,16 +4,20 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { getAuth } from 'firebase/auth';
 import appFirebase from '../../config/credenciales';
 import QRScanner from '../../components/qr/QRScanner';
 import firestoreService from '../../services/firestoreService';
 import qrService from '../../services/qrService';
+import toastHelper from '../../core/utils/toastHelper';
 import './GestionAsistencia.css';
 
 const auth = getAuth(appFirebase);
 
-const GestionAsistencia = ({ eventoId, onVolver }) => {
+const GestionAsistencia = () => {
+  const { eventoId } = useParams();
+  const navigate = useNavigate();
   
   const [evento, setEvento] = useState(null);
   const [participantes, setParticipantes] = useState([]);
@@ -83,7 +87,8 @@ const GestionAsistencia = ({ eventoId, onVolver }) => {
    * Marcar asistencia manual
    */
   const marcarAsistenciaManual = async (participanteId) => {
-    if (!window.confirm('¿Confirmar asistencia de este participante?')) {
+    const confirmed = await toastHelper.confirm('¿Confirmar asistencia de este participante?');
+    if (!confirmed) {
       return;
     }
 
@@ -99,14 +104,14 @@ const GestionAsistencia = ({ eventoId, onVolver }) => {
       );
       
       if (result.success) {
-        alert('✅ Asistencia registrada exitosamente');
+        toastHelper.success('Asistencia registrada exitosamente');
         cargarEvento();
       } else {
-        alert('❌ ' + (result.error || 'Error al registrar asistencia'));
+        toastHelper.error(result.error || 'Error al registrar asistencia');
       }
     } catch (error) {
       console.error('Error:', error);
-      alert('❌ Error al registrar asistencia');
+      toastHelper.error('Error al registrar asistencia');
     }
   };
 
@@ -151,14 +156,12 @@ const GestionAsistencia = ({ eventoId, onVolver }) => {
         <div className="alert alert-danger" role="alert">
           <i className="bi bi-exclamation-triangle me-2"></i>
           {error}
-          {onVolver && (
-            <button 
-              className="btn btn-sm btn-outline-danger ms-3"
-              onClick={onVolver}
-            >
-              Volver
-            </button>
-          )}
+          <button 
+            className="btn btn-sm btn-outline-primary-custom ms-3"
+            onClick={() => navigate(-1)}
+          >
+            Volver
+          </button>
         </div>
       </div>
     );
@@ -169,15 +172,13 @@ const GestionAsistencia = ({ eventoId, onVolver }) => {
       {/* Header */}
       <div className="row mb-4">
         <div className="col-12">
-          {onVolver && (
-            <button 
-              className="btn btn-outline-secondary btn-sm mb-3"
-              onClick={onVolver}
-            >
-              <i className="bi bi-arrow-left me-2"></i>
-              Volver
-            </button>
-          )}
+          <button 
+            className="btn btn-outline-primary-custom btn-sm mb-3"
+            onClick={() => navigate(-1)}
+          >
+            <i className="bi bi-arrow-left me-2"></i>
+            Volver
+          </button>
           
           <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
             <div>
@@ -330,22 +331,22 @@ const GestionAsistencia = ({ eventoId, onVolver }) => {
                       ) : (
                         participantesSinAsistencia.map(participante => (
                           <div key={participante.id || participante.uid} className="list-group-item">
-                            <div className="d-flex align-items-center gap-3">
-                              <div className="flex-shrink-0">
-                                <div className="avatar-circle bg-secondary text-white">
-                                  <i className="bi bi-person"></i>
+                            <div className="d-flex align-items-center justify-content-between gap-3 pe-4">
+                              <div className="d-flex align-items-center gap-3 flex-grow-1">
+                                  <div className="avatar-circle bg-secondary text-white">
+                                    <i className="bi bi-person"></i>
+                                  </div>
+                                <div className="flex-grow-1">
+                                  <h6 className="mb-0">{participante.nombre || 'Sin nombre'}</h6>
+                                  <small className="text-muted">{participante.email}</small>
                                 </div>
-                              </div>
-                              <div className="flex-grow-1">
-                                <h6 className="mb-0">{participante.nombre || 'Sin nombre'}</h6>
-                                <small className="text-muted">{participante.email}</small>
                               </div>
                               <button
                                 className="btn btn-sm btn-primary"
                                 onClick={() => marcarAsistenciaManual(participante.uid || participante.id)}
                               >
                                 <i className="bi bi-check-lg me-1"></i>
-                                Marcar
+                                Marcar asistencia
                               </button>
                             </div>
                           </div>

@@ -21,13 +21,60 @@ service cloud.firestore {
         && value.size() <= maxLength;
     }
     
+    // ✅ NUEVA FUNCIÓN: Validar estructura de expositor
+    function isValidExpositor(expositor) {
+      return expositor is map
+        && expositor.keys().hasAll(['nombre', 'correo', 'hora', 'tema'])
+        && expositor.nombre is string
+        && expositor.nombre.size() >= 2
+        && expositor.nombre.size() <= 200
+        && expositor.correo is string
+        && expositor.correo.size() >= 5
+        && expositor.correo.size() <= 200
+        && expositor.correo.matches('.*@.*\\..*')
+        && expositor.hora is string
+        && expositor.hora.size() >= 4
+        && expositor.hora.size() <= 5
+        && expositor.tema is string
+        && expositor.tema.size() >= 3
+        && expositor.tema.size() <= 300;
+    }
+    
+    // ✅ NUEVA FUNCIÓN: Validar array de expositores
+    function isValidExpositoresArray(expositores) {
+      return expositores is list
+        && expositores.size() >= 1
+        && expositores.size() <= 20;
+    }
+    
     // ============================================
     // REGLAS PARA USUARIOS
     // ============================================
     
     match /users/{userId} {
-      // Los usuarios pueden leer y escribir solo su propio documento
-      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      // Los usuarios pueden leer su propio documento
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Los usuarios pueden crear su propio documento al registrarse
+      allow create: if isAuthenticated() 
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasAll(['uid', 'nombre', 'apellido', 'email', 'role'])
+        && request.resource.data.uid == userId
+        && request.resource.data.email == request.auth.token.email
+        && isValidString(request.resource.data.nombre, 2, 100)
+        && isValidString(request.resource.data.apellido, 2, 100)
+        && request.resource.data.role in ['alumno', 'organizador'];
+      
+      // ✅ ACTUALIZADO: Los usuarios pueden actualizar solo nombre y apellido
+      allow update: if isAuthenticated() 
+        && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nombre', 'apellido'])
+        && isValidString(request.resource.data.nombre, 2, 100)
+        && isValidString(request.resource.data.apellido, 2, 100)
+        // No se puede cambiar el email ni el role
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.uid == resource.data.uid;
     }
     
     // ============================================
@@ -56,26 +103,46 @@ service cloud.firestore {
       
       allow create: if isAuthenticated() 
         && request.auth.uid == request.resource.data.organizadorId
-        // Validar que tenga todos los campos requeridos
-        && request.resource.data.keys().hasAll([
-          'titulo', 'descripcion', 'fecha', 'hora', 
-          'ubicacion', 'capacidadMaxima', 'tipo', 'estado', 'organizadorId'
-        ])
-        // Validar tipos de datos y rangos
+        // Validar que tenga todos los campos requeridos (nuevo modelo O modelo antiguo para compatibilidad)
+        && (
+          // NUEVO MODELO: Soporte para fechaInicio/fechaFin/horaInicio/horaFin/expositores
+          (request.resource.data.keys().hasAll([
+            'titulo', 'descripcion', 'fechaInicio', 'fechaFin', 'horaInicio', 'horaFin',
+            'ubicacion', 'capacidadMaxima', 'tipo', 'estado', 'organizadorId', 'expositores'
+          ]) &&
+          request.resource.data.fechaInicio is string &&
+          request.resource.data.fechaFin is string &&
+          request.resource.data.horaInicio is string &&
+          request.resource.data.horaFin is string &&
+          isValidExpositoresArray(request.resource.data.expositores))
+          ||
+          // MODELO ANTIGUO: Soporte para fecha/hora/expositor (compatibilidad retroactiva)
+          (request.resource.data.keys().hasAll([
+            'titulo', 'descripcion', 'fecha', 'hora', 
+            'ubicacion', 'capacidadMaxima', 'tipo', 'estado', 'organizadorId'
+          ]) &&
+          request.resource.data.fecha is string &&
+          request.resource.data.hora is string)
+        )
+        // Validar tipos de datos y rangos (campos comunes)
         && request.resource.data.organizadorId is string
         && isValidString(request.resource.data.titulo, 10, 100)
         && isValidString(request.resource.data.descripcion, 20, 500)
-        && request.resource.data.fecha is string
-        && request.resource.data.hora is string
         && isValidString(request.resource.data.ubicacion, 3, 200)
         && request.resource.data.capacidadMaxima is int
         && request.resource.data.capacidadMaxima >= 1
         && request.resource.data.capacidadMaxima <= 1000
         && request.resource.data.tipo in ['conferencia', 'seminario', 'taller', 'curso', 'charla']
         && request.resource.data.estado in ['borrador', 'publicado']
-        // Validar campo expositor (opcional)
+        // Validar campo expositor (opcional - modelo antiguo)
         && (!request.resource.data.keys().hasAny(['expositor']) 
             || (request.resource.data.expositor is string && request.resource.data.expositor.size() <= 200))
+        // Validar campo expositorEmail (opcional - modelo antiguo)
+        && (!request.resource.data.keys().hasAny(['expositorEmail']) 
+            || (request.resource.data.expositorEmail is string 
+                && request.resource.data.expositorEmail.size() >= 5
+                && request.resource.data.expositorEmail.size() <= 200
+                && request.resource.data.expositorEmail.matches('.*@.*\\..*')))
         // Validar arrays de participantes (deben iniciar vacíos o no existir)
         && (!request.resource.data.keys().hasAny(['participantes']) 
             || request.resource.data.participantes.size() == 0)
@@ -95,19 +162,41 @@ service cloud.firestore {
         // CASO 1: El organizador actualiza su evento (por UID)
         (isOwner(resource.data.organizadorId) &&
          isOwner(request.resource.data.organizadorId) &&
-         // Validaciones de campos editables
+         // Validaciones de campos editables (comunes)
          isValidString(request.resource.data.titulo, 10, 100) &&
          isValidString(request.resource.data.descripcion, 20, 500) &&
          request.resource.data.capacidadMaxima >= 1 &&
          request.resource.data.capacidadMaxima <= 1000 &&
          request.resource.data.tipo in ['conferencia', 'seminario', 'taller', 'curso', 'charla'] &&
          request.resource.data.estado in ['borrador', 'publicado'] &&
+         // Validaciones modelo antiguo (opcional)
          (!request.resource.data.keys().hasAny(['expositor']) 
-             || (request.resource.data.expositor is string && request.resource.data.expositor.size() <= 200))) ||
+             || (request.resource.data.expositor is string && request.resource.data.expositor.size() <= 200)) &&
+         (!request.resource.data.keys().hasAny(['expositorEmail']) 
+             || (request.resource.data.expositorEmail is string 
+                 && request.resource.data.expositorEmail.size() >= 5
+                 && request.resource.data.expositorEmail.size() <= 200
+                 && request.resource.data.expositorEmail.matches('.*@.*\\..*'))) &&
+         // Validaciones modelo nuevo (si existen estos campos)
+         (!request.resource.data.keys().hasAny(['expositores']) 
+             || isValidExpositoresArray(request.resource.data.expositores)) &&
+         (!request.resource.data.keys().hasAny(['fechaInicio']) 
+             || request.resource.data.fechaInicio is string) &&
+         (!request.resource.data.keys().hasAny(['fechaFin']) 
+             || request.resource.data.fechaFin is string) &&
+         (!request.resource.data.keys().hasAny(['horaInicio']) 
+             || request.resource.data.horaInicio is string) &&
+         (!request.resource.data.keys().hasAny(['horaFin']) 
+             || request.resource.data.horaFin is string)) ||
         
         // CASO 1B: El organizador actualiza su evento (por email - para mantenimiento automático)
         (resource.data.organizador == request.auth.token.email &&
          request.resource.data.organizador == request.auth.token.email) ||
+        
+        // ✅ NUEVO CASO 1C: Organizador cierra inscripciones manualmente
+        (request.auth.uid == resource.data.organizadorId &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inscripcionesAbiertas', 'fechaCierre']) &&
+         request.resource.data.inscripcionesAbiertas == false) ||
         
         // CASO 2: Operaciones de inscripción/desinscripción de participantes
         (isValidParticipantOperation() && onlyUpdatingParticipantFields())
@@ -119,39 +208,6 @@ service cloud.firestore {
       
       allow delete: if isOwner(resource.data.organizadorId)
         || (isAuthenticated() && resource.data.organizador == request.auth.token.email);
-      
-      // ============================================
-      // SUBCOLLECCIÓN: INSCRITOS
-      // ============================================
-      
-      match /inscritos/{userId} {
-        // Los usuarios pueden leer sus propias inscripciones
-        allow read: if isAuthenticated() && request.auth.uid == userId;
-        
-        // Los organizadores pueden leer todas las inscripciones de sus eventos
-        allow read: if isAuthenticated() 
-          && get(/databases/$(database)/documents/eventos/$(eventoId)).data.organizadorId == request.auth.uid;
-        
-        // Los usuarios pueden crear sus propias inscripciones
-        allow create: if isAuthenticated() 
-          && request.auth.uid == userId
-          && request.auth.uid == request.resource.data.uid
-          && request.resource.data.correo == request.auth.token.email;
-        
-        // Los usuarios pueden eliminar sus propias inscripciones
-        allow delete: if isAuthenticated() && request.auth.uid == userId;
-        
-        // Los organizadores pueden eliminar inscripciones de sus eventos
-        allow delete: if isAuthenticated() 
-          && get(/databases/$(database)/documents/eventos/$(eventoId)).data.organizadorId == request.auth.uid;
-          
-        // Los usuarios pueden actualizar sus propias inscripciones
-        allow update: if isAuthenticated() && request.auth.uid == userId;
-        
-        // Los organizadores pueden actualizar inscripciones de sus eventos
-        allow update: if isAuthenticated() 
-          && get(/databases/$(database)/documents/eventos/$(eventoId)).data.organizadorId == request.auth.uid;
-      }
     }
     
     // ============================================
@@ -194,7 +250,7 @@ service cloud.firestore {
     function onlyUpdatingParticipantFields() {
       // Permitir actualización de campos relacionados con participantes Y sistema QR
       let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
-      return affectedKeys.hasOnly(['participantes', 'participantesInfo', 'asistentes', 'asistenciaQR']);
+      return affectedKeys.hasOnly(['participantes', 'participantesInfo', 'asistentes', 'asistenciaQR', 'qrUsados']);
     }
     
     function isValidParticipantOperation() {
@@ -242,8 +298,10 @@ service cloud.firestore {
       
       // Verificar que se agregó correctamente la info del participante
       // Ahora incluye validación del campo qrData (opcional)
+      // ✅ NUEVO: Validar que las inscripciones estén abiertas
       return newParticipantesInfo.size() == currentParticipantesInfo.size() + 1 &&
-             newParticipantesInfo.hasAll(currentParticipantesInfo);
+             newParticipantesInfo.hasAll(currentParticipantesInfo) &&
+             resource.data.get('inscripcionesAbiertas', true) == true;
     }
     
     function isValidDesinscription() {

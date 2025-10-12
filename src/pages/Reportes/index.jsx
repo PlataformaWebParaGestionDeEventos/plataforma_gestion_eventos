@@ -1,8 +1,13 @@
 import React, { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../../core/hooks/useAuth';
 import { useReportes } from '../../core/hooks';
 import './Reportes.css';
 
-const Reportes = ({ correoOrganizador }) => {
+const Reportes = () => {
+  const navigate = useNavigate();
+  const { eventoId } = useParams();
+  const { user } = useAuth();
   const {
     cargando,
     error,
@@ -13,7 +18,7 @@ const Reportes = ({ correoOrganizador }) => {
     topEventosPorInscripciones,
     tasaConversion,
     estadoInscripciones
-  } = useReportes(correoOrganizador);
+  } = useReportes(user?.email, eventoId);
 
   const [vistaActiva, setVistaActiva] = useState('general');
 
@@ -45,18 +50,14 @@ const Reportes = ({ correoOrganizador }) => {
     <div className="reportes-container">
       {/* Header */}
       <div className="reportes-header mb-4">
-        <div className="d-flex justify-content-between align-items-center">
-          <div>
-            <h2 className="fw-bold text-primary mb-1">
-              <i className="bi bi-bar-chart-fill me-2"></i>
-              Dashboard de Reportes
-            </h2>
-            <p className="text-muted mb-0">Análisis y estadísticas de tus eventos</p>
-          </div>
-          <button className="btn btn-outline-primary">
-            <i className="bi bi-download me-2"></i>
-            Exportar PDF
-          </button>
+        <div>
+          <h2 className="fw-bold text-primary mb-1">
+            <i className="bi bi-bar-chart-fill me-2"></i>
+            {eventoId ? 'Reporte del Evento' : 'Dashboard de Reportes'}
+          </h2>
+          <p className="text-muted mb-0">
+            {eventoId ? 'Análisis y estadísticas del evento seleccionado' : 'Análisis y estadísticas de tus eventos'}
+          </p>
         </div>
       </div>
 
