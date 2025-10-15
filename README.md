@@ -225,17 +225,69 @@ src/
 ### **🔮 Funcionalidades Futuras**
 - [ ] Chat en tiempo real
 - [ ] Búsqueda y filtros por fecha, programa, tipo
-- [ ] Recordatorios automáticos y notificaciones
 - [ ] Panel de métricas para autoridades
-- [ ] Emisión de certificados verificables con Polygon
+- [ ] Emisión de certificados verificables con Blockchain
 - [ ] Integración con calendario
 
 ---
 
+## 🤖 Automatizaciones con n8n
 
+Esta plataforma incluye integración con **n8n** para automatizar procesos:
+
+### **📚 Documentación de Automatizaciones**
+
+| Archivo | Descripción | Para Quién |
+|---------|-------------|-----------|
+| **[PRODUCCION_N8N.md](./PRODUCCION_N8N.md)** | 🎉 n8n en producción - Pruebas | ⚡ EMPEZAR AQUÍ |
+| **[INICIO_RAPIDO_N8N.md](./INICIO_RAPIDO_N8N.md)** | Configuración local en 10 minutos | 🏠 Desarrollo local |
+| **[GUIA_N8N_AUTOMATIZACIONES.md](./GUIA_N8N_AUTOMATIZACIONES.md)** | Guía completa y detallada | 📖 Referencia completa |
+| **[ESTRUCTURA_DATOS_N8N.md](./ESTRUCTURA_DATOS_N8N.md)** | Estructura de datos de webhooks | 🔍 Para desarrolladores |
+
+### **🌐 Servidor n8n en Producción**
+
+- **URL:** https://n8n-gestioneventos.duckdns.org
+- **Estado:** ✅ Activo
+- **Webhook:** `/webhook-test/inscripcion-confirmacion`
+
+### **✅ Automatizaciones Implementadas**
+
+- ✅ **Email de confirmación** al inscribirse a un evento
+- ✅ **Notificación al organizador** cuando hay nueva inscripción
+- ✅ **Integración automática** desde `firestoreService.js`
+- ✅ **Manejo de errores CORS** implementado
+- ✅ **Sistema de logging** con `logger.js`
+
+### **📦 Archivos Clave**
+
+```
+src/services/n8nService.js      # Servicio de integración con n8n
+src/services/firestoreService.js # Llamadas automáticas a n8n (líneas 50, 296)
+.env.example                     # Variables de entorno necesarias
+```
+
+### **🚀 Inicio Rápido n8n**
+
+```bash
+# 1. Instalar n8n
+npm install n8n -g
+
+# 2. Crear archivo .env (copiar desde .env.example)
+cp .env.example .env
+
+# 3. Iniciar n8n
+n8n start
+
+# 4. Abrir navegador
+http://localhost:5678
+```
+
+**Ver:** [INICIO_RAPIDO_N8N.md](./INICIO_RAPIDO_N8N.md) para pasos detallados.
+
+---
 
 <div align="center">
 
-
+**Desarrollado con ❤️ para la Universidad Privada Antenor Orrego**
 
 </div>

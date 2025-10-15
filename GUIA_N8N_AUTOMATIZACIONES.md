@@ -169,20 +169,57 @@ docker run -it --rm `
 - HTTP Method: POST
 - Path: inscripcion-confirmacion
 - Response Mode: When Last Node Finishes
+- Authentication: None (opcional: agregar Basic Auth después)
+```
+
+**💡 Datos que recibirá este webhook desde tu app:**
+
+Tu `n8nService.notificarInscripcion()` envía automáticamente:
+
+```json
+{
+  "eventoId": "abc123",
+  "eventoTitulo": "Conferencia de IA",
+  "eventoFecha": "2025-10-15",
+  "eventoHora": "10:00",
+  "eventoUbicacion": "Auditorio Principal",
+  
+  "alumnoId": "user_xyz",
+  "alumnoEmail": "juan.perez@upao.edu.pe",
+  "alumnoNombre": "Juan",
+  "alumnoApellido": "Pérez",
+  
+  "qrString": "EVT-abc123-USER-xyz-TOKEN-12345",
+  "qrId": "qr_unique_id_12345",
+  
+  "fechaInscripcion": "2025-01-10T15:30:00.000Z",
+  "timestamp": "2025-01-10T15:30:00.000Z",
+  "source": "eventos-upao-app"
+}
 ```
 
 **Nodo 2: Set (Preparar Variables)**
+
+⚠️ **IMPORTANTE:** Los campos vienen de tu `n8nService`, no como en el ejemplo genérico.
+
 ```javascript
 {
-  "nombreAlumno": "={{$json.nombreCompleto}}",
-  "emailAlumno": "={{$json.email}}",
-  "tituloEvento": "={{$json.evento.titulo}}",
-  "fechaEvento": "={{$json.evento.fecha}}",
-  "horaEvento": "={{$json.evento.hora}}",
-  "ubicacionEvento": "={{$json.evento.ubicacion}}",
-  "qrUrl": "={{$json.qrCodeUrl}}"
+  "nombreAlumno": "={{$json.alumnoNombre}} ={{$json.alumnoApellido}}",
+  "emailAlumno": "={{$json.alumnoEmail}}",
+  "tituloEvento": "={{$json.eventoTitulo}}",
+  "fechaEvento": "={{$json.eventoFecha}}",
+  "horaEvento": "={{$json.eventoHora}}",
+  "ubicacionEvento": "={{$json.eventoUbicacion}}",
+  "qrString": "={{$json.qrString}}",
+  "qrId": "={{$json.qrId}}"
 }
 ```
+
+**Campos disponibles desde tu app:**
+- `eventoId`, `eventoTitulo`, `eventoFecha`, `eventoHora`, `eventoUbicacion`
+- `alumnoId`, `alumnoEmail`, `alumnoNombre`, `alumnoApellido`
+- `qrString` (texto del QR), `qrId` (ID único del QR)
+- `fechaInscripcion`, `timestamp`, `source`
 
 **Nodo 3: Send Email (Gmail)**
 ```javascript
@@ -226,8 +263,18 @@ Body (HTML):
             <div class="qr-code">
                 <h3>Tu Código QR de Asistencia</h3>
                 <p>Presenta este código el día del evento:</p>
-                <img src="{{$json.qrUrl}}" alt="Código QR">
-                <p style="font-size: 12px; color: #666;">También puedes acceder a tu QR desde tu perfil</p>
+                
+                <!-- OPCIÓN 1: Si tienes servicio para convertir qrString a imagen -->
+                <!-- <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{$json.qrString}}" alt="Código QR"> -->
+                
+                <!-- OPCIÓN 2: Mostrar el código como texto (más simple) -->
+                <div style="background: white; padding: 20px; border-radius: 10px; font-family: monospace; font-size: 18px; font-weight: bold; color: #333;">
+                    {{$json.qrString}}
+                </div>
+                
+                <p style="font-size: 12px; color: #666; margin-top: 15px;">
+                    También puedes ver tu QR desde "Mis Eventos" en la plataforma
+                </p>
             </div>
             
             <div style="text-align: center;">
@@ -567,76 +614,71 @@ Fields:
 
 ### **4.1 Configurar URLs de Webhook en tu app**
 
-Actualiza `n8nService.js`:
+**✅ TU SERVICIO YA ESTÁ CREADO** en `src/services/n8nService.js`
 
-```javascript
-// src/services/n8nService.js
-const N8N_BASE_URL = process.env.REACT_APP_N8N_URL || 'http://localhost:5678';
+Tu implementación actual usa **Vite** (no Create React App), así que las variables de entorno son diferentes:
 
-const WEBHOOKS = {
-    confirmacionInscripcion: `${N8N_BASE_URL}/webhook/inscripcion-confirmacion`,
-    notificarOrganizador: `${N8N_BASE_URL}/webhook/notificar-organizador`,
-    cerrarInscripciones: `${N8N_BASE_URL}/webhook/cerrar-inscripciones`,
-    recordatorioEvento: `${N8N_BASE_URL}/webhook/recordatorio-evento`
-};
+**Métodos disponibles en tu n8nService:**
+- ✅ `enviarEventoCreado(eventoData)` - Cuando se crea un evento
+- ✅ `notificarInscripcion(evento, alumno)` - Cuando un alumno se inscribe
+- ✅ `enviarAsistencias(evento, asistentes, inscritos)` - Al finalizar evento
+- ✅ `enviarWebhook(endpoint, datos, descripcion)` - Método genérico
 
-export default {
-    async confirmarInscripcion(data) {
-        try {
-            const response = await fetch(WEBHOOKS.confirmacionInscripcion, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            return await response.json();
-        } catch (error) {
-            console.error('Error al confirmar inscripción:', error);
-            return { success: false, error: error.message };
-        }
-    },
+**Características de tu implementación:**
+- ✅ Manejo automático de errores CORS
+- ✅ Logging completo con `logger`
+- ✅ Validación de configuración
+- ✅ Método `probarConexion()` para testing
 
-    async notificarOrganizador(data) {
-        try {
-            const response = await fetch(WEBHOOKS.notificarOrganizador, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            return await response.json();
-        } catch (error) {
-            console.error('Error al notificar organizador:', error);
-            return { success: false, error: error.message };
-        }
-    },
+### **4.2 Agregar variables de entorno**
 
-    async cerrarInscripciones(data) {
-        try {
-            const response = await fetch(WEBHOOKS.cerrarInscripciones, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            return await response.json();
-        } catch (error) {
-            console.error('Error al cerrar inscripciones:', error);
-            return { success: false, error: error.message };
-        }
-    }
-};
-```
-
-### **4.2 Agregar variable de entorno**
-
-En tu archivo `.env`:
+Crea el archivo `.env` en la **raíz del proyecto** (mismo nivel que `package.json`):
 
 ```bash
-REACT_APP_N8N_URL=http://localhost:5678
-# En producción: https://tu-n8n.onrender.com
+# Configuración de n8n (DESARROLLO)
+VITE_N8N_BASE_URL=http://localhost:5678
+
+# Webhooks individuales
+VITE_N8N_WEBHOOK_EVENTO_CREADO=/webhook/evento-creado
+VITE_N8N_WEBHOOK_INSCRIPCION=/webhook/inscripcion-confirmacion
+VITE_N8N_WEBHOOK_LISTA_INSCRITOS=/webhook/lista-inscritos
+VITE_N8N_WEBHOOK_ASISTENCIAS=/webhook/asistencias-finales
+
+# IMPORTANTE: En producción, cambiar a tu URL de Render/Railway
+# VITE_N8N_BASE_URL=https://tu-app-n8n.onrender.com
 ```
 
-### **4.3 Actualizar firestoreService.js**
+**⚠️ IMPORTANTE:** Las variables deben empezar con `VITE_` (no `REACT_APP_`) porque usas Vite.
 
-Ya está implementado en tu `cerrarInscripcionesYEnviarLista()` ✅
+### **4.3 Integración ya implementada** ✅
+
+Tu código **YA TIENE** las integraciones:
+
+**✅ En `firestoreService.js`:**
+- Línea 50: `n8nService.enviarEventoCreado()` al crear evento
+- Línea 296: `n8nService.notificarInscripcion()` al inscribirse alumno
+- Incluye QR en el payload de inscripción
+
+**✅ Datos que se envían en inscripción:**
+```javascript
+{
+  eventoId: evento.id,
+  eventoTitulo: evento.titulo,
+  eventoFecha: evento.fecha,
+  eventoHora: evento.hora,
+  eventoUbicacion: evento.ubicacion,
+  
+  alumnoId: alumno.uid,
+  alumnoEmail: alumno.email,
+  alumnoNombre: alumno.nombre,
+  alumnoApellido: alumno.apellido,  // ✅ Ahora incluye apellido
+  
+  qrString: qrResult.qrString,  // ✅ Código QR incluido
+  qrId: qrResult.qrId,
+  
+  fechaInscripcion: timestamp
+}
+```
 
 ---
 
@@ -646,22 +688,67 @@ Ya está implementado en tu `cerrarInscripcionesYEnviarLista()` ✅
 
 En n8n, click en **Test Workflow** y luego click en **Listen for Test Event** en el nodo Webhook.
 
-Desde tu app o Postman, envía un POST:
+**Opción A: Desde tu app React (Recomendado)**
+
+Simplemente crea un evento o inscríbete a uno. El sistema automáticamente enviará los datos a n8n.
+
+**Opción B: Desde Postman/Thunder Client**
+
+Envía un POST con la estructura REAL que usa tu app:
 
 ```json
 POST http://localhost:5678/webhook/inscripcion-confirmacion
 
 {
-  "nombreCompleto": "Juan Pérez",
-  "email": "juan@ejemplo.com",
-  "evento": {
-    "titulo": "Conferencia de IA",
-    "fecha": "2025-10-15",
-    "hora": "10:00",
-    "ubicacion": "Auditorio Principal"
-  },
-  "qrCodeUrl": "https://tu-app.com/qr/12345.png"
+  "eventoId": "evento123",
+  "eventoTitulo": "Conferencia de IA",
+  "eventoFecha": "2025-10-15",
+  "eventoHora": "10:00",
+  "eventoUbicacion": "Auditorio Principal",
+  "eventoTipo": "conferencia",
+  
+  "alumnoId": "user123",
+  "alumnoEmail": "juan@upao.edu.pe",
+  "alumnoNombre": "Juan",
+  "alumnoApellido": "Pérez",
+  
+  "qrString": "EVT-12345-USER-67890",
+  "qrId": "qr_abc123def456",
+  
+  "fechaInscripcion": "2025-01-10T15:30:00Z",
+  "timestamp": "2025-01-10T15:30:00Z",
+  "source": "eventos-upao-app"
 }
+```
+
+**Opción C: Usar la consola del navegador**
+
+Abre DevTools (F12) en tu app y ejecuta:
+
+```javascript
+// Probar webhook de inscripción
+const testData = {
+  eventoId: "test123",
+  eventoTitulo: "Evento de Prueba",
+  eventoFecha: "2025-10-15",
+  eventoHora: "10:00",
+  eventoUbicacion: "Virtual",
+  alumnoId: "test-user",
+  alumnoEmail: "test@upao.edu.pe",
+  alumnoNombre: "Usuario",
+  alumnoApellido: "Prueba",
+  qrString: "TEST-QR-CODE-12345",
+  qrId: "test-qr-id"
+};
+
+fetch('http://localhost:5678/webhook/inscripcion-confirmacion', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(testData)
+})
+.then(r => r.json())
+.then(console.log)
+.catch(console.error);
 ```
 
 ### **5.2 Verificar Ejecuciones**
@@ -768,15 +855,50 @@ Fecha: {{$json.executedAt}}
 
 Antes de ir a producción:
 
-- [ ] n8n desplegado y accesible
-- [ ] Todos los workflows creados y activados
-- [ ] Variables de entorno configuradas
-- [ ] Gmail App Password configurado
-- [ ] Firebase credentials configuradas
-- [ ] Webhooks testeados con datos reales
-- [ ] URLs actualizadas en `.env` de tu app
+**Configuración de n8n:**
+- [ ] n8n instalado y corriendo (local o Render)
+- [ ] Acceso a http://localhost:5678 funciona
+- [ ] Cuenta de administrador creada
+- [ ] Gmail SMTP credentials configuradas
+- [ ] Firebase Service Account configurado
+
+**Variables de Entorno (.env):**
+- [ ] Archivo `.env` creado en la raíz del proyecto
+- [ ] `VITE_N8N_BASE_URL` configurada (http://localhost:5678)
+- [ ] `VITE_N8N_WEBHOOK_EVENTO_CREADO` configurada
+- [ ] `VITE_N8N_WEBHOOK_INSCRIPCION` configurada
+- [ ] `VITE_N8N_WEBHOOK_LISTA_INSCRITOS` configurada
+- [ ] `VITE_N8N_WEBHOOK_ASISTENCIAS` configurada
+
+**Workflows en n8n:**
+- [ ] Workflow "Confirmación de Inscripción" creado y activo
+- [ ] Webhook path: `/webhook/inscripcion-confirmacion`
+- [ ] Nodo Set configurado con campos correctos
+- [ ] Nodo Send Email configurado con Gmail
+- [ ] Template HTML del email actualizado
+- [ ] Workflow testeado con datos reales
+
+**Testing:**
+- [ ] Webhook responde correctamente desde Postman
+- [ ] Crear evento en la app → n8n recibe datos
+- [ ] Inscribirse a evento → email llega correctamente
+- [ ] QR code visible en el email
+- [ ] Logs en n8n muestran ejecuciones exitosas
+- [ ] Revisar **Executions** en n8n (panel izquierdo)
+
+**Producción (cuando despliegues):**
+- [ ] n8n desplegado en Render/Railway
+- [ ] URL de producción configurada en `.env`
+- [ ] CORS habilitado en n8n (ya manejado en tu código)
 - [ ] Error workflow configurado
 - [ ] Backup de workflows exportado (Settings → Export)
+- [ ] Monitoring activo
+
+**Integración con tu app:**
+- [ ] `n8nService.js` ✅ (ya existe)
+- [ ] `firestoreService.js` llama a n8n ✅ (ya implementado)
+- [ ] Console logs muestran `[n8n]` messages
+- [ ] Errores CORS manejados correctamente ✅
 
 ---
 
@@ -803,7 +925,7 @@ Si tienes problemas:
 **Comandos útiles:**
 
 ```powershell
-# Ver logs de n8n
+# Ver logs de n8n con debug
 n8n start --log-level=debug
 
 # Exportar workflows
@@ -811,8 +933,212 @@ n8n start --log-level=debug
 
 # Importar workflows
 # En UI: Settings → Import workflows
+
+# Reiniciar servidor Vite después de cambiar .env
+npm run dev
 ```
 
 ---
 
-**¿Siguiente paso?** ¿Quieres que te ayude a implementar algún workflow específico o tienes dudas sobre alguna parte?
+## 🔧 **Troubleshooting - Problemas Comunes**
+
+### **1. "n8n no recibe los webhooks"**
+
+**Síntomas:** Los logs de tu app muestran `[n8n]` pero n8n no registra ejecuciones.
+
+**Soluciones:**
+```powershell
+# 1. Verificar que n8n esté corriendo
+# Abrir http://localhost:5678 en el navegador
+
+# 2. Verificar variables de entorno
+# En la consola del navegador (F12):
+console.log(import.meta.env.VITE_N8N_BASE_URL)
+
+# 3. Verificar que el workflow esté ACTIVO
+# En n8n: Toggle "Active" debe estar en ON (verde)
+
+# 4. Ver logs en tiempo real
+# En n8n: Click en "Executions" (panel izquierdo)
+```
+
+### **2. "Error CORS en n8n"**
+
+**Síntomas:** Error `Access-Control-Allow-Origin` en consola.
+
+**Solución:** ✅ Tu código YA maneja esto automáticamente en `n8nService.js` (líneas 88-98).
+
+Si aún aparece:
+1. En n8n local, agregar variables:
+   ```bash
+   N8N_CORS_ENABLE=true
+   N8N_CORS_ORIGIN=http://localhost:5173
+   ```
+
+2. En Render, agregar en Variables de Entorno:
+   ```
+   N8N_CORS_ENABLE=true
+   N8N_CORS_ORIGIN=https://tu-app.netlify.app
+   ```
+
+### **3. "Los emails no llegan"**
+
+**Pasos de diagnóstico:**
+
+1. **Verificar Gmail App Password:**
+   - Debe ser de 16 caracteres sin espacios
+   - 2FA debe estar habilitado en tu Gmail
+
+2. **Verificar nodo Send Email en n8n:**
+   ```
+   From Email: TU_EMAIL@gmail.com (debe ser el mismo del SMTP)
+   SMTP Host: smtp.gmail.com
+   Port: 587 (NO 465)
+   Secure: Off (usa TLS automático)
+   ```
+
+3. **Probar envío manual:**
+   - En n8n, click en "Test Workflow"
+   - Click en "Execute Node" en el nodo Send Email
+   - Ver error específico si falla
+
+4. **Revisar spam:**
+   - Los emails pueden ir a spam la primera vez
+
+### **4. "Variables de entorno no se cargan"**
+
+**Síntomas:** `import.meta.env.VITE_N8N_BASE_URL` es `undefined`
+
+**Soluciones:**
+```powershell
+# 1. Verificar que el archivo se llame exactamente ".env"
+ls .env  # Debe existir en la raíz del proyecto
+
+# 2. Verificar que las variables empiecen con VITE_
+# ❌ MAL: REACT_APP_N8N_URL
+# ✅ BIEN: VITE_N8N_BASE_URL
+
+# 3. REINICIAR el servidor de desarrollo
+Ctrl+C  # Detener servidor
+npm run dev  # Iniciar de nuevo
+
+# 4. Verificar en el navegador (F12 → Console)
+console.log(import.meta.env)
+```
+
+### **5. "Workflow ejecutado pero no hace nada"**
+
+**Verificar en n8n:**
+
+1. Click en **Executions** (panel izquierdo)
+2. Click en la ejecución más reciente
+3. Ver cada nodo:
+   - Verde ✅ = Ejecutado correctamente
+   - Rojo ❌ = Error
+   - Gris ⚪ = No ejecutado
+
+4. Click en cada nodo para ver:
+   - **Input Data:** Qué datos recibió
+   - **Output Data:** Qué datos produjo
+   - **Execution Time:** Cuánto tardó
+
+### **6. "n8n se cae en Render (Free Plan)"**
+
+**Problema:** Render pone en "sleep" los servicios gratuitos después de 15 minutos de inactividad.
+
+**Soluciones:**
+
+**Opción A: Ping automático (Recomendado)**
+
+Crear workflow en n8n que se llame a sí mismo cada 10 minutos:
+
+```
+┌─────────────┐
+│    Cron     │ → Cada 10 minutos
+└─────────────┘
+      ↓
+┌─────────────┐
+│  HTTP Req   │ → GET https://tu-app-n8n.onrender.com/health
+└─────────────┘
+```
+
+**Opción B: Servicio externo de ping**
+
+- https://uptimerobot.com (gratuito)
+- Configura un monitor HTTP que haga ping cada 5 minutos
+
+**Opción C: Actualizar a plan pagado**
+
+- Render: $7/mes
+- Railway: $5/mes de crédito gratuito
+
+### **7. "Cómo ver logs en tiempo real"**
+
+**En desarrollo (local):**
+
+Tu app ya tiene logging integrado:
+
+```javascript
+// En DevTools Console (F12), buscar:
+[n8n] Enviando evento creado
+[n8n] Response status: 200
+✅ [n8n] Evento enviado correctamente
+```
+
+**En n8n:**
+
+1. **Ver ejecuciones históricas:**
+   - n8n → Executions (panel izquierdo)
+
+2. **Ver logs del servidor:**
+   - Si instalaste con npm: Ver terminal donde corrió `n8n start`
+   - Si usas Docker: `docker logs n8n`
+   - Si usas Render: Dashboard → Logs tab
+
+---
+
+## 🎓 **Recursos Adicionales**
+
+**Documentación Oficial:**
+- n8n Docs: https://docs.n8n.io
+- n8n Workflows: https://n8n.io/workflows (templates)
+- n8n Community: https://community.n8n.io
+
+**Tu Código:**
+- `src/services/n8nService.js` - Servicio de integración
+- `src/services/firestoreService.js` - Líneas 50, 296 (llamadas a n8n)
+- `src/core/utils/logger.js` - Sistema de logging
+
+**Testing:**
+- Postman Collection: (puedes crear una con los ejemplos de arriba)
+- Thunder Client (extensión de VS Code): Más simple que Postman
+
+---
+
+## ✅ **Resumen de Cambios en tu Implementación**
+
+**Diferencias vs guía genérica:**
+
+| Concepto | Guía Genérica | Tu Implementación |
+|----------|--------------|-------------------|
+| Variables env | `REACT_APP_*` | `VITE_*` ✅ |
+| Servicio | Crear desde cero | `n8nService.js` ya existe ✅ |
+| Integración | Manual | Automática en `firestoreService` ✅ |
+| Manejo CORS | No incluido | Manejo completo ✅ |
+| Logging | Console.log básico | Logger centralizado ✅ |
+| Datos QR | URL de imagen | `qrString` + `qrId` ✅ |
+| Apellido | No incluido | `alumnoApellido` ✅ |
+
+**Tu implementación está MÁS COMPLETA que la guía genérica** 🎉
+
+---
+
+**¿Siguiente paso?** 
+
+1. **Crear archivo `.env`** con las variables
+2. **Instalar n8n** (`npm install n8n -g`)
+3. **Iniciar n8n** (`n8n start`)
+4. **Crear primer workflow** (Confirmación de Inscripción)
+5. **Probar** inscribiéndote a un evento en tu app
+
+¿Por dónde quieres empezar? 🚀

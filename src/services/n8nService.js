@@ -1,13 +1,14 @@
 import logger from '../core/utils/logger';
+import { getN8nBaseUrl, getWebhookUrl } from '../config/webhookConfig';
 
 class N8nService {
   constructor() {
-    this.baseUrl = import.meta.env.VITE_N8N_BASE_URL;
+    this.baseUrl = getN8nBaseUrl();
     this.endpoints = {
-      eventoCreado: import.meta.env.VITE_N8N_WEBHOOK_EVENTO_CREADO,
-      inscripcion: import.meta.env.VITE_N8N_WEBHOOK_INSCRIPCION,
-      listaInscritos: import.meta.env.VITE_N8N_WEBHOOK_LISTA_INSCRITOS,
-      asistencias: import.meta.env.VITE_N8N_WEBHOOK_ASISTENCIAS
+      eventoCreado: getWebhookUrl('eventoCreado'),
+      inscripcion: getWebhookUrl('inscripcion'),
+      listaInscritos: getWebhookUrl('listaInscritos'),
+      asistencias: getWebhookUrl('asistencias')
     };
   }
 
@@ -18,10 +19,10 @@ class N8nService {
    * @returns {Object} Respuesta del servidor n8n en formato JSON
    */
   async enviarEventoCreado(eventoData) {
-    const url = `${this.baseUrl}${this.endpoints.eventoCreado}`;
+    const url = this.endpoints.eventoCreado; // Ya viene como URL completa
     
-    logger.log('� [n8n] Enviando evento creado a:', url);
-    logger.log('� [n8n] Datos del evento:', eventoData);
+    logger.log('🚀 [n8n] Enviando evento creado a:', url);
+    logger.log('📦 [n8n] Datos del evento:', eventoData);
     
     try {
       const response = await fetch(url, {
@@ -36,8 +37,17 @@ class N8nService {
           eventoId: eventoData.id,
           titulo: eventoData.titulo,
           descripcion: eventoData.descripcion,
-          fecha: eventoData.fecha,
-          hora: eventoData.hora,
+          
+          // Fechas y horas (nueva estructura) - ✅ CORRECCIÓN: Buscar ambos formatos
+          eventoFechaInicio: eventoData.eventoFechaInicio || eventoData.fechaInicio || eventoData.fecha,
+          eventoFechaFin: eventoData.eventoFechaFin || eventoData.fechaFin || eventoData.fecha,
+          eventoHoraInicio: eventoData.eventoHoraInicio || eventoData.horaInicio || eventoData.hora,
+          eventoHoraFin: eventoData.eventoHoraFin || eventoData.horaFin || eventoData.hora,
+          
+          // Backwards compatibility (por si n8n usa campos antiguos)
+          fecha: eventoData.eventoFechaInicio || eventoData.fechaInicio || eventoData.fecha,
+          hora: eventoData.eventoHoraInicio || eventoData.horaInicio || eventoData.hora,
+          
           ubicacion: eventoData.ubicacion,
           tipo: eventoData.tipo,
           capacidadMaxima: eventoData.capacidadMaxima,
@@ -109,13 +119,11 @@ class N8nService {
 
   /**
    * Método genérico para enviar webhooks
-   * @param {string} endpoint - Endpoint del webhook
+   * @param {string} url - URL completa del webhook (ya construida)
    * @param {Object} datos - Datos a enviar
    * @param {string} descripcion - Descripción para logs
    */
-  async enviarWebhook(endpoint, datos, descripcion = 'webhook') {
-    const url = `${this.baseUrl}${endpoint}`;
-    
+  async enviarWebhook(url, datos, descripcion = 'webhook') {
     logger.log(`🔄 [n8n] Enviando ${descripcion} a:`, url);
     
     if (!this.baseUrl) {
@@ -196,19 +204,46 @@ class N8nService {
    * Webhook para inscripción de alumno
    */
   async enviarInscripcion(evento, alumno) {
+    // Asegurar que siempre haya fechas y horas (backwards compatibility)
+    // ✅ CORRECCIÓN: Buscar AMBOS formatos: con y sin prefijo "evento"
+    const fechaInicio = evento.eventoFechaInicio || evento.fechaInicio || evento.fecha || 'No especificada';
+    const fechaFin = evento.eventoFechaFin || evento.fechaFin || evento.fecha || fechaInicio;
+    const horaInicio = evento.eventoHoraInicio || evento.horaInicio || evento.hora || 'No especificada';
+    const horaFin = evento.eventoHoraFin || evento.horaFin || evento.hora || horaInicio;
+    
     const datos = {
+      // Datos del evento
       eventoId: evento.id,
       eventoTitulo: evento.titulo,
-      eventoFecha: evento.fecha,
-      eventoHora: evento.hora,
-      eventoUbicacion: evento.ubicacion,
+      eventoDescripcion: evento.descripcion || '',
+      eventoTipo: evento.tipo || 'conferencia',
+      eventoUbicacion: evento.ubicacion || 'Por confirmar',
       
+      // Fechas y horas (nueva estructura) - CORREGIDO: usar fechaInicio en lugar de evento.fechaInicio
+      eventoFechaInicio: fechaInicio,
+      eventoFechaFin: fechaFin,
+      eventoHoraInicio: horaInicio,
+      eventoHoraFin: horaFin,
+      
+      // Datos del alumno
       alumnoId: alumno.uid,
       alumnoEmail: alumno.email,
       alumnoNombre: alumno.nombre || alumno.displayName || 'Estudiante',
+      alumnoApellido: alumno.apellido || '',
       
-      fechaInscripcion: new Date().toISOString()
+      // Metadata
+      fechaInscripcion: new Date().toISOString(),
+      source: 'eventos-upao-app'
     };
+
+    logger.log('📧 [n8n] Enviando inscripción con datos:', {
+      eventoId: datos.eventoId,
+      eventoTitulo: datos.eventoTitulo,
+      fechas: `${fechaInicio} al ${fechaFin}`,
+      horas: `${horaInicio} - ${horaFin}`,
+      alumno: `${datos.alumnoNombre} ${datos.alumnoApellido}`,
+      email: datos.alumnoEmail
+    });
 
     return await this.enviarWebhook(
       this.endpoints.inscripcion,
@@ -224,15 +259,29 @@ class N8nService {
     const datos = {
       eventoId: evento.id,
       eventoTitulo: evento.titulo,
-      eventoFecha: evento.fecha,
+      
+      // Fechas y horas del evento - ✅ CORRECCIÓN: Buscar ambos formatos
+      eventoFechaInicio: evento.eventoFechaInicio || evento.fechaInicio || evento.fecha,
+      eventoFechaFin: evento.eventoFechaFin || evento.fechaFin || evento.fecha,
+      eventoHoraInicio: evento.eventoHoraInicio || evento.horaInicio || evento.hora,
+      eventoHoraFin: evento.eventoHoraFin || evento.horaFin || evento.hora,
+      
+      // Backwards compatibility
+      eventoFecha: evento.eventoFechaInicio || evento.fechaInicio || evento.fecha,
+      
+      // Estadísticas
       totalInscritos: inscritos.length,
       totalAsistentes: asistentes.length,
-      porcentajeAsistencia: ((asistentes.length / inscritos.length) * 100).toFixed(2),
+      porcentajeAsistencia: inscritos.length > 0 
+        ? ((asistentes.length / inscritos.length) * 100).toFixed(2) 
+        : '0',
       
+      // Lista de asistentes
       asistentes: asistentes.map(asistente => ({
         id: asistente.uid || asistente.id,
         email: asistente.email,
         nombre: asistente.nombre,
+        apellido: asistente.apellido || '',
         estado: 'asistio'
       })),
       

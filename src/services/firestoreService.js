@@ -99,8 +99,12 @@ export const firestoreService = {
         id: doc.id,
         ...doc.data()
       }))
-      // Ordenar en el cliente por fecha
-      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+      // Ordenar en el cliente por fecha de inicio
+      .sort((a, b) => {
+        const fechaA = new Date(a.eventoFechaInicio || a.fecha || 0);
+        const fechaB = new Date(b.eventoFechaInicio || b.fecha || 0);
+        return fechaA - fechaB;
+      });
 
       logger.log('Eventos mapeados:', eventos);
       return { success: true, eventos };
@@ -232,7 +236,8 @@ export const firestoreService = {
       const evento = eventoResult.evento;
       
       // 2. ✅ NUEVO: Auto-cerrar inscripciones si ya llegó el día del evento
-      if (this.esElDiaDelEvento(evento.fecha) && evento.inscripcionesAbiertas) {
+      const fechaEventoParaValidar = evento.fechaInicio || evento.fecha;
+      if (this.esElDiaDelEvento(fechaEventoParaValidar) && evento.inscripcionesAbiertas) {
         logger.log('🔒 Auto-cerrando inscripciones: ya llegó el día del evento');
         await this.cerrarInscripcionesYEnviarLista(eventoId);
         return { success: false, error: "Las inscripciones se cerraron automáticamente al llegar el día del evento" };
@@ -298,19 +303,35 @@ export const firestoreService = {
           uid: alumnoId,
           email: alumnoEmail,
           nombre: alumnoNombre || 'Estudiante',
-          qrString: qrResult.qrString  // Agregar QR al payload
+          apellido: alumnoApellido || '',
         };
         
-        const n8nResult = await n8nService.notificarInscripcion(evento, alumno);
+        const n8nResult = await n8nService.enviarInscripcion(evento, alumno);
         
-        // Actualizar estado en Firestore
+        // Leer el documento del evento de nuevo para obtener el estado más reciente
+        const eventoActualDoc = await getDoc(eventoRef);
+        const eventoActualData = eventoActualDoc.data();
+
+        // Construir el nuevo objeto workflowN8n de forma segura
+        const workflowActual = eventoActualData.workflowN8n || {};
+        const inscripcionesActuales = workflowActual.inscripciones || {};
+
+        const workflowN8nActualizado = {
+          ...workflowActual, // Mantiene los datos anteriores (como el error 404)
+          inscripciones: {
+            ...inscripcionesActuales, // Mantiene las inscripciones de otros alumnos
+            [alumnoId]: {             // Añade la nueva inscripción
+              confirmacionEnviada: n8nResult.success,
+              qrEnviado: n8nResult.success,
+              fechaConfirmacion: new Date().toISOString(),
+              error: n8nResult.success ? null : n8nResult.error,
+            },
+          },
+        };
+
+        // Actualizar el documento con el objeto completo
         await updateDoc(eventoRef, {
-          [`workflowN8n.inscripciones.${alumnoId}`]: {
-            confirmacionEnviada: n8nResult.success,
-            qrEnviado: n8nResult.success,
-            fechaConfirmacion: new Date().toISOString(),
-            error: n8nResult.success ? null : n8nResult.error
-          }
+          workflowN8n: workflowN8nActualizado,
         });
         
         logger.log('📧 Confirmación n8n:', n8nResult.success ? 'enviada con QR' : 'falló');
@@ -321,8 +342,9 @@ export const firestoreService = {
 
       // 9. Verificar si se debe cerrar inscripciones
       const nuevosParticipantes = participantesActuales + 1;
+      const fechaEvento = evento.fechaInicio || evento.fecha;
       const deberaCerrar = nuevosParticipantes >= evento.capacidadMaxima || 
-                           this.esElDiaDelEvento(evento.fecha);
+                           this.esElDiaDelEvento(fechaEvento);
       
       if (deberaCerrar) {
         logger.log('🔒 Cerrando inscripciones y enviando lista a n8n...');
@@ -412,12 +434,24 @@ export const firestoreService = {
         return { success: false, error: "No se encontró la información del participante" };
       }
 
-      // Preparar datos de actualización
+      // ✅ CORRECCIÓN: Filtrar arrays en lugar de usar arrayRemove
       const eventoRef = doc(db, "eventos", eventoId);
+      
+      // Remover de participantes
+      const participantesActualizados = evento.participantes.filter(id => id !== alumnoId);
+      
+      // Remover de participantesInfo (filtrar por id o uid)
+      const participantesInfoActualizados = (evento.participantesInfo || []).filter(
+        p => p.id !== alumnoId && p.uid !== alumnoId
+      );
+      
+      // Remover de asistentes si existe
+      const asistentesActualizados = (evento.asistentes || []).filter(id => id !== alumnoId);
+      
       const updateData = {
-        participantes: arrayRemove(alumnoId),
-        participantesInfo: arrayRemove(participanteInfo),
-        asistentes: arrayRemove(alumnoId)
+        participantes: participantesActualizados,
+        participantesInfo: participantesInfoActualizados,
+        asistentes: asistentesActualizados
       };
 
       // Si existe asistenciaQR, eliminar la entrada del participante
@@ -495,7 +529,7 @@ export const firestoreService = {
             ...participante,
             asistio: true,
             fechaAsistencia: new Date().toISOString(),
-            metodoAsistencia: metodo
+            metodoRegistro: metodo  // ✅ CAMBIADO: metodoAsistencia → metodoRegistro
           };
         }
         return participante; // Devolver sin cambios si no es el participante buscado
@@ -687,7 +721,8 @@ export const firestoreService = {
         const evento = { id: doc.id, ...doc.data() };
         const participantesActuales = evento.participantes?.length || 0;
         const capacidadLlena = participantesActuales >= evento.capacidadMaxima;
-        const esDiaEvento = this.esElDiaDelEvento(evento.fecha);
+        const fechaEvento = evento.fechaInicio || evento.fecha;
+        const esDiaEvento = this.esElDiaDelEvento(fechaEvento);
 
         if (capacidadLlena || esDiaEvento) {
           eventosParaCerrar.push({

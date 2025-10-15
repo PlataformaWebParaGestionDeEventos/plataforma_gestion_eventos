@@ -128,14 +128,11 @@ const GestionAsistencia = () => {
 
   /**
    * Separar participantes por asistencia
+   * ✅ CORRECCIÓN: Usar el campo asistio del participante en lugar del array asistentes
    */
-  const participantesConAsistencia = participantesFiltrados.filter(p => 
-    evento?.asistentes?.includes(p.uid || p.id)
-  );
+  const participantesConAsistencia = participantesFiltrados.filter(p => p.asistio === true);
   
-  const participantesSinAsistencia = participantesFiltrados.filter(p => 
-    !evento?.asistentes?.includes(p.uid || p.id)
-  );
+  const participantesSinAsistencia = participantesFiltrados.filter(p => !p.asistio);
 
   if (loading) {
     return (

@@ -10,7 +10,7 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
     estadisticas, 
     loading, 
     error, 
-    refetch
+    refetchParticipantes
   } = useParticipantes(evento?.id); // Ahora pasamos el eventoId directamente
   
   const [filtro, setFiltro] = useState('todos');
@@ -50,7 +50,7 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
         logger.log('✅ Participante eliminado:', participante.id);
         
         // Recargar lista de participantes
-        await refetch();
+        await refetchParticipantes();
         
       } else {
         throw new Error(result.error || 'Error desconocido');

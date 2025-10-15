@@ -297,8 +297,8 @@ export const qrService = {
       
       const totalInscritos = evento.participantes?.length || 0;
       
-      // Obtener participantes con asistencia
-      const participantes = evento.participantes || [];
+      // Obtener participantes con asistencia (usar participantesInfo, no participantes)
+      const participantes = evento.participantesInfo || [];
       let asistentesPorQR = 0;
       let asistentesManual = 0;
       
