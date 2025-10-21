@@ -17,6 +17,52 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
   const [busqueda, setBusqueda] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [eliminandoParticipante, setEliminandoParticipante] = useState(null);
+  const [enviandoAsistencias, setEnviandoAsistencias] = useState(false);
+
+  /**
+   * Enviar asistencias a n8n
+   */
+  const handleEnviarAsistencias = async () => {
+    const confirmacion = await toastHelper.confirm(
+      `¿Enviar reporte de asistencias a n8n?\n\n` +
+      `📊 Total Inscritos: ${estadisticas.totalParticipantes}\n` +
+      `✅ Asistieron: ${participantes.filter(p => p.asistio).length}\n` +
+      `❌ No asistieron: ${participantes.filter(p => !p.asistio).length}\n\n` +
+      `Esta acción enviará el reporte de asistencias finales a n8n para:\n` +
+      `📧 Generar emails de certificados\n` +
+      `📊 Actualizar estadísticas\n` +
+      `📋 Registrar asistencia final\n\n` +
+      `¿Continuar?`
+    );
+
+    if (!confirmacion) return;
+
+    setEnviandoAsistencias(true);
+    toastHelper.info('🔄 Enviando asistencias a n8n...');
+    
+    try {
+      logger.log(`📊 Enviando asistencias del evento: ${evento.titulo}`);
+      
+      const result = await firestoreService.enviarAsistenciasN8n(evento.id);
+      
+      if (result.success) {
+        toastHelper.success(
+          `✅ Asistencias enviadas correctamente!\n\n` +
+          `Total Asistentes: ${result.data.totalAsistentes}/${result.data.totalInscritos}\n` +
+          `Porcentaje: ${result.data.porcentajeAsistencia}%`
+        );
+        logger.log('✅ Asistencias enviadas:', result.data);
+      } else {
+        throw new Error(result.error || 'Error desconocido');
+      }
+      
+    } catch (error) {
+      logger.error('❌ Error enviando asistencias:', error);
+      toastHelper.error(`Error al enviar asistencias: ${error.message}`);
+    } finally {
+      setEnviandoAsistencias(false);
+    }
+  };
 
   /**
    * Eliminar participante del evento
@@ -183,24 +229,60 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
         </div>
       </div>
 
-      {/* Botón prominente para ir a Gestión de Asistencia */}
+      {/* Botones de acciones principales */}
       <div className="row mb-4">
         <div className="col-12">
-          <div className="alert alert-info-custom d-flex align-items-center" role="alert">
-            <i className="bi bi-info-circle-fill me-3 fs-3 text-primary"></i>
+          <div className="d-flex gap-3 flex-wrap">
+            {/* Ir a Gestión de Asistencia */}
             <div className="flex-grow-1">
-              <h6 className="alert-heading mb-1 fw-bold">📋 Registro de Asistencia</h6>
-              <p className="mb-0">
-                Para marcar asistencia de participantes, usa la página de <strong>Gestión de Asistencia.</strong> 
-              </p>
+              <div className="alert alert-info-custom d-flex align-items-center mb-0" role="alert">
+                <i className="bi bi-info-circle-fill me-3 fs-3 text-primary"></i>
+                <div className="flex-grow-1">
+                  <h6 className="alert-heading mb-1 fw-bold">📋 Registro de Asistencia</h6>
+                  <p className="mb-0">
+                    Para marcar asistencia de participantes, usa la página de <strong>Gestión de Asistencia.</strong> 
+                  </p>
+                </div>
+                <button 
+                  className="btn btn-primary-custom ms-3"
+                  onClick={onIrAGestionAsistencia}
+                >
+                  <i className="bi bi-qr-code-scan me-2"></i>
+                  Gestión de Asistencia
+                </button>
+              </div>
             </div>
-            <button 
-              className="btn btn-primary-custom ms-3"
-              onClick={onIrAGestionAsistencia}
-            >
-              <i className="bi bi-qr-code-scan me-2"></i>
-              Gestión de Asistencia
-            </button>
+            
+            {/* Enviar Asistencias a n8n */}
+            <div className="flex-shrink-0">
+              <div className="alert alert-success mb-0 d-flex align-items-center h-100" role="alert">
+                <i className="bi bi-send-fill me-3 fs-3 text-success"></i>
+                <div className="flex-grow-1">
+                  <h6 className="alert-heading mb-1 fw-bold">📊 Reporte de Asistencias</h6>
+                  <p className="mb-0 small">
+                    Enviar reporte final a n8n
+                  </p>
+                </div>
+                <button 
+                  className="btn btn-success ms-3"
+                  onClick={handleEnviarAsistencias}
+                  disabled={enviandoAsistencias || participantes.length === 0}
+                  title="Enviar reporte de asistencias finales a n8n"
+                >
+                  {enviandoAsistencias ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-send me-2"></i>
+                      Enviar Asistencias
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

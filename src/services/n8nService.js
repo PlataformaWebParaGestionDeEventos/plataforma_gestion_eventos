@@ -253,6 +253,56 @@ class N8nService {
   }
 
   /**
+   * Webhook para lista de inscritos (cuando se cierran inscripciones)
+   */
+  async enviarListaInscritos(evento, listaInscritos) {
+    const datos = {
+      eventoId: evento.id,
+      eventoTitulo: evento.titulo,
+      
+      // Fechas y horas del evento
+      eventoFechaInicio: evento.eventoFechaInicio || evento.fechaInicio || evento.fecha,
+      eventoFechaFin: evento.eventoFechaFin || evento.fechaFin || evento.fecha,
+      eventoHoraInicio: evento.eventoHoraInicio || evento.horaInicio || evento.hora,
+      eventoHoraFin: evento.eventoHoraFin || evento.horaFin || evento.hora,
+      
+      capacidadMaxima: evento.capacidadMaxima,
+      totalInscritos: listaInscritos.length,
+      porcentajeOcupacion: ((listaInscritos.length / evento.capacidadMaxima) * 100).toFixed(2),
+      
+      // Datos del organizador
+      organizadorId: evento.organizadorId,
+      organizadorEmail: evento.organizadorEmail,
+      
+      // Lista de participantes
+      participantes: listaInscritos.map(participante => ({
+        id: participante.id || participante.uid,
+        email: participante.email,
+        nombre: participante.nombre,
+        apellido: participante.apellido || '',
+        fechaInscripcion: participante.fechaInscripcion,
+        qrId: participante.qrData?.qrId || ''
+      })),
+      
+      fechaCierre: new Date().toISOString(),
+      motivoCierre: listaInscritos.length >= evento.capacidadMaxima ? 'capacidad_maxima' : 'cierre_manual'
+    };
+
+    logger.log('📋 [n8n] Enviando lista de inscritos:', {
+      eventoId: datos.eventoId,
+      eventoTitulo: datos.eventoTitulo,
+      totalInscritos: datos.totalInscritos,
+      capacidad: `${datos.totalInscritos}/${datos.capacidadMaxima}`
+    });
+
+    return await this.enviarWebhook(
+      this.endpoints.listaInscritos,
+      datos,
+      'lista de inscritos'
+    );
+  }
+
+  /**
    * Webhook para lista de asistencias
    */
   async enviarAsistencias(evento, asistentes, inscritos) {
