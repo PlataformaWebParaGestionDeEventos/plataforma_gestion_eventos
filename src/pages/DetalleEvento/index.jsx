@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useEventosAlumno } from '../../core/hooks/useEventosAlumno';
 import toastHelper from '../../core/utils/toastHelper';
 import logger from '../../core/utils/logger';
+import formatters from '../../core/utils/formatters';
 
 const DetalleEvento = () => {
   const { eventoId } = useParams();
@@ -111,8 +112,10 @@ const DetalleEvento = () => {
                   <h5 className="text-primary mb-3">Información del Evento</h5>
                   <div className="list-group list-group-flush">
                     <div className="list-group-item border-0 px-0">
-                      <strong>📅 Fecha(s) :</strong> {evento.fechaInicio || evento.fecha || 'No especificada'}
-                      {evento.fechaFin && evento.fechaFin !== evento.fechaInicio && ` al ${evento.fechaFin}`}
+                      <strong>📅 Fecha(s):</strong> {formatters.formatearRangoFechas(
+                        evento.fechaInicio || evento.fecha,
+                        evento.fechaFin || evento.fecha
+                      )}
                     </div>
                     <div className="list-group-item border-0 px-0">
                       <strong>🕐 Horario:</strong> {evento.horaInicio || evento.hora || 'No especificada'}

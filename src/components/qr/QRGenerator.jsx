@@ -1,22 +1,59 @@
 /**
  * Componente QRGenerator
  * Genera y muestra código QR para inscripción a eventos
+ * ✅ ACTUALIZADO: Soporte multi-día con selector de fechas
  */
 
 import React, { useState, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import toastHelper from '../../core/utils/toastHelper';
+import formatters from '../../core/utils/formatters';
 import './QRGenerator.css';
 
 const QRGenerator = ({ 
-  qrString, 
+  qrsPorDia,           // ✅ NUEVO: Objeto con QRs por día { "2025-10-23": {...}, ... }
   eventoNombre, 
-  eventoFecha, 
-  eventoHora, 
-  participanteNombre 
+  eventoFechaInicio,   // ✅ NUEVO: Para mostrar rango
+  eventoFechaFin,      // ✅ NUEVO: Para mostrar rango
+  asistenciasPorDia,   // ✅ NUEVO: Para verificar si ya asistió { "2025-10-23": {asistentes: [...]} }
+  participanteUid,     // ✅ NUEVO: UID del participante
+  participanteNombre,
+  // Props antiguas (mantener compatibilidad temporal)
+  qrString,
+  eventoFecha,
+  eventoHora
 }) => {
   const [showModal, setShowModal] = useState(false);
   const qrRef = useRef(null);
+
+  // ✅ NUEVO: Soporte multi-día
+  const esMultiDia = qrsPorDia && Object.keys(qrsPorDia).length > 0;
+  
+  // ✅ Obtener array de días del evento
+  const diasEvento = esMultiDia ? Object.keys(qrsPorDia).sort() : [];
+  
+  // ✅ Estado para el día seleccionado
+  const [diaSeleccionado, setDiaSeleccionado] = useState(() => {
+    if (!esMultiDia) return null;
+    
+    // Buscar primer día sin asistencia
+    const diaSinAsistencia = diasEvento.find(dia => {
+      const asistentes = asistenciasPorDia?.[dia]?.asistentes || [];
+      return !asistentes.includes(participanteUid);
+    });
+    return diaSinAsistencia || diasEvento[0] || null;
+  });
+
+  // ✅ Verificar si ya asistió el día seleccionado
+  const yaAsistioDiaSeleccionado = () => {
+    if (!esMultiDia || !diaSeleccionado) return false;
+    const asistentes = asistenciasPorDia?.[diaSeleccionado]?.asistentes || [];
+    return asistentes.includes(participanteUid);
+  };
+
+  // ✅ Obtener QR del día seleccionado o QR antiguo
+  const qrDelDia = esMultiDia ? qrsPorDia?.[diaSeleccionado] : null;
+  const qrStringActual = esMultiDia ? qrDelDia?.qrString : qrString;
 
   /**
    * Descargar QR como imagen PNG
@@ -257,69 +294,134 @@ const QRGenerator = ({
             </div>
 
             <div className="qr-modal-body">
+              {/* ✅ NUEVO: Selector de días (solo para eventos multi-día) */}
+              {esMultiDia && diasEvento.length > 1 && (
+                <div className="qr-selector-dias">
+                  <p className="qr-selector-label">
+                    <i className="bi bi-calendar-week"></i> Selecciona el día:
+                  </p>
+                  <div className="qr-dias-grid">
+                    {diasEvento.map((dia) => {
+                      const asistentes = asistenciasPorDia?.[dia]?.asistentes || [];
+                      const yaAsistio = asistentes.includes(participanteUid);
+                      const esSeleccionado = dia === diaSeleccionado;
+
+                      return (
+                        <button
+                          key={dia}
+                          className={`qr-dia-btn ${esSeleccionado ? 'activo' : ''} ${yaAsistio ? 'asistido' : ''}`}
+                          onClick={() => setDiaSeleccionado(dia)}
+                          title={yaAsistio ? 'Asistencia registrada' : 'Clic para ver QR'}
+                        >
+                          <span className="qr-dia-nombre">
+                            {formatters.formatearNombreDia(dia)}
+                          </span>
+                          <span className="qr-dia-fecha">{dia}</span>
+                          {yaAsistio && (
+                            <i className="bi bi-check-circle-fill qr-dia-check"></i>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Información del evento */}
               <div className="qr-info-card">
                 <h5>{eventoNombre}</h5>
                 <div className="qr-info-details">
-                  <span>
-                    <i className="bi bi-calendar-event"></i> {eventoFecha}
-                  </span>
-                  <span>
-                    <i className="bi bi-clock"></i> {eventoHora}
-                  </span>
+                  {esMultiDia ? (
+                    <>
+                      <span>
+                        <i className="bi bi-calendar-range"></i> 
+                        {eventoFechaInicio} - {eventoFechaFin}
+                      </span>
+                      {diaSeleccionado && (
+                        <span className="qr-dia-actual">
+                          <i className="bi bi-calendar-check"></i> 
+                          {formatters.formatearNombreDia(diaSeleccionado)}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span>
+                        <i className="bi bi-calendar-event"></i> {eventoFecha}
+                      </span>
+                      <span>
+                        <i className="bi bi-clock"></i> {eventoHora}
+                      </span>
+                    </>
+                  )}
                 </div>
                 <p className="qr-participante">
                   <i className="bi bi-person-circle"></i> {participanteNombre}
                 </p>
               </div>
 
-              {/* Código QR */}
-              <div className="qr-canvas-container" ref={qrRef}>
-                <QRCodeCanvas
-                  value={qrString}
-                  size={280}
-                  level="H"
-                  includeMargin={true}
-                  imageSettings={{
-                    src: "/logo_upao.jpeg",
-                    height: 40,
-                    width: 40,
-                    excavate: true
-                  }}
-                />
-              </div>
+              {/* ✅ Código QR o mensaje de asistencia */}
+              {esMultiDia && yaAsistioDiaSeleccionado() ? (
+                <div className="qr-asistencia-registrada">
+                  <i className="bi bi-check-circle"></i>
+                  <h4>Asistencia Registrada</h4>
+                  <p>Ya registraste tu asistencia para este día</p>
+                  <small>{formatters.formatearNombreDia(diaSeleccionado)}</small>
+                </div>
+              ) : (
+                <>
+                  {/* Código QR */}
+                  <div className="qr-canvas-container" ref={qrRef}>
+                    <QRCodeCanvas
+                      value={qrStringActual || qrString || ''}
+                      size={280}
+                      level="H"
+                      includeMargin={true}
+                      imageSettings={{
+                        src: "/logo_upao.jpeg",
+                        height: 40,
+                        width: 40,
+                        excavate: true
+                      }}
+                    />
+                  </div>
 
-              {/* Instrucciones */}
-              <div className="qr-instructions">
-                <p>
-                  <i className="bi bi-info-circle"></i> 
-                  El organizador escaneará este código al momento de tu ingreso al evento
-                </p>
-              </div>
+                  {/* Instrucciones */}
+                  <div className="qr-instructions">
+                    <p>
+                      <i className="bi bi-info-circle"></i> 
+                      El organizador escaneará este código al momento de tu ingreso al evento
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
 
-            <div className="qr-modal-footer">
-              <button 
-                className="btn-qr-action btn-qr-download"
-                onClick={descargarQR}
-              >
-                <i className="bi bi-download"></i> Descargar
-              </button>
-              
-              <button 
-                className="btn-qr-action btn-qr-share"
-                onClick={compartirQR}
-              >
-                <i className="bi bi-share"></i> Compartir
-              </button>
-              
-              <button 
-                className="btn-qr-action btn-qr-print"
-                onClick={imprimirQR}
-              >
-                <i className="bi bi-printer"></i> Imprimir
-              </button>
-            </div>
+            {/* ✅ Footer: solo mostrar botones si NO ha asistido */}
+            {!(esMultiDia && yaAsistioDiaSeleccionado()) && (
+              <div className="qr-modal-footer">
+                <button 
+                  className="btn-qr-action btn-qr-download"
+                  onClick={descargarQR}
+                >
+                  <i className="bi bi-download"></i> Descargar
+                </button>
+                
+                <button 
+                  className="btn-qr-action btn-qr-share"
+                  onClick={compartirQR}
+                >
+                  <i className="bi bi-share"></i> Compartir
+                </button>
+                
+                <button 
+                  className="btn-qr-action btn-qr-print"
+                  onClick={imprimirQR}
+                >
+                  <i className="bi bi-printer"></i> Imprimir
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

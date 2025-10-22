@@ -337,3 +337,164 @@
     max-width: 100%;
   }
 }
+
+/* ✅ NUEVO: Estilos para selector de días */
+.qr-selector-dias {
+  margin-bottom: 25px;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.qr-selector-label {
+  margin: 0 0 15px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qr-selector-label i {
+  color: #667eea;
+  font-size: 18px;
+}
+
+.qr-dias-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.qr-dia-btn {
+  position: relative;
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 80px;
+}
+
+.qr-dia-btn:hover {
+  border-color: #667eea;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.qr-dia-btn.activo {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: #667eea;
+  color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.qr-dia-btn.asistido {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.qr-dia-btn.asistido.activo {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-color: #10b981;
+}
+
+.qr-dia-nombre {
+  font-size: 14px;
+  font-weight: 600;
+  color: inherit;
+}
+
+.qr-dia-fecha {
+  font-size: 12px;
+  opacity: 0.8;
+  color: inherit;
+}
+
+.qr-dia-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: #10b981;
+  font-size: 20px;
+}
+
+.qr-dia-btn.activo .qr-dia-check {
+  color: white;
+}
+
+/* Mensaje de asistencia registrada */
+.qr-asistencia-registrada {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  padding: 40px 30px;
+  border-radius: 12px;
+  text-align: center;
+  margin: 20px 0;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.qr-asistencia-registrada i {
+  font-size: 64px;
+  margin-bottom: 15px;
+  opacity: 0.9;
+}
+
+.qr-asistencia-registrada h4 {
+  margin: 0 0 10px;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.qr-asistencia-registrada p {
+  margin: 0 0 8px;
+  font-size: 16px;
+  opacity: 0.9;
+}
+
+.qr-asistencia-registrada small {
+  display: block;
+  font-size: 14px;
+  opacity: 0.8;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Ajustes para info-card con multi-día */
+.qr-dia-actual {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+/* Responsive para selector de días */
+@media (max-width: 576px) {
+  .qr-dias-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .qr-dia-btn {
+    min-height: 70px;
+  }
+  
+  .qr-asistencia-registrada {
+    padding: 30px 20px;
+  }
+  
+  .qr-asistencia-registrada i {
+    font-size: 48px;
+  }
+  
+  .qr-asistencia-registrada h4 {
+    font-size: 20px;
+  }
+}

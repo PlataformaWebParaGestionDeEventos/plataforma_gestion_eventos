@@ -47,6 +47,49 @@ service cloud.firestore {
         && expositores.size() <= 20;
     }
     
+    // ✅ NUEVA FUNCIÓN: Validar estructura de QR individual
+    function isValidQRData(qrData) {
+      return qrData is map
+        && qrData.keys().hasAll(['qrString', 'qrId', 'token', 'fechaDia', 'generadoEn', 'usado'])
+        && qrData.qrString is string
+        && qrData.qrString.size() >= 10
+        && qrData.qrString.size() <= 5000
+        && qrData.qrId is string
+        && qrData.qrId.size() >= 10
+        && qrData.qrId.size() <= 200
+        && qrData.token is string
+        && qrData.token.size() == 64  // SHA256 hash
+        && qrData.fechaDia is string
+        && qrData.fechaDia.size() == 10  // Formato YYYY-MM-DD
+        && qrData.fechaDia.matches('\\d{4}-\\d{2}-\\d{2}')
+        && qrData.generadoEn is string
+        && qrData.usado is bool;
+    }
+    
+    // ✅ NUEVA FUNCIÓN: Validar objeto qrsPorDia (QRs por día)
+    function isValidQRsPorDia(qrsPorDia) {
+      return qrsPorDia is map
+        && qrsPorDia.size() >= 1
+        && qrsPorDia.size() <= 365;  // Máximo 365 días de evento
+    }
+    
+    // ✅ NUEVA FUNCIÓN: Validar estructura de participante (nuevo formato)
+    function isValidParticipanteInfo(participante) {
+      return participante is map
+        && participante.keys().hasAll(['id', 'email', 'fechaInscripcion', 'estado'])
+        && participante.id is string
+        && participante.email is string
+        && participante.email.matches('.*@.*\\..*')
+        && participante.fechaInscripcion is string
+        && participante.estado in ['inscrito', 'cancelado', 'asistio']
+        // Validar qrsPorDia si existe (nuevo formato)
+        && (!participante.keys().hasAny(['qrsPorDia']) 
+            || isValidQRsPorDia(participante.qrsPorDia))
+        // Permitir qrData para compatibilidad con formato antiguo
+        && (!participante.keys().hasAny(['qrData']) 
+            || participante.qrData is map);
+    }
+    
     // ============================================
     // REGLAS PARA USUARIOS
     // ============================================
@@ -148,11 +191,9 @@ service cloud.firestore {
             || request.resource.data.participantes.size() == 0)
         && (!request.resource.data.keys().hasAny(['participantesInfo']) 
             || request.resource.data.participantesInfo.size() == 0)
-        && (!request.resource.data.keys().hasAny(['asistentes']) 
-            || request.resource.data.asistentes.size() == 0)
-        // Nuevos campos opcionales para QR
-        && (!request.resource.data.keys().hasAny(['asistenciaQR']) 
-            || request.resource.data.asistenciaQR is map);
+        // ✅ OPTIMIZADO: Sin validación de 'asistentes' o 'asistenciaQR' (ya no se usan)
+        && (!request.resource.data.keys().hasAny(['asistenciasPorDia']) 
+            || request.resource.data.asistenciasPorDia is map);
       
       // -------------------------------------------
       // ACTUALIZACIÓN DE EVENTOS
@@ -249,8 +290,9 @@ service cloud.firestore {
     
     function onlyUpdatingParticipantFields() {
       // Permitir actualización de campos relacionados con participantes Y sistema QR
+      // ✅ OPTIMIZADO: Eliminados 'asistentes' y 'asistenciaQR' (redundantes)
       let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
-      return affectedKeys.hasOnly(['participantes', 'participantesInfo', 'asistentes', 'asistenciaQR', 'qrUsados']);
+      return affectedKeys.hasOnly(['participantes', 'participantesInfo', 'asistenciasPorDia', 'qrUsados', 'fechaActualizacion']);
     }
     
     function isValidParticipantOperation() {
@@ -297,7 +339,7 @@ service cloud.firestore {
       let currentParticipantesInfo = resource.data.get('participantesInfo', []);
       
       // Verificar que se agregó correctamente la info del participante
-      // Ahora incluye validación del campo qrData (opcional)
+      // ✅ ACTUALIZADO: Validar estructura de participante (incluyendo qrsPorDia)
       // ✅ NUEVO: Validar que las inscripciones estén abiertas
       return newParticipantesInfo.size() == currentParticipantesInfo.size() + 1 &&
              newParticipantesInfo.hasAll(currentParticipantesInfo) &&
@@ -329,21 +371,22 @@ service cloud.firestore {
     }
     
     function isValidQRAttendanceUpdate() {
-      let currentAsistentes = resource.data.get('asistentes', []);
-      let newAsistentes = request.resource.data.get('asistentes', []);
       let currentParticipants = resource.data.get('participantes', []);
       let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let newAsistenciasPorDia = request.resource.data.get('asistenciasPorDia', {});
       
-      // Validar que:
-      // 1. Solo se agregan asistentes (no se remueven)
-      // 2. Los nuevos asistentes están en la lista de participantes
-      // 3. Se está actualizando el campo asistenciaQR (tracking de método)
-      // 4. Se puede actualizar participantesInfo (para marcar asistio: true)
-      return newAsistentes.hasAll(currentAsistentes) &&
-             newAsistentes.hasOnly(currentParticipants) &&
-             (affectedKeys.hasOnly(['asistentes', 'asistenciaQR', 'participantesInfo']) ||
-              affectedKeys.hasOnly(['asistentes', 'asistenciaQR']) ||
-              affectedKeys.hasOnly(['asistentes', 'participantesInfo']));
+      // ✅ ACTUALIZADO: Validar estructura de asistenciasPorDia
+      // - Cada clave debe ser una fecha en formato YYYY-MM-DD
+      // - Cada valor debe ser un map con 'asistentes' (array) y opcionalmente 'participantesInfo' (array)
+      // Permitir actualización de:
+      // 1. asistenciasPorDia (único campo de asistencias)
+      // 2. participantesInfo (opcional, para información adicional)
+      // 3. qrUsados (para tracking de QRs utilizados)
+      return (affectedKeys.hasOnly(['asistenciasPorDia', 'participantesInfo', 'qrUsados']) ||
+             affectedKeys.hasOnly(['asistenciasPorDia', 'qrUsados']) ||
+             affectedKeys.hasOnly(['asistenciasPorDia', 'participantesInfo']) ||
+             affectedKeys.hasOnly(['asistenciasPorDia'])) &&
+             newAsistenciasPorDia is map;
     }
     
     // ✅ NUEVA FUNCIÓN: Validar eliminación de participante por organizador

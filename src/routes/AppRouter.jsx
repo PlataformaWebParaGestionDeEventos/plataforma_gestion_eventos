@@ -11,6 +11,7 @@ import HomeOrganizador from '../pages/HomeOrganizador';
 import DetalleEvento from '../pages/DetalleEvento';
 import MisEventos from '../pages/MisEventos';
 import GestionAsistencia from '../pages/GestionAsistencia';
+import GestionParticipantesPage from '../pages/GestionParticipantes';
 import Reportes from '../pages/Reportes';
 import NotFound from '../pages/NotFound';
 import OrganizadorLayout from '../pages/OrganizadorLayout';
@@ -145,6 +146,9 @@ const AppRouter = () => {
           
           {/* Gestión de Asistencia */}
           <Route path="asistencia/:eventoId" element={<GestionAsistencia />} />
+          
+          {/* Gestión de Participantes */}
+          <Route path="participantes/:eventoId" element={<GestionParticipantesPage />} />
           
           {/* Perfil de Usuario */}
           <Route path="perfil" element={<Perfil />} />

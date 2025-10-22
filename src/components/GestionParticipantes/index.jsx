@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useParticipantes } from '../../core/hooks/useParticipantes';
 import firestoreService from '../../services/firestoreService';
 import toastHelper from '../../core/utils/toastHelper';
 import logger from '../../core/utils/logger';
+import formatters from '../../core/utils/formatters';
 
-const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
+const GestionParticipantes = ({ evento }) => {
+  const navigate = useNavigate();
   const { 
     participantes, 
     estadisticas, 
@@ -18,6 +21,44 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
   const [mensaje, setMensaje] = useState('');
   const [eliminandoParticipante, setEliminandoParticipante] = useState(null);
   const [enviandoAsistencias, setEnviandoAsistencias] = useState(false);
+  
+  // ✅ NUEVO: Estados para eventos multi-día
+  const [esMultiDia, setEsMultiDia] = useState(false);
+  const [resumenAsistencias, setResumenAsistencias] = useState(null);
+
+  /**
+   * ✅ NUEVO: Verificar si es evento multi-día y cargar resumen de asistencias
+   */
+  useEffect(() => {
+    if (evento) {
+      const fechaInicio = evento.fechaInicio || evento.fecha;
+      const fechaFin = evento.fechaFin || evento.fecha || fechaInicio;
+      
+      const multidia = formatters.esEventoMultiDia(fechaInicio, fechaFin);
+      
+      setEsMultiDia(multidia);
+      
+      // Si es multi-día, cargar resumen de asistencias
+      if (multidia) {
+        cargarResumenAsistencias();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [evento]);
+
+  /**
+   * ✅ NUEVO: Cargar resumen de asistencias por día
+   */
+  const cargarResumenAsistencias = async () => {
+    try {
+      const result = await firestoreService.obtenerResumenAsistencias(evento.id);
+      if (result.success) {
+        setResumenAsistencias(result);
+      }
+    } catch (error) {
+      logger.error('Error cargando resumen de asistencias:', error);
+    }
+  };
 
   /**
    * Enviar asistencias a n8n
@@ -146,7 +187,7 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
         <div className="col-12">
           <button 
             className="btn btn-outline-primary-custom mb-3"
-            onClick={onVolver}
+            onClick={() => navigate(-1)}
           >
             <i className="bi bi-arrow-left me-2"></i>
             Volver
@@ -245,7 +286,7 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
                 </div>
                 <button 
                   className="btn btn-primary-custom ms-3"
-                  onClick={onIrAGestionAsistencia}
+                  onClick={() => navigate(`/organizador/asistencia/${evento.id}`)}
                 >
                   <i className="bi bi-qr-code-scan me-2"></i>
                   Gestión de Asistencia
@@ -253,14 +294,14 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
               </div>
             </div>
             
-            {/* Enviar Asistencias a n8n */}
+            {/* ✅ ACTUALIZADO: Enviar Asistencias a n8n - Disponible cuando el organizador quiera */}
             <div className="flex-shrink-0">
               <div className="alert alert-success mb-0 d-flex align-items-center h-100" role="alert">
                 <i className="bi bi-send-fill me-3 fs-3 text-success"></i>
                 <div className="flex-grow-1">
                   <h6 className="alert-heading mb-1 fw-bold">📊 Reporte de Asistencias</h6>
                   <p className="mb-0 small">
-                    Enviar reporte final a n8n
+                    Enviar reporte final a n8n cuando quieras
                   </p>
                 </div>
                 <button 
@@ -286,6 +327,101 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
           </div>
         </div>
       </div>
+
+      {/* ✅ NUEVO: Resumen de asistencias por día (solo para eventos multi-día) */}
+      {esMultiDia && resumenAsistencias && (
+        <div className="row mb-4">
+          <div className="col-12">
+            <div className="card border-0 shadow-sm">
+              <div className="card-header bg-white border-0">
+                <h5 className="mb-0">
+                  <i className="bi bi-calendar-range me-2"></i>
+                  Resumen de Asistencias por Día
+                </h5>
+              </div>
+              <div className="card-body">
+                <div className="row g-3">
+                  {resumenAsistencias.diasEvento.map((dia, index) => {
+                    const asistenciasDelDia = resumenAsistencias.resumenPorDia[dia];
+                    const porcentaje = resumenAsistencias.totalInscritos > 0
+                      ? ((asistenciasDelDia.totalAsistentes / resumenAsistencias.totalInscritos) * 100).toFixed(1)
+                      : '0';
+                    
+                    return (
+                      <div key={dia} className="col-md-6 col-lg-4">
+                        <div className="card border">
+                          <div className="card-body">
+                            <h6 className="fw-bold mb-2">
+                              Día {index + 1} - {formatters.formatearNombreDia(dia)}
+                            </h6>
+                            <div className="d-flex align-items-center gap-2 mb-2">
+                              <div className="flex-grow-1">
+                                <div className="progress" style={{ height: '20px' }}>
+                                  <div 
+                                    className="progress-bar bg-success" 
+                                    role="progressbar" 
+                                    style={{ width: `${porcentaje}%` }}
+                                    aria-valuenow={porcentaje} 
+                                    aria-valuemin="0" 
+                                    aria-valuemax="100"
+                                  >
+                                    {porcentaje}%
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <p className="mb-0 small text-muted">
+                              <i className="bi bi-people-fill me-1"></i>
+                              {asistenciasDelDia.totalAsistentes} / {resumenAsistencias.totalInscritos} participantes
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Resumen general */}
+                <div className="row mt-3">
+                  <div className="col-12">
+                    <div className="alert alert-info mb-0">
+                      <div className="row text-center">
+                        <div className="col-md-4">
+                          <div className="fw-bold fs-4 text-primary">
+                            {resumenAsistencias.participantesConAsistenciaPerfecta.length}
+                          </div>
+                          <small className="text-muted">
+                            <i className="bi bi-star-fill me-1"></i>
+                            Asistencia Perfecta
+                          </small>
+                        </div>
+                        <div className="col-md-4">
+                          <div className="fw-bold fs-4 text-warning">
+                            {resumenAsistencias.participantesConAsistenciaParcial.length}
+                          </div>
+                          <small className="text-muted">
+                            <i className="bi bi-dash-circle me-1"></i>
+                            Asistencia Parcial
+                          </small>
+                        </div>
+                        <div className="col-md-4">
+                          <div className="fw-bold fs-4 text-success">
+                            {resumenAsistencias.porcentajeAsistenciaGeneral}%
+                          </div>
+                          <small className="text-muted">
+                            <i className="bi bi-graph-up me-1"></i>
+                            Promedio General
+                          </small>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Controles */}
       <div className="row mb-4">
@@ -371,9 +507,47 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
                     </thead>
                     <tbody>
                       {participantesFiltrados.map(participante => {
-                        // Usar el campo asistio del sistema nuevo (GestionAsistencia)
-                        const asistio = participante.asistio || false;
-                        // Verificar si hay información de asistencia QR
+                        // ✅ NUEVO: Calcular estado de asistencia basado en días del evento
+                        let estadoAsistencia = { tipo: 'inscrito', texto: '📝 Inscrito', clase: 'badge-primary-custom' };
+                        
+                        if (evento && esMultiDia && evento.asistenciasPorDia) {
+                          // Evento multi-día: calcular días asistidos
+                          const fechaInicio = evento.fechaInicio || evento.fecha;
+                          const fechaFin = evento.fechaFin || evento.fecha || fechaInicio;
+                          const diasEvento = formatters.calcularDiasEvento(fechaInicio, fechaFin);
+                          const totalDias = diasEvento.length;
+                          
+                          // Contar días que asistió
+                          let diasAsistidos = 0;
+                          diasEvento.forEach(dia => {
+                            if (evento.asistenciasPorDia[dia]?.asistentes?.includes(participante.id)) {
+                              diasAsistidos++;
+                            }
+                          });
+                          
+                          if (diasAsistidos === totalDias) {
+                            // Asistió todos los días
+                            estadoAsistencia = { tipo: 'completa', texto: '✅ Asistió', clase: 'badge-success-custom' };
+                          } else if (diasAsistidos > 0) {
+                            // Asistió algunos días (parcial)
+                            estadoAsistencia = { 
+                              tipo: 'parcial', 
+                              texto: `🟡 Parcial (${diasAsistidos}/${totalDias})`, 
+                              clase: 'bg-warning text-dark' 
+                            };
+                          } else {
+                            // No asistió ningún día
+                            estadoAsistencia = { tipo: 'falta', texto: '❌ Falta', clase: 'bg-danger text-white' };
+                          }
+                        } else if (evento && !esMultiDia) {
+                          // Evento de un solo día: verificar si asistió
+                          const asistio = participante.asistio || false;
+                          if (asistio) {
+                            estadoAsistencia = { tipo: 'completa', texto: '✅ Asistió', clase: 'badge-success-custom' };
+                          } else {
+                            estadoAsistencia = { tipo: 'falta', texto: '❌ Falta', clase: 'bg-danger text-white' };
+                          }
+                        }
                         
                         return (
                           <tr key={participante.id}>
@@ -425,8 +599,11 @@ const GestionParticipantes = ({ evento, onVolver, onIrAGestionAsistencia }) => {
                             </td>
                             <td>
                               <div className="d-flex flex-column gap-1">
-                                <span className={`badge ${asistio ? 'badge-success-custom' : 'badge-primary-custom'} px-3 py-2`} style={{ minWidth: '100px', width: 'fit-content' }}>
-                                  {asistio ? '✅ Asistió' : '📝 Inscrito'}
+                                <span 
+                                  className={`badge ${estadoAsistencia.clase} px-3 py-2`} 
+                                  style={{ minWidth: '100px', width: 'fit-content' }}
+                                >
+                                  {estadoAsistencia.texto}
                                 </span>
                               </div>
                             </td>

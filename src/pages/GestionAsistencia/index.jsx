@@ -1,6 +1,7 @@
 /**
  * Página de Gestión de Asistencia
  * Vista para organizadores: Escáner QR + Registro manual
+ * ✅ ACTUALIZADO: Soporta eventos multi-día con selector de fecha
  */
 
 import React, { useState, useEffect } from 'react';
@@ -11,6 +12,7 @@ import QRScanner from '../../components/qr/QRScanner';
 import firestoreService from '../../services/firestoreService';
 import qrService from '../../services/qrService';
 import toastHelper from '../../core/utils/toastHelper';
+import formatters from '../../core/utils/formatters';
 import './GestionAsistencia.css';
 
 const auth = getAuth(appFirebase);
@@ -26,6 +28,12 @@ const GestionAsistencia = () => {
   const [vistaActual, setVistaActual] = useState('scanner'); // 'scanner' o 'manual'
   const [estadisticas, setEstadisticas] = useState(null);
   const [buscador, setBuscador] = useState('');
+  
+  // ✅ NUEVO: Estados para eventos multi-día
+  const [diasEvento, setDiasEvento] = useState([]);
+  const [diaSeleccionado, setDiaSeleccionado] = useState(null);
+  const [esMultiDia, setEsMultiDia] = useState(false);
+  const [asistenciasDelDia, setAsistenciasDelDia] = useState([]);
 
   /**
    * Cargar datos del evento
@@ -34,6 +42,16 @@ const GestionAsistencia = () => {
     cargarEvento();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventoId]);
+
+  /**
+   * ✅ NUEVO: Cargar asistencias cuando cambia el día seleccionado
+   */
+  useEffect(() => {
+    if (evento && diaSeleccionado) {
+      cargarAsistenciasDelDia();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diaSeleccionado]);
 
   /**
    * Cargar evento y participantes
@@ -49,7 +67,22 @@ const GestionAsistencia = () => {
         return;
       }
       
-      setEvento(eventoResult.evento);
+      const eventoData = eventoResult.evento;
+      setEvento(eventoData);
+      
+      // ✅ NUEVO: Calcular días del evento
+      const fechaInicio = eventoData.fechaInicio || eventoData.fecha;
+      const fechaFin = eventoData.fechaFin || eventoData.fecha || fechaInicio;
+      const dias = formatters.calcularDiasEvento(fechaInicio, fechaFin);
+      const multidia = formatters.esEventoMultiDia(fechaInicio, fechaFin);
+      
+      setDiasEvento(dias);
+      setEsMultiDia(multidia);
+      
+      // Seleccionar día actual por defecto
+      const hoy = formatters.obtenerFechaActual();
+      const diaInicial = dias.includes(hoy) ? hoy : dias[dias.length - 1]; // Si hoy está en el rango, usar hoy; sino usar último día
+      setDiaSeleccionado(diaInicial);
       
       // Obtener participantes
       const participantesResult = await firestoreService.obtenerParticipantesEvento(eventoId);
@@ -57,7 +90,7 @@ const GestionAsistencia = () => {
         setParticipantes(participantesResult.participantes);
       }
       
-      // Obtener estadísticas QR
+      // Obtener estadísticas QR (global)
       const statsResult = await qrService.obtenerEstadisticasQR(eventoId);
       if (statsResult.success) {
         setEstadisticas(statsResult.estadisticas);
@@ -73,21 +106,39 @@ const GestionAsistencia = () => {
   };
 
   /**
+   * ✅ NUEVO: Cargar asistencias del día seleccionado
+   */
+  const cargarAsistenciasDelDia = async () => {
+    try {
+      const result = await firestoreService.obtenerAsistenciaDelDia(eventoId, diaSeleccionado);
+      if (result.success) {
+        setAsistenciasDelDia(result.asistencias.asistentes || []);
+      }
+    } catch (err) {
+      console.error('Error cargando asistencias del día:', err);
+    }
+  };
+
+  /**
    * Callback cuando se registra asistencia por QR
    */
   const handleAsistenciaRegistrada = (participante) => {
     // Recargar datos
     cargarEvento();
+    cargarAsistenciasDelDia();
     
     // Notificación
     console.log('✅ Asistencia registrada:', participante);
   };
 
   /**
-   * Marcar asistencia manual
+   * ✅ ACTUALIZADO: Marcar asistencia manual para el día seleccionado
    */
   const marcarAsistenciaManual = async (participanteId) => {
-    const confirmed = await toastHelper.confirm('¿Confirmar asistencia de este participante?');
+    const nombreDia = formatters.formatearNombreDia(diaSeleccionado);
+    const confirmed = await toastHelper.confirm(
+      `¿Confirmar asistencia de este participante para ${nombreDia}?`
+    );
     if (!confirmed) {
       return;
     }
@@ -96,16 +147,20 @@ const GestionAsistencia = () => {
       const currentUser = auth.currentUser;
       const organizadorUid = currentUser?.uid || null;
       
+      // ✅ NUEVO: Pasar el día seleccionado como parámetro
       const result = await firestoreService.marcarAsistencia(
         eventoId, 
         participanteId, 
         'manual', 
-        organizadorUid
+        organizadorUid,
+        null, // qrId
+        diaSeleccionado // ✅ NUEVO PARÁMETRO
       );
       
       if (result.success) {
-        toastHelper.success('Asistencia registrada exitosamente');
+        toastHelper.success(`Asistencia registrada para ${nombreDia}`);
         cargarEvento();
+        cargarAsistenciasDelDia();
       } else {
         toastHelper.error(result.error || 'Error al registrar asistencia');
       }
@@ -127,12 +182,16 @@ const GestionAsistencia = () => {
   });
 
   /**
-   * Separar participantes por asistencia
-   * ✅ CORRECCIÓN: Usar el campo asistio del participante en lugar del array asistentes
+   * ✅ ACTUALIZADO: Separar participantes por asistencia DEL DÍA SELECCIONADO
    */
-  const participantesConAsistencia = participantesFiltrados.filter(p => p.asistio === true);
+  const participantesConAsistenciaDelDia = participantesFiltrados.filter(p => 
+    asistenciasDelDia.includes(p.uid || p.id)
+  );
   
-  const participantesSinAsistencia = participantesFiltrados.filter(p => !p.asistio);
+  const participantesSinAsistenciaDelDia = participantesFiltrados.filter(p => 
+    !asistenciasDelDia.includes(p.uid || p.id)
+  );
+
 
   if (loading) {
     return (
@@ -233,6 +292,41 @@ const GestionAsistencia = () => {
         </div>
       </div>
 
+      {/* ✅ NUEVO: Selector de día (solo para eventos multi-día) */}
+      {esMultiDia && diasEvento.length > 1 && (
+        <div className="row mb-4">
+          <div className="col-12">
+            <div className="alert alert-info border-0 shadow-sm">
+              <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                <div>
+                  <h6 className="mb-1">
+                    <i className="bi bi-calendar-range me-2"></i>
+                    Evento de {diasEvento.length} días
+                  </h6>
+                  <small className="text-muted">
+                    Selecciona el día para registrar asistencias
+                  </small>
+                </div>
+                <div className="btn-group" role="group">
+                  {diasEvento.map((dia, index) => (
+                    <button
+                      key={dia}
+                      className={`btn ${diaSeleccionado === dia ? 'btn-primary' : 'btn-outline-primary'} btn-sm`}
+                      onClick={() => setDiaSeleccionado(dia)}
+                    >
+                      <div className="d-flex flex-column align-items-center px-2">
+                        <small className="fw-bold">Día {index + 1}</small>
+                        <small>{formatters.formatearNombreDia(dia)}</small>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Contenido según vista */}
       <div className="row">
         {vistaActual === 'scanner' ? (
@@ -242,20 +336,21 @@ const GestionAsistencia = () => {
               eventoId={eventoId}
               eventoNombre={evento?.titulo}
               onAsistenciaRegistrada={handleAsistenciaRegistrada}
+              fechaDiaSeleccionado={diaSeleccionado}  // ✅ NUEVO: Pasar día seleccionado
             />
 
-            {/* Últimas asistencias registradas */}
-            {participantesConAsistencia.length > 0 && (
+            {/* ✅ ACTUALIZADO: Últimas asistencias del día seleccionado */}
+            {participantesConAsistenciaDelDia.length > 0 && (
               <div className="card border-0 shadow-sm mt-4">
                 <div className="card-header bg-white border-0">
                   <h5 className="mb-0">
                     <i className="bi bi-clock-history me-2"></i>
-                    Últimas asistencias registradas
+                    Asistencias registradas - {formatters.formatearNombreDia(diaSeleccionado)}
                   </h5>
                 </div>
                 <div className="card-body">
                   <div className="list-group list-group-flush">
-                    {participantesConAsistencia.slice(0, 5).map(participante => (
+                    {participantesConAsistenciaDelDia.slice(0, 5).map(participante => (
                       <div key={participante.id || participante.uid} className="list-group-item border-0 px-0">
                         <div className="d-flex align-items-center gap-3">
                           <div className="flex-shrink-0">
@@ -309,24 +404,29 @@ const GestionAsistencia = () => {
             </div>
 
             <div className="row g-4">
-              {/* Lista de participantes SIN asistencia */}
+              {/* ✅ ACTUALIZADO: Lista de participantes SIN asistencia DEL DÍA */}
               <div className="col-12 col-lg-6">
                 <div className="card border-0 shadow-sm h-100">
                   <div className="card-header bg-warning bg-opacity-10 border-warning">
                     <h5 className="mb-0 text-warning">
                       <i className="bi bi-hourglass-split me-2"></i>
-                      Pendientes ({participantesSinAsistencia.length})
+                      Pendientes ({participantesSinAsistenciaDelDia.length})
                     </h5>
+                    {esMultiDia && (
+                      <small className="text-muted">
+                        {formatters.formatearNombreDia(diaSeleccionado)}
+                      </small>
+                    )}
                   </div>
                   <div className="card-body p-0">
                     <div className="list-group list-group-flush" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                      {participantesSinAsistencia.length === 0 ? (
+                      {participantesSinAsistenciaDelDia.length === 0 ? (
                         <div className="text-center py-5 text-muted">
                           <i className="bi bi-check-circle display-4 mb-3"></i>
-                          <p>¡Todos han registrado asistencia!</p>
+                          <p>¡Todos han registrado asistencia para este día!</p>
                         </div>
                       ) : (
-                        participantesSinAsistencia.map(participante => (
+                        participantesSinAsistenciaDelDia.map(participante => (
                           <div key={participante.id || participante.uid} className="list-group-item">
                             <div className="d-flex align-items-center justify-content-between gap-3 pe-4">
                               <div className="d-flex align-items-center gap-3 flex-grow-1">
@@ -354,24 +454,29 @@ const GestionAsistencia = () => {
                 </div>
               </div>
 
-              {/* Lista de participantes CON asistencia */}
+              {/* ✅ ACTUALIZADO: Lista de participantes CON asistencia DEL DÍA */}
               <div className="col-12 col-lg-6">
                 <div className="card border-0 shadow-sm h-100">
                   <div className="card-header bg-success bg-opacity-10 border-success">
                     <h5 className="mb-0 text-success">
                       <i className="bi bi-check-circle me-2"></i>
-                      Presentes ({participantesConAsistencia.length})
+                      Presentes ({participantesConAsistenciaDelDia.length})
                     </h5>
+                    {esMultiDia && (
+                      <small className="text-muted">
+                        {formatters.formatearNombreDia(diaSeleccionado)}
+                      </small>
+                    )}
                   </div>
                   <div className="card-body p-0">
                     <div className="list-group list-group-flush" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                      {participantesConAsistencia.length === 0 ? (
+                      {participantesConAsistenciaDelDia.length === 0 ? (
                         <div className="text-center py-5 text-muted">
                           <i className="bi bi-hourglass-split display-4 mb-3"></i>
-                          <p>Aún no hay asistencias registradas</p>
+                          <p>Aún no hay asistencias registradas para este día</p>
                         </div>
                       ) : (
-                        participantesConAsistencia.map(participante => (
+                        participantesConAsistenciaDelDia.map(participante => (
                           <div key={participante.id || participante.uid} className="list-group-item">
                             <div className="d-flex align-items-center gap-3">
                               <div className="flex-shrink-0">

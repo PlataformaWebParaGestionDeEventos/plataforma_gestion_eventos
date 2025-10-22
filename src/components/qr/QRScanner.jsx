@@ -12,7 +12,7 @@ import './QRScanner.css';
 
 const auth = getAuth(appFirebase);
 
-const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada }) => {
+const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada, fechaDiaSeleccionado = null }) => {
   const [scanner, setScanner] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [resultado, setResultado] = useState(null);
@@ -90,8 +90,8 @@ const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada }) => {
     setProcesando(true);
 
     try {
-      // Validar QR
-      const validacion = await qrService.validarQR(decodedText, eventoId);
+      // ✅ Validar QR pasando la fecha seleccionada (si aplica)
+      const validacion = await qrService.validarQR(decodedText, eventoId, fechaDiaSeleccionado);
 
       if (!validacion.success) {
         setResultado({
@@ -108,14 +108,16 @@ const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada }) => {
       const currentUser = auth.currentUser;
       const organizadorUid = currentUser?.uid || null;
       
-      // Extraer qrId del QR validado
+      // ✅ Extraer qrId y fechaDia del QR validado
       const qrId = validacion.qrData?.qrId || null;
+      const fechaDia = validacion.qrData?.fechaDia || null;
       
       const registro = await qrService.registrarAsistenciaQR(
         eventoId, 
         validacion.qrData.userId,
         organizadorUid,
-        qrId
+        qrId,
+        fechaDia  // ✅ NUEVO: Pasar fecha del QR para registrar asistencia del día correcto
       );
 
       if (registro.success) {

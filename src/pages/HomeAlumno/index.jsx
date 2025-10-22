@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useEventosAlumno } from "../../core/hooks/useEventosAlumno";
 import { useAuth } from "../../core/hooks/useAuth";
+import formatters from "../../core/utils/formatters";
 
 const HomeAlumno = () => {
     const navigate = useNavigate();
@@ -111,8 +112,10 @@ const HomeAlumno = () => {
                                                                     
                                                                     <div className="small text-muted mb-3">
                                                                         <div className="mb-1">
-                                                                            <strong>Fecha(s):</strong> {evento.fechaInicio || evento.fecha || 'No especificada'} 
-                                                                            {evento.fechaFin && evento.fechaFin !== evento.fechaInicio && ` al ${evento.fechaFin}`}
+                                                                            <strong>Fecha(s):</strong> {formatters.formatearRangoFechas(
+                                                                                evento.fechaInicio || evento.fecha,
+                                                                                evento.fechaFin || evento.fecha
+                                                                            )}
                                                                         </div>
                                                                         <div className="mb-1">
                                                                             <strong>Horario:</strong> {evento.horaInicio || evento.hora || 'No especificada'}

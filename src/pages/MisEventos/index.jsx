@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useEventosAlumno } from '../../core/hooks/useEventosAlumno';
 import QRGenerator from '../../components/qr/QRGenerator';
 import { authService } from '../../services/authService';
+import formatters from '../../core/utils/formatters';
 import toastHelper from '../../core/utils/toastHelper';
 import logger from '../../core/utils/logger';
 
@@ -204,7 +205,8 @@ const MisEventos = () => {
                                         <i className="bi bi-check-circle-fill me-2"></i>
                                         <strong>¡Asistencia Registrada!</strong>
                                         <small className="d-block mt-1">
-                                          {evento.asistenciaQR?.[currentUser?.uid]?.metodo === 'qr' ? '📱 Método: QR' : '✋ Método: Manual'}
+                                          {/* ✅ OPTIMIZADO: Usar formatters.obtenerMetodoRegistro() */}
+                                          {formatters.obtenerMetodoRegistro(evento, currentUser?.uid) === 'qr' ? '📱 Método: QR' : '✋ Método: Manual'}
                                         </small>
                                       </div>
                                       <button 
@@ -250,11 +252,23 @@ const MisEventos = () => {
                                         <strong>Asistencia Registrada</strong>
                                       </div>
                                       <span className="badge bg-success">
-                                        {evento.asistenciaQR?.[currentUser?.uid]?.metodo === 'qr' ? '📱 QR' : '✋ Manual'}
+                                        {/* ✅ OPTIMIZADO: Usar formatters.obtenerMetodoRegistro() */}
+                                        {formatters.obtenerMetodoRegistro(evento, currentUser?.uid) === 'qr' ? '📱 QR' : '✋ Manual'}
                                       </span>
                                     </div>
+                                  ) : participanteInfo?.qrsPorDia ? (
+                                    // ✅ NUEVO: Soporte multi-día con qrsPorDia
+                                    <QRGenerator
+                                      qrsPorDia={participanteInfo.qrsPorDia}
+                                      eventoNombre={evento.titulo}
+                                      eventoFechaInicio={evento.fechaInicio || evento.fecha}
+                                      eventoFechaFin={evento.fechaFin || evento.fecha || evento.fechaInicio}
+                                      asistenciasPorDia={evento.asistenciasPorDia || {}}
+                                      participanteUid={currentUser?.uid}
+                                      participanteNombre={currentUser?.displayName || currentUser?.email || 'Estudiante'}
+                                    />
                                   ) : participanteInfo?.qrData?.qrString ? (
-                                    // Mostrar QR para marcar asistencia
+                                    // ⚠️ LEGACY: Soporte para QRs antiguos (formato antiguo)
                                     <QRGenerator
                                       qrString={participanteInfo.qrData.qrString}
                                       eventoNombre={evento.titulo}

@@ -235,12 +235,17 @@ export const firestoreService = {
 
       const evento = eventoResult.evento;
       
-      // 2. ✅ NUEVO: Auto-cerrar inscripciones si ya llegó el día del evento
+      // 2. ✅ MEJORADO: Auto-cerrar inscripciones si ya llegó la hora de inicio del evento
       const fechaEventoParaValidar = evento.fechaInicio || evento.fecha;
-      if (this.esElDiaDelEvento(fechaEventoParaValidar) && evento.inscripcionesAbiertas) {
-        logger.log('🔒 Auto-cerrando inscripciones: ya llegó el día del evento');
+      const horaEventoParaValidar = evento.horaInicio || evento.hora || '00:00';
+      
+      if (this.yaLlegoHoraDeInicio(fechaEventoParaValidar, horaEventoParaValidar) && evento.inscripcionesAbiertas) {
+        logger.log('🔒 Auto-cerrando inscripciones: ya llegó la hora de inicio del evento');
         await this.cerrarInscripcionesYEnviarLista(eventoId);
-        return { success: false, error: "Las inscripciones se cerraron automáticamente al llegar el día del evento" };
+        return { 
+          success: false, 
+          error: "Las inscripciones se cerraron automáticamente al llegar la hora de inicio del evento" 
+        };
       }
       
       // 3. Verificar si ya está inscrito
@@ -259,17 +264,27 @@ export const firestoreService = {
         return { success: false, error: "Las inscripciones están cerradas" };
       }
 
-      // 6. Generar QR único para esta inscripción
-      const qrResult = qrService.generarQR(eventoId, alumnoId, alumnoEmail);
+      // ✅ NUEVO: Calcular días del evento para generar QRs
+      const fechaInicio = evento.fechaInicio || evento.fecha;
+      const fechaFin = evento.fechaFin || evento.fecha || fechaInicio;
       
-      if (!qrResult.success) {
-        console.error('❌ Error generando QR:', qrResult.error);
-        return { success: false, error: "Error generando código QR" };
+      // Importar formatters para calcular días
+      const { default: formatters } = await import('../core/utils/formatters.js');
+      const diasEvento = formatters.calcularDiasEvento(fechaInicio, fechaFin);
+      
+      logger.log(`📅 Generando QRs para ${diasEvento.length} día(s) del evento`);
+
+      // 6. ✅ NUEVO: Generar QRs para todos los días del evento
+      const qrsResult = qrService.generarQRsParaEvento(eventoId, alumnoId, alumnoEmail, diasEvento);
+      
+      if (!qrsResult.success) {
+        console.error('❌ Error generando QRs:', qrsResult.error);
+        return { success: false, error: "Error generando códigos QR" };
       }
 
-      logger.log('✅ QR generado exitosamente');
+      logger.log(`✅ ${qrsResult.totalQRs} QR(s) generado(s) exitosamente`);
 
-      // 7. Inscribir al alumno en Firestore con QR
+      // 7. Inscribir al alumno en Firestore con QRs por día
       const participanteInfo = {
         id: alumnoId,
         uid: alumnoId,
@@ -279,12 +294,7 @@ export const firestoreService = {
         fechaInscripcion: new Date().toISOString(),
         estado: 'inscrito',
         asistio: false,
-        qrData: {
-          qrString: qrResult.qrString,
-          qrId: qrResult.qrId,  // ✅ Guardar qrId único
-          token: qrResult.token,
-          generadoEn: new Date().toISOString()
-        }
+        qrsPorDia: qrsResult.qrsPorDia  // ✅ NUEVO: Objeto con QRs por día
       };
 
       const eventoRef = doc(db, "eventos", eventoId);
@@ -293,11 +303,11 @@ export const firestoreService = {
         participantesInfo: arrayUnion(participanteInfo)
       });
 
-      logger.log('✅ Alumno inscrito en Firestore con QR');
+      logger.log('✅ Alumno inscrito en Firestore con QRs por día');
 
       // 8. Notificar a n8n para enviar confirmación CON QR (no bloquear si falla)
       try {
-        logger.log('📧 Enviando confirmación de inscripción con QR via n8n...');
+        logger.log('📧 Enviando confirmación de inscripción con QRs via n8n...');
         
         const alumno = {
           uid: alumnoId,
@@ -340,14 +350,18 @@ export const firestoreService = {
         logger.warn('⚠️ Error al enviar confirmación n8n (no crítico):', n8nError);
       }
 
-      // 9. Verificar si se debe cerrar inscripciones
+      // 9. Verificar si se debe cerrar inscripciones (capacidad llena o llegó la hora)
       const nuevosParticipantes = participantesActuales + 1;
       const fechaEvento = evento.fechaInicio || evento.fecha;
+      const horaEvento = evento.horaInicio || evento.hora || '00:00';
       const deberaCerrar = nuevosParticipantes >= evento.capacidadMaxima || 
-                           this.esElDiaDelEvento(fechaEvento);
+                           this.yaLlegoHoraDeInicio(fechaEvento, horaEvento);
       
       if (deberaCerrar) {
-        logger.log('🔒 Cerrando inscripciones y enviando lista a n8n...');
+        const razon = nuevosParticipantes >= evento.capacidadMaxima 
+          ? 'capacidad máxima alcanzada' 
+          : 'llegó la hora de inicio del evento';
+        logger.log(`🔒 Cerrando inscripciones: ${razon}`);
         await this.cerrarInscripcionesYEnviarLista(eventoId);
       }
 
@@ -356,10 +370,10 @@ export const firestoreService = {
         message: "Inscripción exitosa",
         data: {
           participante: participanteInfo,
-          qr: {
-            qrString: qrResult.qrString,
-            qrId: qrResult.qrId,  // ✅ Incluir qrId en respuesta
-            token: qrResult.token
+          qrs: {
+            totalQRs: qrsResult.totalQRs,
+            diasEvento: diasEvento,
+            qrsPorDia: qrsResult.qrsPorDia  // ✅ Array de QRs por día
           },
           confirmacionEnviada: true,
           inscripcionesCerradas: deberaCerrar
@@ -445,20 +459,27 @@ export const firestoreService = {
         p => p.id !== alumnoId && p.uid !== alumnoId
       );
       
-      // Remover de asistentes si existe
-      const asistentesActualizados = (evento.asistentes || []).filter(id => id !== alumnoId);
-      
+      // ✅ OPTIMIZACIÓN: Solo actualizar campos necesarios
+      // ❌ ELIMINADO: asistentes (redundante, se calcula dinámicamente)
+      // ❌ ELIMINADO: asistenciaQR (ya no se usa)
       const updateData = {
         participantes: participantesActualizados,
-        participantesInfo: participantesInfoActualizados,
-        asistentes: asistentesActualizados
+        participantesInfo: participantesInfoActualizados
       };
 
-      // Si existe asistenciaQR, eliminar la entrada del participante
-      if (evento.asistenciaQR && evento.asistenciaQR[alumnoId]) {
-        const asistenciaQRActualizada = { ...evento.asistenciaQR };
-        delete asistenciaQRActualizada[alumnoId];
-        updateData.asistenciaQR = asistenciaQRActualizada;
+      // ✅ Eliminar de asistenciasPorDia si está presente
+      if (evento.asistenciasPorDia) {
+        for (const [fecha, diaData] of Object.entries(evento.asistenciasPorDia)) {
+          if (diaData.asistentes?.includes(alumnoId)) {
+            // Eliminar de asistentes del día
+            updateData[`asistenciasPorDia.${fecha}.asistentes`] = 
+              diaData.asistentes.filter(id => id !== alumnoId);
+            
+            // Eliminar de participantesInfo del día
+            updateData[`asistenciasPorDia.${fecha}.participantesInfo`] = 
+              (diaData.participantesInfo || []).filter(p => (p.uid || p.id) !== alumnoId);
+          }
+        }
       }
 
       await updateDoc(eventoRef, updateData);
@@ -501,8 +522,19 @@ export const firestoreService = {
     }
   },
 
-  // Marcar asistencia de un participante
-  async marcarAsistencia(eventoId, alumnoId, metodo = 'manual', organizadorUid = null, qrId = null) {
+  // ========== SISTEMA DE ASISTENCIAS POR DÍA ==========
+
+  /**
+   * Marcar asistencia de un participante (ACTUALIZADO: soporta múltiples días)
+   * @param {string} eventoId - ID del evento
+   * @param {string} alumnoId - UID del alumno
+   * @param {string} metodo - 'manual' o 'qr'
+   * @param {string} organizadorUid - UID del organizador
+   * @param {string} qrId - ID del QR escaneado (opcional)
+   * @param {string} fechaDia - Fecha específica del día (YYYY-MM-DD). Si no se provee, usa fecha actual
+   * @returns {Promise<Object>}
+   */
+  async marcarAsistencia(eventoId, alumnoId, metodo = 'manual', organizadorUid = null, qrId = null, fechaDia = null) {
     try {
       const eventoResult = await this.obtenerEventoPorId(eventoId);
       if (!eventoResult.success) {
@@ -516,38 +548,43 @@ export const firestoreService = {
         return { success: false, error: "El alumno no está inscrito en este evento" };
       }
 
-      // Verificar si ya tiene asistencia marcada
-      if (evento.asistentes && evento.asistentes.includes(alumnoId)) {
-        return { success: false, error: "La asistencia ya fue marcada" };
+      // Determinar fecha del día (si no se provee, usar fecha actual)
+      const fechaAsistencia = fechaDia || new Date().toISOString().split('T')[0];
+      
+      // Verificar si la fecha está dentro del rango del evento
+      const fechaInicio = evento.fechaInicio || evento.fecha;
+      const fechaFin = evento.fechaFin || evento.fecha || fechaInicio;
+      
+      if (fechaAsistencia < fechaInicio || fechaAsistencia > fechaFin) {
+        return { 
+          success: false, 
+          error: `La fecha ${fechaAsistencia} está fuera del rango del evento` 
+        };
       }
 
-      // ✅ CORRECCIÓN: Actualizar el participante SIN duplicar usando .map()
-      const participantesInfoActualizados = (evento.participantesInfo || []).map(participante => {
-        // Comparar tanto por id como por uid
-        if (participante.id === alumnoId || participante.uid === alumnoId) {
-          return {
-            ...participante,
-            asistio: true,
-            fechaAsistencia: new Date().toISOString(),
-            metodoRegistro: metodo  // ✅ CAMBIADO: metodoAsistencia → metodoRegistro
-          };
-        }
-        return participante; // Devolver sin cambios si no es el participante buscado
-      });
+      // Verificar si ya tiene asistencia marcada PARA ESTE DÍA ESPECÍFICO
+      const asistenciasDelDia = evento.asistenciasPorDia?.[fechaAsistencia]?.asistentes || [];
+      if (asistenciasDelDia.includes(alumnoId)) {
+        return { 
+          success: false, 
+          error: `La asistencia para el día ${fechaAsistencia} ya fue marcada` 
+        };
+      }
 
-      // Agregar a asistentes sin duplicados
-      const asistentesActualizados = Array.from(
-        new Set([...(evento.asistentes || []), alumnoId])
-      );
-
-      // Buscar datos del participante para el registro histórico
+      // Buscar datos del participante
       const participanteInfo = evento.participantesInfo?.find(p => p.id === alumnoId || p.uid === alumnoId);
       
-      // Registrar asistencia en asistenciaQR (histórico)
+      if (!participanteInfo) {
+        return { success: false, error: "Participante no encontrado en la lista de inscritos" };
+      }
+
+      // Crear registro de asistencia para el día
       const registroAsistencia = {
-        alumnoId,
-        email: participanteInfo?.email || 'desconocido',
-        nombre: participanteInfo?.nombre || 'Estudiante',
+        uid: alumnoId,
+        id: alumnoId,
+        email: participanteInfo.email || 'desconocido',
+        nombre: participanteInfo.nombre || 'Estudiante',
+        apellido: participanteInfo.apellido || '',
         metodo,
         timestamp: new Date().toISOString(),
         organizadorUid: organizadorUid || 'sistema'
@@ -555,32 +592,197 @@ export const firestoreService = {
 
       const eventoRef = doc(db, "eventos", eventoId);
       
-      // Preparar datos de actualización
+      // Actualizar asistencias del día específico
+      const asistentesDelDiaActualizados = Array.from(
+        new Set([...asistenciasDelDia, alumnoId])
+      );
+
+      const participantesDelDiaActualizados = [
+        ...(evento.asistenciasPorDia?.[fechaAsistencia]?.participantesInfo || []),
+        registroAsistencia
+      ];
+
+      // ✅ OPTIMIZACIÓN: Preparar datos de actualización (solo asistenciasPorDia)
+      // ❌ ELIMINADO: asistentes[] global (redundante, se calcula con formatters.obtenerAsistentesGlobales())
+      // ❌ ELIMINADO: asistenciaQR (duplicado completo de asistenciasPorDia)
       const updateData = {
-        asistentes: asistentesActualizados,
-        participantesInfo: participantesInfoActualizados,
-        [`asistenciaQR.${alumnoId}`]: registroAsistencia
+        // Actualizar asistencias del día específico (ÚNICA FUENTE DE VERDAD)
+        [`asistenciasPorDia.${fechaAsistencia}.asistentes`]: asistentesDelDiaActualizados,
+        [`asistenciasPorDia.${fechaAsistencia}.participantesInfo`]: participantesDelDiaActualizados,
+        [`asistenciasPorDia.${fechaAsistencia}.fecha`]: fechaAsistencia
       };
 
-      // ✅ NUEVO: Guardar qrId en qrUsados para evitar reutilización
+      // ✅ Guardar qrId en qrUsados para evitar reutilización
       if (qrId && metodo === 'qr') {
         updateData[`qrUsados.${qrId}`] = {
           timestamp: new Date().toISOString(),
           userId: alumnoId,
           metodo: 'qr',
-          organizadorUid: organizadorUid || 'sistema'
+          organizadorUid: organizadorUid || 'sistema',
+          fecha: fechaAsistencia
         };
       }
       
       // ✅ Actualizar TODO en una sola operación (evita race conditions)
       await updateDoc(eventoRef, updateData);
 
-      logger.log(`✅ Asistencia marcada para ${alumnoId} vía ${metodo}${qrId ? ` (QR: ${qrId})` : ''}`);
-      return { success: true, message: "Asistencia marcada exitosamente" };
+      logger.log(`✅ Asistencia marcada para ${alumnoId} el día ${fechaAsistencia} vía ${metodo}${qrId ? ` (QR: ${qrId})` : ''}`);
+      
+      return { 
+        success: true, 
+        message: "Asistencia marcada exitosamente",
+        fecha: fechaAsistencia
+      };
       
     } catch (error) {
       console.error('Error marcando asistencia:', error);
       return { success: false, error: "Error al marcar asistencia" };
+    }
+  },
+
+  /**
+   * Obtener asistencias de un día específico
+   * @param {string} eventoId - ID del evento
+   * @param {string} fechaDia - Fecha del día (YYYY-MM-DD)
+   * @returns {Promise<Object>}
+   */
+  async obtenerAsistenciaDelDia(eventoId, fechaDia) {
+    try {
+      const eventoResult = await this.obtenerEventoPorId(eventoId);
+      if (!eventoResult.success) {
+        return { success: false, error: "Evento no encontrado" };
+      }
+
+      const evento = eventoResult.evento;
+      const asistenciasDelDia = evento.asistenciasPorDia?.[fechaDia] || {
+        fecha: fechaDia,
+        asistentes: [],
+        participantesInfo: []
+      };
+
+      return {
+        success: true,
+        asistencias: asistenciasDelDia,
+        totalAsistentes: asistenciasDelDia.asistentes?.length || 0,
+        totalInscritos: evento.participantes?.length || 0
+      };
+      
+    } catch (error) {
+      console.error('Error obteniendo asistencias del día:', error);
+      return { success: false, error: "Error al obtener asistencias" };
+    }
+  },
+
+  /**
+   * Obtener resumen completo de asistencias (todos los días)
+   * @param {string} eventoId - ID del evento
+   * @returns {Promise<Object>}
+   */
+  async obtenerResumenAsistencias(eventoId) {
+    try {
+      const eventoResult = await this.obtenerEventoPorId(eventoId);
+      if (!eventoResult.success) {
+        return { success: false, error: "Evento no encontrado" };
+      }
+
+      const evento = eventoResult.evento;
+      const fechaInicio = evento.fechaInicio || evento.fecha;
+      const fechaFin = evento.fechaFin || evento.fecha || fechaInicio;
+      
+      // Importar formatters para calcular días
+      const { calcularDiasEvento, esEventoMultiDia } = await import('../core/utils/formatters.js').then(m => m.default);
+      
+      const diasEvento = calcularDiasEvento(fechaInicio, fechaFin);
+      const esMultiDia = esEventoMultiDia(fechaInicio, fechaFin);
+      
+      // Construir resumen por día
+      const resumenPorDia = {};
+      diasEvento.forEach(dia => {
+        const asistenciasDelDia = evento.asistenciasPorDia?.[dia] || {
+          fecha: dia,
+          asistentes: [],
+          participantesInfo: []
+        };
+        
+        resumenPorDia[dia] = {
+          fecha: dia,
+          totalAsistentes: asistenciasDelDia.asistentes?.length || 0,
+          asistentes: asistenciasDelDia.asistentes || [],
+          participantesInfo: asistenciasDelDia.participantesInfo || []
+        };
+      });
+
+      // Calcular estadísticas generales
+      const totalInscritos = evento.participantes?.length || 0;
+      const asistentesUnicos = Array.from(new Set(evento.asistentes || []));
+      
+      // Calcular participantes con asistencia perfecta vs parcial
+      const participantesConAsistenciaPerfecta = [];
+      const participantesConAsistenciaParcial = [];
+      
+      evento.participantes?.forEach(participanteId => {
+        let diasAsistidos = 0;
+        const diasFaltantes = [];
+        
+        diasEvento.forEach(dia => {
+          if (resumenPorDia[dia]?.asistentes.includes(participanteId)) {
+            diasAsistidos++;
+          } else {
+            diasFaltantes.push(dia);
+          }
+        });
+        
+        const participanteInfo = evento.participantesInfo?.find(p => 
+          p.id === participanteId || p.uid === participanteId
+        );
+        
+        if (participanteInfo) {
+          const datosParticipante = {
+            uid: participanteId,
+            id: participanteId,
+            nombre: participanteInfo.nombre || 'Sin nombre',
+            apellido: participanteInfo.apellido || '',
+            email: participanteInfo.email,
+            diasAsistidos,
+            totalDias: diasEvento.length,
+            porcentajeAsistencia: ((diasAsistidos / diasEvento.length) * 100).toFixed(2)
+          };
+          
+          if (diasAsistidos === diasEvento.length) {
+            participantesConAsistenciaPerfecta.push(datosParticipante);
+          } else if (diasAsistidos > 0) {
+            participantesConAsistenciaParcial.push({
+              ...datosParticipante,
+              diasFaltantes
+            });
+          }
+        }
+      });
+
+      return {
+        success: true,
+        evento: {
+          id: evento.id,
+          titulo: evento.titulo,
+          fechaInicio,
+          fechaFin
+        },
+        esMultiDia,
+        totalDias: diasEvento.length,
+        diasEvento,
+        totalInscritos,
+        totalAsistentesUnicos: asistentesUnicos.length,
+        porcentajeAsistenciaGeneral: totalInscritos > 0 
+          ? ((asistentesUnicos.length / totalInscritos) * 100).toFixed(2)
+          : '0.00',
+        resumenPorDia,
+        participantesConAsistenciaPerfecta,
+        participantesConAsistenciaParcial
+      };
+      
+    } catch (error) {
+      console.error('Error obteniendo resumen de asistencias:', error);
+      return { success: false, error: "Error al obtener resumen" };
     }
   },
 
@@ -644,7 +846,7 @@ export const firestoreService = {
   },
 
   /**
-   * Enviar asistencias a n8n (reemplaza "Exportar Lista")
+   * Enviar asistencias a n8n (ACTUALIZADO: soporta eventos multi-día)
    */
   async enviarAsistenciasN8n(eventoId) {
     try {
@@ -654,13 +856,21 @@ export const firestoreService = {
       }
 
       const evento = eventoResult.evento;
-      const inscritos = evento.participantesInfo || [];
-      const asistentes = inscritos.filter(p => evento.asistentes?.includes(p.uid || p.id));
+      
+      // Obtener resumen completo de asistencias
+      const resumenResult = await this.obtenerResumenAsistencias(eventoId);
+      if (!resumenResult.success) {
+        throw new Error('Error al obtener resumen de asistencias');
+      }
 
-      logger.log(`📊 Enviando asistencias: ${asistentes.length}/${inscritos.length}`);
+      logger.log(`📊 Enviando asistencias: ${resumenResult.totalAsistentesUnicos}/${resumenResult.totalInscritos}`);
+      logger.log(`📅 Evento multi-día: ${resumenResult.esMultiDia ? 'Sí' : 'No'} (${resumenResult.totalDias} días)`);
 
-      // Enviar a n8n
-      const n8nResult = await n8nService.enviarAsistencias(evento, asistentes, inscritos);
+      // Enviar a n8n con el resumen completo
+      const n8nResult = await n8nService.enviarAsistencias(
+        evento, 
+        resumenResult
+      );
 
       // Actualizar estado en Firestore
       const eventoRef = doc(db, "eventos", eventoId);
@@ -668,8 +878,13 @@ export const firestoreService = {
         'workflowN8n.asistenciasEnviadas': {
           enviadas: n8nResult.success,
           fechaEnvio: new Date().toISOString(),
-          totalAsistentes: asistentes.length,
-          porcentajeAsistencia: (asistentes.length / inscritos.length * 100).toFixed(2),
+          totalAsistentesUnicos: resumenResult.totalAsistentesUnicos,
+          totalInscritos: resumenResult.totalInscritos,
+          porcentajeAsistencia: resumenResult.porcentajeAsistenciaGeneral,
+          totalDias: resumenResult.totalDias,
+          esMultiDia: resumenResult.esMultiDia,
+          participantesConAsistenciaPerfecta: resumenResult.participantesConAsistenciaPerfecta.length,
+          participantesConAsistenciaParcial: resumenResult.participantesConAsistenciaParcial.length,
           error: n8nResult.success ? null : n8nResult.error
         },
         estadoWorkflow: n8nResult.success ? 'asistencias_enviadas' : 'error_asistencias'
@@ -681,9 +896,13 @@ export const firestoreService = {
           ? 'Asistencias enviadas correctamente a n8n' 
           : 'Error al enviar asistencias',
         data: {
-          totalInscritos: inscritos.length,
-          totalAsistentes: asistentes.length,
-          porcentajeAsistencia: (asistentes.length / inscritos.length * 100).toFixed(2),
+          totalInscritos: resumenResult.totalInscritos,
+          totalAsistentes: resumenResult.totalAsistentesUnicos,
+          porcentajeAsistencia: resumenResult.porcentajeAsistenciaGeneral,
+          totalDias: resumenResult.totalDias,
+          esMultiDia: resumenResult.esMultiDia,
+          participantesConAsistenciaPerfecta: resumenResult.participantesConAsistenciaPerfecta.length,
+          participantesConAsistenciaParcial: resumenResult.participantesConAsistenciaParcial.length,
           n8nResponse: n8nResult
         }
       };
@@ -697,6 +916,29 @@ export const firestoreService = {
   /**
    * Verificar si es el día del evento
    */
+  /**
+   * Verificar si ya llegó la hora de inicio del evento (cierre de inscripciones)
+   * @param {string} fechaEvento - Fecha del evento (YYYY-MM-DD)
+   * @param {string} horaEvento - Hora de inicio del evento (HH:MM)
+   * @returns {boolean} - true si ya pasó la hora de inicio
+   */
+  yaLlegoHoraDeInicio(fechaEvento, horaEvento = '00:00') {
+    if (!fechaEvento) return false;
+    
+    try {
+      // Crear fecha/hora del inicio del evento
+      const fechaHoraEvento = new Date(`${fechaEvento}T${horaEvento}:00`);
+      const ahora = new Date();
+      
+      // Retornar true si ya pasó la hora de inicio
+      return ahora >= fechaHoraEvento;
+    } catch (error) {
+      logger.error('Error al comparar fecha/hora:', error);
+      return false;
+    }
+  },
+
+  // DEPRECATED: Mantener por compatibilidad pero usar yaLlegoHoraDeInicio() en su lugar
   esElDiaDelEvento(fechaEvento) {
     const hoy = new Date().toDateString();
     const fechaEventoDate = new Date(fechaEvento).toDateString();
@@ -705,13 +947,14 @@ export const firestoreService = {
 
   /**
    * Obtener eventos con inscripciones que deberían cerrarse
+   * Verifica capacidad llena o si llegó la hora de inicio
    */
   async verificarEventosParaCerrar() {
     try {
       const q = query(
         collection(db, "eventos"),
         where("estado", "==", "publicado"),
-        where("inscripcionesAbiertas", "==", true)  // ✅ Cambiado de inscripcionesCerradas
+        where("inscripcionesAbiertas", "==", true)
       );
 
       const querySnapshot = await getDocs(q);
@@ -721,13 +964,15 @@ export const firestoreService = {
         const evento = { id: doc.id, ...doc.data() };
         const participantesActuales = evento.participantes?.length || 0;
         const capacidadLlena = participantesActuales >= evento.capacidadMaxima;
+        
         const fechaEvento = evento.fechaInicio || evento.fecha;
-        const esDiaEvento = this.esElDiaDelEvento(fechaEvento);
+        const horaEvento = evento.horaInicio || evento.hora || '00:00';
+        const yaLlegoHora = this.yaLlegoHoraDeInicio(fechaEvento, horaEvento);
 
-        if (capacidadLlena || esDiaEvento) {
+        if (capacidadLlena || yaLlegoHora) {
           eventosParaCerrar.push({
             ...evento,
-            motivo: capacidadLlena ? 'capacidad_maxima' : 'dia_evento'
+            motivo: capacidadLlena ? 'capacidad_maxima' : 'hora_inicio_evento'
           });
         }
       });

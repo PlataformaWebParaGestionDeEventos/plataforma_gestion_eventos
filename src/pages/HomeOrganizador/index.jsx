@@ -5,7 +5,6 @@ import { getAuth } from "firebase/auth";
 import { collection, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import firestoreService from "../../services/firestoreService";
 import { useAuth } from "../../core/hooks/useAuth";
-import GestionParticipantes from "../../components/GestionParticipantes";
 import toastHelper from "../../core/utils/toastHelper";
 import logger from "../../core/utils/logger";
 const auth = getAuth(appFirebase);
@@ -45,7 +44,6 @@ const HomeOrganizador = () => {
     const [cargandoEventos, setCargandoEventos] = useState(false);
     const [mostrandoFormulario, setMostrandoFormulario] = useState(false);
     const [eventoEditando, setEventoEditando] = useState(null);
-    const [eventoParticipantes, setEventoParticipantes] = useState(null);
 
     // Estados para el formulario de eventos
     const [nuevoEvento, setNuevoEvento] = useState({
@@ -605,14 +603,7 @@ const HomeOrganizador = () => {
 
     // Función para ver participantes de un evento
     const verParticipantes = (evento) => {
-        setEventoParticipantes(evento);
-        setVistaActual('participantes');
-    };
-
-    // Función para volver de la vista de participantes
-    const volverDeParticipantes = () => {
-        setEventoParticipantes(null);
-        setVistaLocal(null); // Limpiar vista local para que se muestre la vista por defecto (eventos)
+        navigate(`/organizador/participantes/${evento.id}`);
     };
 
     // Función para ver gestión de asistencia
@@ -656,15 +647,7 @@ const HomeOrganizador = () => {
     return (
         <>
             {/* Contenido principal sin navbar (el layout lo maneja) */}
-            {vistaActual === 'participantes' && eventoParticipantes && (
-                    <GestionParticipantes 
-                        evento={eventoParticipantes} 
-                        onVolver={volverDeParticipantes}
-                        onIrAGestionAsistencia={() => verGestionAsistencia(eventoParticipantes)}
-                    />
-                )}
-
-                {vistaActual === 'dashboard' && (
+            {vistaActual === 'dashboard' && (
                     <div className="container-fluid py-4">
                         {/* Header */}
                         <div className="row mb-4">

@@ -303,40 +303,97 @@ class N8nService {
   }
 
   /**
-   * Webhook para lista de asistencias
+   * Webhook para lista de asistencias (ACTUALIZADO: soporta eventos multi-día)
+   * @param {Object} evento - Datos del evento
+   * @param {Object} resumenAsistencias - Resumen completo de asistencias (de firestoreService.obtenerResumenAsistencias)
    */
-  async enviarAsistencias(evento, asistentes, inscritos) {
+  async enviarAsistencias(evento, resumenAsistencias) {
+    // Construir payload según si es evento multi-día o no
     const datos = {
       eventoId: evento.id,
       eventoTitulo: evento.titulo,
       
-      // Fechas y horas del evento - ✅ CORRECCIÓN: Buscar ambos formatos
+      // Fechas y horas del evento
       eventoFechaInicio: evento.eventoFechaInicio || evento.fechaInicio || evento.fecha,
       eventoFechaFin: evento.eventoFechaFin || evento.fechaFin || evento.fecha,
       eventoHoraInicio: evento.eventoHoraInicio || evento.horaInicio || evento.hora,
       eventoHoraFin: evento.eventoHoraFin || evento.horaFin || evento.hora,
       
-      // Backwards compatibility
-      eventoFecha: evento.eventoFechaInicio || evento.fechaInicio || evento.fecha,
+      // Información del evento multi-día
+      esEventoMultiDia: resumenAsistencias.esMultiDia,
+      totalDias: resumenAsistencias.totalDias,
+      diasEvento: resumenAsistencias.diasEvento,
       
-      // Estadísticas
-      totalInscritos: inscritos.length,
-      totalAsistentes: asistentes.length,
-      porcentajeAsistencia: inscritos.length > 0 
-        ? ((asistentes.length / inscritos.length) * 100).toFixed(2) 
-        : '0',
+      // Estadísticas generales
+      totalInscritos: resumenAsistencias.totalInscritos,
+      totalAsistentesUnicos: resumenAsistencias.totalAsistentesUnicos,
+      porcentajeAsistenciaGeneral: resumenAsistencias.porcentajeAsistenciaGeneral,
       
-      // Lista de asistentes
-      asistentes: asistentes.map(asistente => ({
-        id: asistente.uid || asistente.id,
-        email: asistente.email,
-        nombre: asistente.nombre,
-        apellido: asistente.apellido || '',
-        estado: 'asistio'
+      // Asistencias por día (solo para eventos multi-día)
+      asistenciasPorDia: resumenAsistencias.esMultiDia 
+        ? Object.keys(resumenAsistencias.resumenPorDia).map(fecha => ({
+            fecha,
+            totalAsistentes: resumenAsistencias.resumenPorDia[fecha].totalAsistentes,
+            porcentaje: resumenAsistencias.totalInscritos > 0
+              ? ((resumenAsistencias.resumenPorDia[fecha].totalAsistentes / resumenAsistencias.totalInscritos) * 100).toFixed(2)
+              : '0.00',
+            asistentes: resumenAsistencias.resumenPorDia[fecha].participantesInfo.map(p => ({
+              id: p.uid || p.id,
+              email: p.email,
+              nombre: p.nombre,
+              apellido: p.apellido || '',
+              metodo: p.metodo,
+              timestamp: p.timestamp
+            }))
+          }))
+        : null,
+      
+      // Participantes con asistencia perfecta (asistieron todos los días)
+      participantesConAsistenciaPerfecta: resumenAsistencias.participantesConAsistenciaPerfecta.map(p => ({
+        id: p.uid || p.id,
+        email: p.email,
+        nombre: p.nombre,
+        apellido: p.apellido || '',
+        diasAsistidos: p.diasAsistidos,
+        totalDias: p.totalDias,
+        porcentajeAsistencia: p.porcentajeAsistencia
       })),
+      
+      // Participantes con asistencia parcial (faltaron algún día)
+      participantesConAsistenciaParcial: resumenAsistencias.participantesConAsistenciaParcial.map(p => ({
+        id: p.uid || p.id,
+        email: p.email,
+        nombre: p.nombre,
+        apellido: p.apellido || '',
+        diasAsistidos: p.diasAsistidos,
+        totalDias: p.totalDias,
+        diasFaltantes: p.diasFaltantes,
+        porcentajeAsistencia: p.porcentajeAsistencia
+      })),
+      
+      // Lista consolidada de todos los asistentes (para eventos de 1 día)
+      asistentes: !resumenAsistencias.esMultiDia
+        ? resumenAsistencias.resumenPorDia[resumenAsistencias.diasEvento[0]]?.participantesInfo.map(p => ({
+            id: p.uid || p.id,
+            email: p.email,
+            nombre: p.nombre,
+            apellido: p.apellido || '',
+            metodo: p.metodo,
+            estado: 'asistio'
+          }))
+        : null,
       
       fechaFinEvento: new Date().toISOString()
     };
+
+    logger.log('📊 [n8n] Enviando asistencias:', {
+      eventoId: datos.eventoId,
+      esMultiDia: datos.esEventoMultiDia,
+      totalDias: datos.totalDias,
+      asistentesUnicos: datos.totalAsistentesUnicos,
+      asistenciaPerfecta: datos.participantesConAsistenciaPerfecta.length,
+      asistenciaParcial: datos.participantesConAsistenciaParcial.length
+    });
 
     return await this.enviarWebhook(
       this.endpoints.asistencias,
