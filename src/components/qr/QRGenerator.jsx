@@ -29,31 +29,97 @@ const QRGenerator = ({
   // ✅ NUEVO: Soporte multi-día
   const esMultiDia = qrsPorDia && Object.keys(qrsPorDia).length > 0;
   
-  // ✅ Obtener array de días del evento
-  const diasEvento = esMultiDia ? Object.keys(qrsPorDia).sort() : [];
+  // ✅ Detectar si es modo por ponente (las keys tienen formato: ponente_FECHA_HORA_INDEX)
+  const esPorPonente = esMultiDia && Object.keys(qrsPorDia)[0]?.startsWith('ponente_');
   
-  // ✅ Estado para el día seleccionado
+  // ✅ Obtener array de QRs (por día o por ponente)
+  const qrsArray = esMultiDia ? Object.entries(qrsPorDia).map(([key, qr]) => ({
+    key,
+    ...qr
+  })).sort((a, b) => a.fechaDia.localeCompare(b.fechaDia)) : [];
+  
+  // ✅ Si es por ponente, agrupar por día
+  const qrsPorDiaAgrupados = esPorPonente ? qrsArray.reduce((acc, qr) => {
+    if (!acc[qr.fechaDia]) acc[qr.fechaDia] = [];
+    acc[qr.fechaDia].push(qr);
+    return acc;
+  }, {}) : {};
+  
+  // ✅ Array de días únicos
+  const diasEvento = esPorPonente 
+    ? Object.keys(qrsPorDiaAgrupados).sort()
+    : esMultiDia 
+      ? Object.keys(qrsPorDia).sort() 
+      : [];
+  
+  // ✅ Estado para el día y QR seleccionado
   const [diaSeleccionado, setDiaSeleccionado] = useState(() => {
     if (!esMultiDia) return null;
     
-    // Buscar primer día sin asistencia
-    const diaSinAsistencia = diasEvento.find(dia => {
-      const asistentes = asistenciasPorDia?.[dia]?.asistentes || [];
-      return !asistentes.includes(participanteUid);
-    });
-    return diaSinAsistencia || diasEvento[0] || null;
+    if (esPorPonente) {
+      // Para modo ponente, seleccionar primer día con QRs sin usar
+      const diaSinAsistencia = diasEvento.find(dia => {
+        const qrsDia = qrsPorDiaAgrupados[dia] || [];
+        return qrsDia.some(qr => !qr.usado);
+      });
+      return diaSinAsistencia || diasEvento[0] || null;
+    } else {
+      // Para modo por día, buscar primer día sin asistencia
+      const diaSinAsistencia = diasEvento.find(dia => {
+        const asistentes = asistenciasPorDia?.[dia]?.asistentes || [];
+        return !asistentes.includes(participanteUid);
+      });
+      return diaSinAsistencia || diasEvento[0] || null;
+    }
+  });
+  
+  const [qrSeleccionado, setQrSeleccionado] = useState(() => {
+    if (!esPorPonente || !diaSeleccionado) return null;
+    const qrsDia = qrsPorDiaAgrupados[diaSeleccionado] || [];
+    // 🔧 FIX: Seleccionar primer QR NO usado
+    const qrNoUsado = qrsDia.find(qr => !qr.usado);
+    return qrNoUsado?.key || qrsDia[0]?.key || null;
   });
 
-  // ✅ Verificar si ya asistió el día seleccionado
+  // ✅ Verificar si ya asistió (por día o por ponente)
   const yaAsistioDiaSeleccionado = () => {
     if (!esMultiDia || !diaSeleccionado) return false;
+    
+    // 🔧 FIX: Si es modo por ponente, verificar el QR específico seleccionado
+    if (esPorPonente && qrSeleccionado) {
+      const qr = qrsPorDia[qrSeleccionado];
+      return qr?.usado === true;
+    }
+    
+    // Si es modo por día, verificar asistencias del día
     const asistentes = asistenciasPorDia?.[diaSeleccionado]?.asistentes || [];
     return asistentes.includes(participanteUid);
   };
 
-  // ✅ Obtener QR del día seleccionado o QR antiguo
-  const qrDelDia = esMultiDia ? qrsPorDia?.[diaSeleccionado] : null;
-  const qrStringActual = esMultiDia ? qrDelDia?.qrString : qrString;
+  // ✅ Obtener QR actual (por día o por ponente)
+  const obtenerQRActual = () => {
+    if (!esMultiDia) return { qrString, qrId: null };
+    
+    if (esPorPonente && qrSeleccionado) {
+      const qr = qrsPorDia[qrSeleccionado];
+      return { 
+        qrString: qr?.qrString,
+        qrId: qr?.qrId,
+        nombrePonente: qr?.nombrePonente,
+        temaPonente: qr?.temaPonente,
+        horaPonente: qr?.horaPonente
+      };
+    } else {
+      const qr = qrsPorDia?.[diaSeleccionado];
+      return { 
+        qrString: qr?.qrString,
+        qrId: qr?.qrId 
+      };
+    }
+  };
+  
+  const qrActual = obtenerQRActual();
+  const qrStringActual = qrActual.qrString;
 
   /**
    * Descargar QR como imagen PNG
@@ -102,8 +168,9 @@ const QRGenerator = ({
       
       ctx.fillStyle = '#1f2937';
       ctx.font = 'bold 14px Arial';
-      ctx.fillText(`Fecha: ${eventoFecha}`, padding, 160);
-      ctx.fillText(`Hora: ${eventoHora}`, padding + 200, 160);
+      // 🔧 FIX: Usar eventoFechaInicio si eventoFecha no está definido
+      const fechaMostrar = eventoFecha || formatters.formatDate(eventoFechaInicio) || 'Ver evento';
+      ctx.fillText(`Fecha: ${fechaMostrar}`, padding, 160);
 
       // Dibujar el QR
       const qrY = infoHeight + padding;
@@ -231,8 +298,8 @@ const QRGenerator = ({
           </div>
           
           <div class="info">
-            <p><strong>Fecha:</strong> ${eventoFecha}</p>
-            <p><strong>Hora:</strong> ${eventoHora}</p>
+            <p><strong>Fecha:</strong> ${eventoFecha || formatters.formatDate(eventoFechaInicio) || 'Ver evento'}</p>
+            <p><strong>Hora:</strong> ${eventoHora || 'Ver horario'}</p>
             <p><strong>Participante:</strong> ${participanteNombre}</p>
           </div>
           
@@ -283,7 +350,7 @@ const QRGenerator = ({
               onClick={() => setShowModal(false)}
               title="Cerrar"
             >
-              <i className="bi bi-x-lg"></i>
+              <i className="bi bi-x-lg">❌</i>
             </button>
 
             <div className="qr-modal-header">
@@ -294,12 +361,14 @@ const QRGenerator = ({
             </div>
 
             <div className="qr-modal-body">
-              {/* ✅ NUEVO: Selector de días (solo para eventos multi-día) */}
-              {esMultiDia && diasEvento.length > 1 && (
+              {/* ✅ NUEVO: Selector de días */}
+              {esMultiDia && diasEvento.length > 0 && (
                 <div className="qr-selector-dias">
                   <p className="qr-selector-label">
-                    <i className="bi bi-calendar-week"></i> Selecciona el día:
+                    <i className="bi bi-calendar-week"></i> {esPorPonente ? 'Selecciona el día y ponente:' : 'Selecciona el día:'}
                   </p>
+                  
+                  {/* Selector de días */}
                   <div className="qr-dias-grid">
                     {diasEvento.map((dia) => {
                       const asistentes = asistenciasPorDia?.[dia]?.asistentes || [];
@@ -310,7 +379,15 @@ const QRGenerator = ({
                         <button
                           key={dia}
                           className={`qr-dia-btn ${esSeleccionado ? 'activo' : ''} ${yaAsistio ? 'asistido' : ''}`}
-                          onClick={() => setDiaSeleccionado(dia)}
+                          onClick={() => {
+                            setDiaSeleccionado(dia);
+                            if (esPorPonente) {
+                              const qrsDia = qrsPorDiaAgrupados[dia] || [];
+                              // 🔧 FIX: Seleccionar primer ponente NO usado
+                              const qrNoUsado = qrsDia.find(qr => !qr.usado);
+                              setQrSeleccionado(qrNoUsado?.key || qrsDia[0]?.key || null);
+                            }
+                          }}
                           title={yaAsistio ? 'Asistencia registrada' : 'Clic para ver QR'}
                         >
                           <span className="qr-dia-nombre">
@@ -324,41 +401,59 @@ const QRGenerator = ({
                       );
                     })}
                   </div>
-                </div>
-              )}
-
-              {/* Información del evento */}
-              <div className="qr-info-card">
-                <h5>{eventoNombre}</h5>
-                <div className="qr-info-details">
-                  {esMultiDia ? (
-                    <>
-                      <span>
-                        <i className="bi bi-calendar-range"></i> 
-                        {eventoFechaInicio} - {eventoFechaFin}
-                      </span>
-                      {diaSeleccionado && (
-                        <span className="qr-dia-actual">
-                          <i className="bi bi-calendar-check"></i> 
-                          {formatters.formatearNombreDia(diaSeleccionado)}
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <span>
-                        <i className="bi bi-calendar-event"></i> {eventoFecha}
-                      </span>
-                      <span>
-                        <i className="bi bi-clock"></i> {eventoHora}
-                      </span>
-                    </>
+                  
+                  {/* ✅ NUEVO: Selector de ponentes (solo si es modo por ponente) */}
+                  {esPorPonente && diaSeleccionado && (
+                    <div className="qr-ponentes-list" style={{ marginTop: '15px' }}>
+                      <p className="qr-selector-label" style={{ fontSize: '0.9rem', marginBottom: '10px' }}>
+                        <i className="bi bi-person-badge"></i> Ponentes del día:
+                      </p>
+                      <div className="qr-ponentes-grid">
+                        {(qrsPorDiaAgrupados[diaSeleccionado] || []).map((qr) => {
+                          const esSeleccionado = qr.key === qrSeleccionado;
+                          // 🔧 FIX: Verificar correctamente si el QR del ponente ya fue usado
+                          const yaUsado = qr.usado === true;
+                          
+                          return (
+                            <button
+                              key={qr.key}
+                              className={`qr-ponente-btn ${esSeleccionado ? 'activo' : ''} ${yaUsado ? 'usado' : ''}`}
+                              onClick={() => setQrSeleccionado(qr.key)}
+                              disabled={yaUsado}
+                              style={{
+                                padding: '12px',
+                                border: esSeleccionado ? '2px solid #2563eb' : '1px solid #e5e7eb',
+                                borderRadius: '8px',
+                                backgroundColor: esSeleccionado ? '#eff6ff' : yaUsado ? '#f3f4f6' : 'white',
+                                cursor: yaUsado ? 'not-allowed' : 'pointer',
+                                textAlign: 'left',
+                                transition: 'all 0.2s',
+                                opacity: yaUsado ? 0.6 : 1
+                              }}
+                              title={yaUsado ? '✅ Asistencia ya registrada' : 'Clic para ver QR'}
+                            >
+                              <div style={{ fontWeight: 'bold', fontSize: '0.95rem', color: '#1f2937', marginBottom: '4px' }}>
+                                {yaUsado ? '✅' : '👤'} {qr.nombrePonente}
+                              </div>
+                              <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '4px' }}>
+                                📝 {qr.temaPonente}
+                              </div>
+                              <div style={{ fontSize: '0.8rem', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span>🕐 {qr.horaPonente}</span>
+                                {yaUsado && (
+                                  <span style={{ color: '#10b981', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                    ✓ Asistido
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
                 </div>
-                <p className="qr-participante">
-                  <i className="bi bi-person-circle"></i> {participanteNombre}
-                </p>
-              </div>
+              )}
 
               {/* ✅ Código QR o mensaje de asistencia */}
               {esMultiDia && yaAsistioDiaSeleccionado() ? (

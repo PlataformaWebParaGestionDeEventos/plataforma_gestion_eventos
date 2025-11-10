@@ -94,12 +94,19 @@ const HomeAlumno = () => {
                                                                     <span className="badge bg-primary text-white">
                                                                         {evento.tipo}
                                                                     </span>
-                                                                    <span className={`badge ${yaInscrito ? 'bg-info' : inscripcionesCerradas ? 'bg-danger' : 'bg-primary'}`}>
-                                                                        {yaInscrito ? '✅ Inscrito' : inscripcionesCerradas ? 'Cerrado' : 'Disponible'}
+                                                                    {/* Badge del estado del EVENTO (no del usuario) */}
+                                                                    <span className={`badge ${
+                                                                        evento.estado === 'finalizado' ? 'bg-secondary' : 
+                                                                        inscripcionesCerradas ? 'bg-danger' : 
+                                                                        'bg-primary'
+                                                                    }`}>
+                                                                        {evento.estado === 'finalizado' ? 'Finalizado' : 
+                                                                         inscripcionesCerradas ? 'Cerrado' : 
+                                                                         'Disponible'}
                                                                     </span>
                                                                 </div>
                                                                 
-                                                                <div className="card-body p-4">
+                                                                <div className="card-body p-4">                                                                    
                                                                     <h5 className="card-title fw-bold text-dark mb-3">
                                                                         {evento.titulo}
                                                                     </h5>
@@ -145,7 +152,7 @@ const HomeAlumno = () => {
                                                                                     <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                                                                                     {isInscribiendo ? 'Inscribiendo...' : 'Procesando...'}
                                                                                 </>
-                                                                            ) : yaInscrito ? '✅ Ya inscrito' : inscripcionesCerradas ? '🔒 Inscripciones cerradas' : '📝 Inscribirme'}
+                                                                            ) : yaInscrito ? '✅ Ya inscrito' : inscripcionesCerradas ? '🔒 Inscripciones cerradas' : 'Inscribirme'}
                                                                         </button>
                                                                     </div>
                                                                 </div>

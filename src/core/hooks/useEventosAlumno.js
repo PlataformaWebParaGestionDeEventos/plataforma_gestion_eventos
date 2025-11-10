@@ -17,7 +17,8 @@ export const useEventosAlumno = () => {
   const queryClient = useQueryClient();
   const { user, userData } = useAuth();
 
-  // Query para obtener eventos publicados con actualización automática
+  // ✅ Query para obtener eventos publicados con actualización automática
+  // 🔄 Actualiza cada 5 segundos para reflejar cambios en tiempo real
   const {
     data: eventosData,
     isLoading: loadingEventos,
@@ -26,23 +27,24 @@ export const useEventosAlumno = () => {
   } = useQuery({
     queryKey: eventosQueryKeys.publicados(),
     queryFn: async () => {
-      logger.log('📊 React Query: Obteniendo eventos publicados...');
+      logger.log('React Query: Obteniendo eventos publicados...');
       const result = await firestoreService.obtenerEventosPublicados();
       
       if (!result.success) {
         const errorMsg = result.error || 'Error al obtener eventos';
-        logger.error('❌ Error obteniendo eventos:', errorMsg);
+        logger.error('Error obteniendo eventos:', errorMsg);
         toastHelper.error(`Error al cargar eventos: ${errorMsg}`);
         throw new Error(errorMsg);
       }
       
-      logger.log(`✅ ${result.eventos.length} eventos obtenidos`);
+      logger.log(`${result.eventos.length} eventos obtenidos`);
       return result.eventos;
     },
     enabled: !!user, // Solo ejecuta si hay usuario autenticado
-    staleTime: 60 * 1000, // ⚡ 60 segundos - Optimizado (antes 30s)
+    staleTime: 3 * 1000, // ✅ 3 segundos - Muy frecuente para tiempo real
     gcTime: 5 * 60 * 1000, // 5 minutos en caché
-    refetchInterval: 60 * 1000, // ⚡ Refetch cada 60 segundos - Optimizado (antes 30s)
+    refetchInterval: 5000, // ✅ Refetch cada 5 segundos - Tiempo real
+    refetchIntervalInBackground: false, // Solo cuando la pestaña está activa
     refetchOnWindowFocus: true, // Actualizar al volver al tab
   });
 

@@ -48,8 +48,12 @@ const MisEventos = () => {
     <div className="container-fluid py-4">
         <div className="row mb-4">
           <div className="col-12">
-            <h2 className="fw-bold text-primary mb-1">Mis Inscripciones</h2>
-            <p className="text-muted mb-0">Eventos en los que estás inscrito</p>
+            <h2 className="fw-bold text-primary mb-1">
+              Mis Inscripciones
+            </h2>
+            <p className="text-muted mb-0">
+              Eventos en los que estás inscrito
+            </p>
           </div>
         </div>
 
@@ -68,7 +72,7 @@ const MisEventos = () => {
           <div className="card border-0 shadow-sm">
             <div className="card-header bg-white border-0">
               <h5 className="mb-0 fw-bold text-dark">
-                📚 Eventos Inscritos ({eventosInscritos.length})
+                Eventos Inscritos ({eventosInscritos.length})
               </h5>
             </div>
             <div className="card-body p-4">
@@ -88,9 +92,12 @@ const MisEventos = () => {
                     const fechaEvento = new Date(evento.fecha + 'T' + evento.hora);
                     const hoy = new Date();
                     const esEventoPasado = fechaEvento < hoy;
-                    const participanteInfo = evento.participantesInfo?.find(p => 
-                      p.id === currentUser?.uid || p.uid === currentUser?.uid
-                    );
+                    
+                    // 🔧 FIX: Validar que participantesInfo sea un array antes de usar .find()
+                    const participanteInfo = Array.isArray(evento.participantesInfo)
+                      ? evento.participantesInfo.find(p => p.id === currentUser?.uid || p.uid === currentUser?.uid)
+                      : null;
+                    
                     const asistio = evento.asistentes?.includes(currentUser?.uid);
 
                     return (
@@ -113,8 +120,12 @@ const MisEventos = () => {
                                   </span>
                                 )}
                               </>
+                            ) : evento.estado === 'finalizado' ? (
+                              <span className="badge bg-secondary">Finalizado</span>
+                            ) : evento.inscripcionesAbiertas === false ? (
+                              <span className="badge bg-secondary">Cerrado</span>
                             ) : (
-                              <span className="badge badge-primary-custom">📅 Próximo</span>
+                              <span className="badge badge-primary-custom">Próximo</span>
                             )}
                           </div>
 
@@ -257,7 +268,6 @@ const MisEventos = () => {
                                       </span>
                                     </div>
                                   ) : participanteInfo?.qrsPorDia ? (
-                                    // ✅ NUEVO: Soporte multi-día con qrsPorDia
                                     <QRGenerator
                                       qrsPorDia={participanteInfo.qrsPorDia}
                                       eventoNombre={evento.titulo}
@@ -265,15 +275,6 @@ const MisEventos = () => {
                                       eventoFechaFin={evento.fechaFin || evento.fecha || evento.fechaInicio}
                                       asistenciasPorDia={evento.asistenciasPorDia || {}}
                                       participanteUid={currentUser?.uid}
-                                      participanteNombre={currentUser?.displayName || currentUser?.email || 'Estudiante'}
-                                    />
-                                  ) : participanteInfo?.qrData?.qrString ? (
-                                    // ⚠️ LEGACY: Soporte para QRs antiguos (formato antiguo)
-                                    <QRGenerator
-                                      qrString={participanteInfo.qrData.qrString}
-                                      eventoNombre={evento.titulo}
-                                      eventoFecha={evento.fecha}
-                                      eventoHora={evento.hora}
                                       participanteNombre={currentUser?.displayName || currentUser?.email || 'Estudiante'}
                                     />
                                   ) : null}
@@ -286,7 +287,16 @@ const MisEventos = () => {
                                     Ver Detalles
                                   </button>
                                   
-                                  {!participanteInfo?.asistio ? (
+                                  {/* Si las inscripciones están cerradas, mostrar botón de estado */}
+                                  {evento.inscripcionesAbiertas === false ? (
+                                    <button 
+                                      className="btn btn-secondary btn-sm"
+                                      disabled
+                                    >
+                                      <i className="bi bi-lock-fill me-2"></i>
+                                      Inscripciones Cerradas
+                                    </button>
+                                  ) : !participanteInfo?.asistio ? (
                                     <button 
                                       className="btn btn-outline-danger btn-sm"
                                       onClick={() => handleDesinscripcion(evento.id)}

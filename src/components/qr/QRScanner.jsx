@@ -8,9 +8,15 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { getAuth } from 'firebase/auth';
 import appFirebase from '../../config/credenciales';
 import qrService from '../../services/qrService';
+import toastHelper from '../../core/utils/toastHelper';
 import './QRScanner.css';
 
 const auth = getAuth(appFirebase);
+
+// ⚡ SOLUCIÓN DEFINITIVA: Flag global de módulo (persiste entre renders)
+// Bloquea ABSOLUTAMENTE todos los eventos duplicados a nivel de módulo
+let PROCESAMIENTO_GLOBAL_ACTIVO = false;
+let ULTIMO_QR_PROCESADO = { texto: '', timestamp: 0 };
 
 const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada, fechaDiaSeleccionado = null }) => {
   const [scanner, setScanner] = useState(null);
@@ -18,6 +24,10 @@ const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada, fechaDiaSel
   const [resultado, setResultado] = useState(null);
   const [procesando, setProcesando] = useState(false);
   const [errorCamara, setErrorCamara] = useState(null);
+  
+  // 🔧 FIX: Refs locales (backup del flag global)
+  const procesandoRef = React.useRef(false);
+  const reinicioTimeoutRef = React.useRef(null);
 
   /**
    * Iniciar escáner QR
@@ -80,27 +90,75 @@ const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada, fechaDiaSel
   };
 
   /**
-   * Callback cuando se escanea exitosamente
+   * ⚡ SOLUCIÓN DEFINITIVA: Callback cuando se escanea exitosamente
+   * 🔒 PROTECCIÓN GLOBAL contra procesamiento duplicado
    */
   const onScanSuccess = async (decodedText) => {
-    console.log('QR escaneado:', decodedText);
-
-    // Detener el scanner inmediatamente
-    detenerScanner();
+    const ahora = Date.now();
+    
+    // ⛔ PROTECCIÓN 1 - FLAG GLOBAL (más rápido que refs)
+    if (PROCESAMIENTO_GLOBAL_ACTIVO) {
+      console.log('[🔒 BLOQUEADO GLOBAL] Ya hay procesamiento activo');
+      return;
+    }
+    
+    // ⛔ PROTECCIÓN 2 - DEBOUNCE GLOBAL (mismo QR en 3 segundos)
+    if (ULTIMO_QR_PROCESADO.texto === decodedText && 
+        (ahora - ULTIMO_QR_PROCESADO.timestamp) < 3000) {
+      console.log('[🔒 BLOQUEADO DEBOUNCE] QR duplicado dentro de 3 segundos');
+      return;
+    }
+    
+    // ⛔ PROTECCIÓN 3 - REF LOCAL (backup)
+    if (procesandoRef.current) {
+      console.log('[🔒 BLOQUEADO REF] Ya hay procesamiento en el componente');
+      return;
+    }
+    
+    // ⚡ BLOQUEAR INMEDIATAMENTE (antes de cualquier operación async)
+    PROCESAMIENTO_GLOBAL_ACTIVO = true;
+    ULTIMO_QR_PROCESADO = { texto: decodedText, timestamp: ahora };
+    procesandoRef.current = true;
+    
+    console.log('✅ QR aceptado, iniciando procesamiento...', decodedText.substring(0, 20));
+    
+    // PAUSAR scanner ANTES de procesar
+    if (scanner) {
+      try {
+        await scanner.pause(true);
+        console.log('Scanner pausado');
+      } catch (err) {
+        // Si pause falla, intentar clear
+        scanner.clear().catch(e => console.log('Error:', e));
+      }
+      setScanner(null);
+    }
+    setScanning(false);
     setProcesando(true);
 
     try {
       // ✅ Validar QR pasando la fecha seleccionada (si aplica)
+      console.log('📋 Validando QR para evento:', eventoId, 'Fecha seleccionada:', fechaDiaSeleccionado);
       const validacion = await qrService.validarQR(decodedText, eventoId, fechaDiaSeleccionado);
+      console.log('✅ Resultado validación:', validacion);
 
       if (!validacion.success) {
-        setResultado({
-          tipo: 'error',
-          mensaje: validacion.error,
-          estado: validacion.estado,
-          timestamp: validacion.timestamp
-        });
+        console.warn('❌ Validación fallida:', validacion.error);
+        // ✅ SOLO mostrar toast de error - NO mostrar resultado visual
+        toastHelper.error(`❌ ${validacion.error}`);
+        
+        // Limpiar resultado para evitar doble notificación
+        setResultado(null);
         setProcesando(false);
+        
+        // ⚡ Liberar AMBOS flags (global y local)
+        PROCESAMIENTO_GLOBAL_ACTIVO = false;
+        procesandoRef.current = false;
+        
+        // Reiniciar scanner después de 2 segundos
+        setTimeout(() => {
+          iniciarScanner();
+        }, 2000);
         return;
       }
 
@@ -108,54 +166,96 @@ const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada, fechaDiaSel
       const currentUser = auth.currentUser;
       const organizadorUid = currentUser?.uid || null;
       
-      // ✅ Extraer qrId y fechaDia del QR validado
+      // ✅ Extraer qrId, fechaDia y ponenteKey del QR validado
       const qrId = validacion.qrData?.qrId || null;
       const fechaDia = validacion.qrData?.fechaDia || null;
+      const ponenteKey = validacion.qrData?.ponenteKey || null;
+      
+      console.log('📝 Registrando asistencia - Usuario:', validacion.qrData.userId, 'QR ID:', qrId, 'Fecha:', fechaDia, 'Ponente:', ponenteKey);
       
       const registro = await qrService.registrarAsistenciaQR(
         eventoId, 
         validacion.qrData.userId,
         organizadorUid,
         qrId,
-        fechaDia  // ✅ NUEVO: Pasar fecha del QR para registrar asistencia del día correcto
+        fechaDia,     // ✅ Pasar fecha del QR para registrar asistencia del día correcto
+        ponenteKey    // ✅ NUEVO: Pasar ponenteKey para modo por ponente
       );
+      
+      console.log('📋 Resultado registro:', registro);
 
       if (registro.success) {
-        setResultado({
-          tipo: 'success',
-          mensaje: '✅ Asistencia registrada exitosamente',
-          participante: registro.participante,
-          timestamp: registro.timestamp
-        });
+        // ✅ SOLO mostrar toast de éxito - NO mostrar resultado visual para evitar doble notificación
+        toastHelper.success(`✅ Asistencia registrada: ${registro.participante?.nombre || 'Participante'}`);
+        
+        // Limpiar resultado para que no se muestre el componente visual de éxito
+        setResultado(null);
 
-        // Notificar al componente padre
+        // ✅ OPTIMIZADO: Notificar al componente padre y esperar a que recargue datos
         if (onAsistenciaRegistrada) {
-          onAsistenciaRegistrada(registro.participante);
+          await onAsistenciaRegistrada(registro.participante);
+          console.log('🔄 Datos recargados después de callback');
         }
 
-        // Auto-reiniciar después de 3 segundos
-        setTimeout(() => {
-          setResultado(null);
-          iniciarScanner();
-        }, 3000);
+        // 🔧 Limpiar timeout anterior si existe
+        if (reinicioTimeoutRef.current) {
+          clearTimeout(reinicioTimeoutRef.current);
+        }
+
+        // ⚡ Liberar flags INMEDIATAMENTE después del éxito
+        PROCESAMIENTO_GLOBAL_ACTIVO = false;
+        procesandoRef.current = false;
+        
+        // ✅ NO reiniciar automáticamente para evitar escanear el mismo QR dos veces
+        // El usuario debe mover el teléfono y presionar "Iniciar Scanner" nuevamente
 
       } else {
-        setResultado({
-          tipo: 'error',
-          mensaje: registro.error,
-          estado: 'error_registro'
-        });
+        // ✅ SOLO mostrar toast de error - NO mostrar resultado visual
+        toastHelper.error(`❌ ${registro.error}`);
+        
+        // Limpiar resultado para que no se muestre el componente visual de error
+        setResultado(null);
+        
+        // ⚡ Liberar AMBOS flags (global y local)
+        PROCESAMIENTO_GLOBAL_ACTIVO = false;
+        procesandoRef.current = false;
+        
+        // Reiniciar scanner después de 2 segundos
+        setTimeout(() => {
+          iniciarScanner();
+        }, 2000);
       }
 
     } catch (error) {
       console.error('Error procesando QR:', error);
-      setResultado({
-        tipo: 'error',
-        mensaje: 'Error al procesar el código QR',
-        estado: 'error'
-      });
+      
+      // Extraer mensaje de error más específico
+      let mensajeError = 'Error al procesar el código QR';
+      if (error.message) {
+        if (error.message.includes('find is not a function')) {
+          mensajeError = 'Error interno del sistema. Por favor, recarga la página e intenta de nuevo.';
+        } else if (error.message.includes('participantesInfo')) {
+          mensajeError = 'Error al actualizar información del participante. Contacta al administrador.';
+        } else {
+          mensajeError = error.message;
+        }
+      }
+      
+      // ✅ SOLO mostrar toast de error - NO mostrar resultado visual
+      toastHelper.error(`❌ ${mensajeError}`);
+      
+      // Limpiar resultado para evitar doble notificación
+      setResultado(null);
+      
+      // Reiniciar scanner después de 2 segundos
+      setTimeout(() => {
+        iniciarScanner();
+      }, 2000);
     } finally {
       setProcesando(false);
+      // ⚡ IMPORTANTE: Liberar AMBOS flags siempre en el finally
+      PROCESAMIENTO_GLOBAL_ACTIVO = false;
+      procesandoRef.current = false;
     }
   };
 
@@ -167,12 +267,15 @@ const QRScanner = ({ eventoId, eventoNombre, onAsistenciaRegistrada, fechaDiaSel
   };
 
   /**
-   * Limpiar scanner al desmontar
+   * ✅ Limpiar scanner y timeouts al desmontar
    */
   useEffect(() => {
     return () => {
       if (scanner) {
         scanner.clear().catch(err => console.log('Error clearing scanner:', err));
+      }
+      if (reinicioTimeoutRef.current) {
+        clearTimeout(reinicioTimeoutRef.current);
       }
     };
   }, [scanner]);

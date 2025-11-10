@@ -74,7 +74,10 @@ export const useParticipantes = (eventoId = null) => {
   }, [participantesData]);
 
   // Extraer lista de participantes
-  const participantes = participantesData?.participantes || [];
+  // 🔧 FIX: Validar que participantes sea un array (puede ser objeto si está corrupto)
+  const participantes = Array.isArray(participantesData?.participantes) 
+    ? participantesData.participantes 
+    : [];
 
   // Mutación para marcar asistencia
   const asistenciaMutation = useMutation({
@@ -140,7 +143,10 @@ export const useParticipantes = (eventoId = null) => {
 
   // Función para exportar participantes (mejorada)
   const exportarParticipantes = (eventoTitulo) => {
-    if (participantes.length === 0) {
+    // 🔧 FIX: Validar que participantes sea un array antes de usar .length y .map()
+    const participantesArray = Array.isArray(participantes) ? participantes : [];
+    
+    if (participantesArray.length === 0) {
       return { success: false, error: 'No hay participantes para exportar' };
     }
 
@@ -157,7 +163,7 @@ export const useParticipantes = (eventoId = null) => {
       
       const csvContent = [
         headers.join(','),
-        ...participantes.map((p, index) => [
+        ...participantesArray.map((p, index) => [
           p.email,
           new Date(p.fechaInscripcion.toDate()).toLocaleDateString('es-ES'),
           'Inscrito',
@@ -184,7 +190,7 @@ export const useParticipantes = (eventoId = null) => {
 
       return { 
         success: true, 
-        message: `Lista de ${participantes.length} participantes exportada exitosamente` 
+        message: `Lista de ${participantesArray.length} participantes exportada exitosamente` 
       };
     } catch (err) {
       console.error('Error al exportar participantes:', err);

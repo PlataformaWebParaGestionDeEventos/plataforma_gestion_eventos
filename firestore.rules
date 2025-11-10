@@ -21,10 +21,10 @@ service cloud.firestore {
         && value.size() <= maxLength;
     }
     
-    // ✅ NUEVA FUNCIÓN: Validar estructura de expositor
+    // ✅ ACTUALIZADA: Validar estructura de expositor con campos nuevos
     function isValidExpositor(expositor) {
       return expositor is map
-        && expositor.keys().hasAll(['nombre', 'correo', 'hora', 'tema'])
+        && expositor.keys().hasAll(['nombre', 'correo', 'hora', 'tema', 'dia', 'duracion', 'break'])
         && expositor.nombre is string
         && expositor.nombre.size() >= 2
         && expositor.nombre.size() <= 200
@@ -32,12 +32,20 @@ service cloud.firestore {
         && expositor.correo.size() >= 5
         && expositor.correo.size() <= 200
         && expositor.correo.matches('.*@.*\\..*')
-        && expositor.hora is string
-        && expositor.hora.size() >= 4
-        && expositor.hora.size() <= 5
         && expositor.tema is string
         && expositor.tema.size() >= 3
-        && expositor.tema.size() <= 300;
+        && expositor.tema.size() <= 300
+        // ✅ NUEVOS CAMPOS
+        && expositor.dia is string
+        && expositor.dia.size() == 10
+        && expositor.dia.matches('\\d{4}-\\d{2}-\\d{2}')  // YYYY-MM-DD
+        && expositor.hora is string
+        && expositor.hora.size() == 5
+        && expositor.hora.matches('\\d{2}:\\d{2}')  // HH:MM
+        && expositor.duracion is int
+        && expositor.duracion >= 15
+        && expositor.duracion <= 480
+        && expositor.break is bool;
     }
     
     // ✅ NUEVA FUNCIÓN: Validar array de expositores
@@ -45,6 +53,11 @@ service cloud.firestore {
       return expositores is list
         && expositores.size() >= 1
         && expositores.size() <= 20;
+    }
+    
+    // ✅ NUEVA FUNCIÓN: Validar modo de asistencia
+    function isValidModoAsistencia(modo) {
+      return modo is string && modo in ['por_dia', 'por_ponente'];
     }
     
     // ✅ NUEVA FUNCIÓN: Validar estructura de QR individual
@@ -130,15 +143,15 @@ service cloud.firestore {
       // LECTURA DE EVENTOS
       // -------------------------------------------
       
-      // Permitir lectura pública de eventos publicados
-      allow read: if isAuthenticated() && resource.data.estado == 'publicado';
+      // Permitir lectura pública de eventos publicados Y finalizados
+      allow read: if isAuthenticated() && resource.data.estado in ['publicado', 'finalizado'];
       
       // Permitir lectura completa solo al organizador del evento (por UID)
       allow read: if isOwner(resource.data.organizadorId);
       
-      // ✅ NUEVO: Permitir lectura por email del organizador (para reportes)
+      // ✅ ACTUALIZADO: Permitir lectura por email del organizador (para reportes)
       allow read: if isAuthenticated() 
-        && resource.data.organizador == request.auth.token.email;
+        && resource.data.organizadorEmail == request.auth.token.email;
       
       // -------------------------------------------
       // CREACIÓN DE EVENTOS
@@ -176,7 +189,7 @@ service cloud.firestore {
         && request.resource.data.capacidadMaxima >= 1
         && request.resource.data.capacidadMaxima <= 1000
         && request.resource.data.tipo in ['conferencia', 'seminario', 'taller', 'curso', 'charla']
-        && request.resource.data.estado in ['borrador', 'publicado']
+        && request.resource.data.estado in ['borrador', 'publicado', 'finalizado']
         // Validar campo expositor (opcional - modelo antiguo)
         && (!request.resource.data.keys().hasAny(['expositor']) 
             || (request.resource.data.expositor is string && request.resource.data.expositor.size() <= 200))
@@ -193,7 +206,14 @@ service cloud.firestore {
             || request.resource.data.participantesInfo.size() == 0)
         // ✅ OPTIMIZADO: Sin validación de 'asistentes' o 'asistenciaQR' (ya no se usan)
         && (!request.resource.data.keys().hasAny(['asistenciasPorDia']) 
-            || request.resource.data.asistenciasPorDia is map);
+            || request.resource.data.asistenciasPorDia is map)
+        // ✅ NUEVAS VALIDACIONES: modoAsistencia y asistenciaAbierta
+        && (!request.resource.data.keys().hasAny(['modoAsistencia']) 
+            || isValidModoAsistencia(request.resource.data.modoAsistencia))
+        && (!request.resource.data.keys().hasAny(['asistenciaAbierta']) 
+            || request.resource.data.asistenciaAbierta is bool)
+        && (!request.resource.data.keys().hasAny(['inscripcionesAbiertas']) 
+            || request.resource.data.inscripcionesAbiertas is bool);
       
       // -------------------------------------------
       // ACTUALIZACIÓN DE EVENTOS
@@ -209,7 +229,7 @@ service cloud.firestore {
          request.resource.data.capacidadMaxima >= 1 &&
          request.resource.data.capacidadMaxima <= 1000 &&
          request.resource.data.tipo in ['conferencia', 'seminario', 'taller', 'curso', 'charla'] &&
-         request.resource.data.estado in ['borrador', 'publicado'] &&
+         request.resource.data.estado in ['borrador', 'publicado', 'finalizado'] &&
          // Validaciones modelo antiguo (opcional)
          (!request.resource.data.keys().hasAny(['expositor']) 
              || (request.resource.data.expositor is string && request.resource.data.expositor.size() <= 200)) &&
@@ -228,16 +248,49 @@ service cloud.firestore {
          (!request.resource.data.keys().hasAny(['horaInicio']) 
              || request.resource.data.horaInicio is string) &&
          (!request.resource.data.keys().hasAny(['horaFin']) 
-             || request.resource.data.horaFin is string)) ||
+             || request.resource.data.horaFin is string) &&
+         // ✅ NUEVAS VALIDACIONES: modoAsistencia y asistenciaAbierta
+         (!request.resource.data.keys().hasAny(['modoAsistencia']) 
+             || isValidModoAsistencia(request.resource.data.modoAsistencia)) &&
+         (!request.resource.data.keys().hasAny(['asistenciaAbierta']) 
+             || request.resource.data.asistenciaAbierta is bool) &&
+         (!request.resource.data.keys().hasAny(['inscripcionesAbiertas']) 
+             || request.resource.data.inscripcionesAbiertas is bool)) ||
         
         // CASO 1B: El organizador actualiza su evento (por email - para mantenimiento automático)
-        (resource.data.organizador == request.auth.token.email &&
-         request.resource.data.organizador == request.auth.token.email) ||
+        (resource.data.organizadorEmail == request.auth.token.email &&
+         request.resource.data.organizadorEmail == request.auth.token.email) ||
         
-        // ✅ NUEVO CASO 1C: Organizador cierra inscripciones manualmente
+        // ✅ CASO 1C: Organizador abre/cierra inscripciones manualmente
+        // Permite cambiar inscripcionesAbiertas a true o false
         (request.auth.uid == resource.data.organizadorId &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inscripcionesAbiertas', 'fechaCierre']) &&
-         request.resource.data.inscripcionesAbiertas == false) ||
+         request.resource.data.inscripcionesAbiertas is bool) ||
+        
+        // ✅ CASO 1D: Organizador abre/cierra asistencia manualmente (NUEVO)
+        // Permite cambiar asistenciaAbierta a true o false, con campos de fecha opcionales
+        (request.auth.uid == resource.data.organizadorId &&
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['asistenciaAbierta', 'fechaCierreAsistencia', 'fechaActualizacion']) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['asistenciaAbierta', 'fechaReaperturaAsistencia', 'fechaActualizacion']) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['asistenciaAbierta'])) &&
+         request.resource.data.asistenciaAbierta is bool) ||
+        
+        // ✅ CASO 1E: Organizador reabre inscripciones manualmente (NUEVO)
+        // Permite cambiar inscripcionesAbiertas a true con campo de reapertura
+        (request.auth.uid == resource.data.organizadorId &&
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inscripcionesAbiertas', 'fechaReaperturaInscripciones', 'fechaActualizacion']) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inscripcionesAbiertas', 'fechaActualizacion'])) &&
+         request.resource.data.inscripcionesAbiertas is bool) ||
+        
+        // ✅ CASO 1F: Organizador finaliza evento (NUEVO)
+        // Permite cambiar estado a 'finalizado' junto con fechaFinalizacion y estadisticasFinales
+        (request.auth.uid == resource.data.organizadorId &&
+         request.resource.data.estado == 'finalizado' &&
+         resource.data.estado == 'publicado' &&
+         resource.data.inscripcionesAbiertas == false &&
+         resource.data.asistenciaAbierta == false &&
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'fechaFinalizacion', 'fechaActualizacion', 'estadisticasFinales']) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'fechaFinalizacion', 'fechaActualizacion']))) ||
         
         // CASO 2: Operaciones de inscripción/desinscripción de participantes
         (isValidParticipantOperation() && onlyUpdatingParticipantFields())
@@ -248,7 +301,7 @@ service cloud.firestore {
       // -------------------------------------------
       
       allow delete: if isOwner(resource.data.organizadorId)
-        || (isAuthenticated() && resource.data.organizador == request.auth.token.email);
+        || (isAuthenticated() && resource.data.organizadorEmail == request.auth.token.email);
     }
     
     // ============================================

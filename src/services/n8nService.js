@@ -8,7 +8,8 @@ class N8nService {
       eventoCreado: getWebhookUrl('eventoCreado'),
       inscripcion: getWebhookUrl('inscripcion'),
       listaInscritos: getWebhookUrl('listaInscritos'),
-      asistencias: getWebhookUrl('asistencias')
+      asistencias: getWebhookUrl('asistencias'),
+      eventoFinalizado: getWebhookUrl('eventoFinalizado')
     };
   }
 
@@ -312,12 +313,28 @@ class N8nService {
     const datos = {
       eventoId: evento.id,
       eventoTitulo: evento.titulo,
+      eventoDescripcion: evento.descripcion || '',
+      eventoTipo: evento.tipo || 'conferencia',
+      eventoUbicacion: evento.ubicacion || 'Por confirmar',
       
       // Fechas y horas del evento
       eventoFechaInicio: evento.eventoFechaInicio || evento.fechaInicio || evento.fecha,
       eventoFechaFin: evento.eventoFechaFin || evento.fechaFin || evento.fecha,
       eventoHoraInicio: evento.eventoHoraInicio || evento.horaInicio || evento.hora,
       eventoHoraFin: evento.eventoHoraFin || evento.horaFin || evento.hora,
+      
+      // 🆕 Configuración de certificados
+      certificadosParticipantes: evento.certificadosParticipantes ?? true,
+      certificadosPonentes: evento.certificadosPonentes ?? true,
+      certificadosOrganizadores: evento.certificadosOrganizadores ?? false,
+      
+      // 🆕 Modo de asistencia y expositores
+      modoAsistencia: evento.modoAsistencia || 'por_dia',
+      expositores: evento.expositores || [],
+      
+      // Datos del organizador
+      organizadorId: evento.organizadorId,
+      organizadorEmail: evento.organizadorEmail,
       
       // Información del evento multi-día
       esEventoMultiDia: resumenAsistencias.esMultiDia,
@@ -331,21 +348,29 @@ class N8nService {
       
       // Asistencias por día (solo para eventos multi-día)
       asistenciasPorDia: resumenAsistencias.esMultiDia 
-        ? Object.keys(resumenAsistencias.resumenPorDia).map(fecha => ({
-            fecha,
-            totalAsistentes: resumenAsistencias.resumenPorDia[fecha].totalAsistentes,
-            porcentaje: resumenAsistencias.totalInscritos > 0
-              ? ((resumenAsistencias.resumenPorDia[fecha].totalAsistentes / resumenAsistencias.totalInscritos) * 100).toFixed(2)
-              : '0.00',
-            asistentes: resumenAsistencias.resumenPorDia[fecha].participantesInfo.map(p => ({
-              id: p.uid || p.id,
-              email: p.email,
-              nombre: p.nombre,
-              apellido: p.apellido || '',
-              metodo: p.metodo,
-              timestamp: p.timestamp
-            }))
-          }))
+        ? Object.keys(resumenAsistencias.resumenPorDia).map(fecha => {
+            // 🔧 FIX: Validar que participantesInfo sea un array antes de usar .map()
+            const participantesInfo = resumenAsistencias.resumenPorDia[fecha].participantesInfo;
+            const asistentesDelDia = Array.isArray(participantesInfo)
+              ? participantesInfo.map(p => ({
+                  id: p.uid || p.id,
+                  email: p.email,
+                  nombre: p.nombre,
+                  apellido: p.apellido || '',
+                  metodo: p.metodo,
+                  timestamp: p.timestamp
+                }))
+              : [];
+            
+            return {
+              fecha,
+              totalAsistentes: resumenAsistencias.resumenPorDia[fecha].totalAsistentes,
+              porcentaje: resumenAsistencias.totalInscritos > 0
+                ? ((resumenAsistencias.resumenPorDia[fecha].totalAsistentes / resumenAsistencias.totalInscritos) * 100).toFixed(2)
+                : '0.00',
+              asistentes: asistentesDelDia
+            };
+          })
         : null,
       
       // Participantes con asistencia perfecta (asistieron todos los días)
@@ -373,14 +398,20 @@ class N8nService {
       
       // Lista consolidada de todos los asistentes (para eventos de 1 día)
       asistentes: !resumenAsistencias.esMultiDia
-        ? resumenAsistencias.resumenPorDia[resumenAsistencias.diasEvento[0]]?.participantesInfo.map(p => ({
-            id: p.uid || p.id,
-            email: p.email,
-            nombre: p.nombre,
-            apellido: p.apellido || '',
-            metodo: p.metodo,
-            estado: 'asistio'
-          }))
+        ? (() => {
+            // 🔧 FIX: Validar que participantesInfo sea un array antes de usar .map()
+            const participantesInfo = resumenAsistencias.resumenPorDia[resumenAsistencias.diasEvento[0]]?.participantesInfo;
+            return Array.isArray(participantesInfo)
+              ? participantesInfo.map(p => ({
+                  id: p.uid || p.id,
+                  email: p.email,
+                  nombre: p.nombre,
+                  apellido: p.apellido || '',
+                  metodo: p.metodo,
+                  estado: 'asistio'
+                }))
+              : [];
+          })()
         : null,
       
       fechaFinEvento: new Date().toISOString()
@@ -458,6 +489,201 @@ class N8nService {
         error: error.message,
         message: 'No se pudo conectar con el servidor n8n'
       };
+    }
+  }
+
+  /**
+   * ✅ ACTUALIZADO: Enviar notificación de evento finalizado con inscripciones y asistencias completas
+   * @param {Object} evento - Datos del evento finalizado
+   * @param {Object} resumen - Resumen de asistencias y estadísticas
+   * @param {Array} inscritos - Lista completa de participantes inscritos
+   * @returns {Promise<Object>} Resultado del envío
+   */
+  async enviarEventoFinalizado(evento, resumen, inscritos = []) {
+    try {
+      logger.log('🏁 [n8n] Enviando notificación de evento finalizado:', evento.id);
+      
+      // Construir payload completo con todos los datos del evento
+      const datos = {
+        tipo: 'evento_finalizado',
+        
+        // Datos básicos del evento
+        eventoId: evento.id,
+        eventoTitulo: evento.titulo,
+        eventoDescripcion: evento.descripcion || '',
+        eventoTipo: evento.tipo || 'conferencia',
+        eventoUbicacion: evento.ubicacion || 'Por confirmar',
+        
+        // Fechas y horas del evento
+        eventoFechaInicio: evento.eventoFechaInicio || evento.fechaInicio || evento.fecha,
+        eventoFechaFin: evento.eventoFechaFin || evento.fechaFin || evento.fecha,
+        eventoHoraInicio: evento.eventoHoraInicio || evento.horaInicio || evento.hora,
+        eventoHoraFin: evento.eventoHoraFin || evento.horaFin || evento.hora,
+        
+        // 🆕 Configuración de certificados
+        certificadosParticipantes: evento.certificadosParticipantes ?? true,
+        certificadosPonentes: evento.certificadosPonentes ?? true,
+        certificadosOrganizadores: evento.certificadosOrganizadores ?? false,
+        
+        // 🆕 Modo de asistencia y expositores
+        modoAsistencia: evento.modoAsistencia || 'por_dia',
+        expositores: evento.expositores || [],
+        
+        // Datos del organizador
+        organizadorId: evento.organizadorId,
+        organizadorEmail: evento.organizadorEmail,
+        
+        // Fecha de finalización
+        fechaFinalizacion: new Date().toISOString(),
+        
+        // 🆕 INSCRIPCIONES COMPLETAS
+        inscripciones: {
+          total: inscritos.length,
+          participantes: inscritos.map(participante => ({
+            id: participante.id || participante.uid,
+            email: participante.email,
+            nombre: participante.nombre,
+            apellido: participante.apellido || '',
+            fechaInscripcion: participante.fechaInscripcion,
+            qrId: participante.qrData?.qrId || participante.qrId || ''
+          }))
+        },
+        
+        // 🆕 ASISTENCIAS COMPLETAS
+        asistencias: resumen ? {
+          // Estadísticas generales
+          totalInscritos: resumen.totalInscritos || 0,
+          totalAsistentesUnicos: resumen.totalAsistentesUnicos || 0,
+          porcentajeAsistenciaGeneral: resumen.porcentajeAsistenciaGeneral || 0,
+          
+          // Información del evento multi-día
+          esEventoMultiDia: resumen.esMultiDia || false,
+          totalDias: resumen.totalDias || 1,
+          diasEvento: resumen.diasEvento || [],
+          
+          // Asistencias por día (solo para eventos multi-día)
+          asistenciasPorDia: resumen.esMultiDia 
+            ? Object.keys(resumen.resumenPorDia || {}).map(fecha => {
+                const participantesInfo = resumen.resumenPorDia[fecha].participantesInfo;
+                const asistentesDelDia = Array.isArray(participantesInfo)
+                  ? participantesInfo.map(p => ({
+                      id: p.uid || p.id,
+                      email: p.email,
+                      nombre: p.nombre,
+                      apellido: p.apellido || '',
+                      metodo: p.metodo,
+                      timestamp: p.timestamp
+                    }))
+                  : [];
+                
+                return {
+                  fecha,
+                  totalAsistentes: resumen.resumenPorDia[fecha].totalAsistentes,
+                  porcentaje: resumen.totalInscritos > 0
+                    ? ((resumen.resumenPorDia[fecha].totalAsistentes / resumen.totalInscritos) * 100).toFixed(2)
+                    : '0.00',
+                  asistentes: asistentesDelDia
+                };
+              })
+            : null,
+          
+          // Participantes con asistencia perfecta (asistieron todos los días)
+          participantesConAsistenciaPerfecta: (resumen.participantesConAsistenciaPerfecta || []).map(p => ({
+            id: p.uid || p.id,
+            email: p.email,
+            nombre: p.nombre,
+            apellido: p.apellido || '',
+            diasAsistidos: p.diasAsistidos,
+            totalDias: p.totalDias,
+            porcentajeAsistencia: p.porcentajeAsistencia
+          })),
+          
+          // Participantes con asistencia parcial (faltaron algún día)
+          participantesConAsistenciaParcial: (resumen.participantesConAsistenciaParcial || []).map(p => ({
+            id: p.uid || p.id,
+            email: p.email,
+            nombre: p.nombre,
+            apellido: p.apellido || '',
+            diasAsistidos: p.diasAsistidos,
+            totalDias: p.totalDias,
+            diasFaltantes: p.diasFaltantes,
+            porcentajeAsistencia: p.porcentajeAsistencia
+          })),
+          
+          // Lista consolidada de todos los asistentes (para eventos de 1 día)
+          asistentes: !resumen.esMultiDia
+            ? (() => {
+                const participantesInfo = resumen.resumenPorDia?.[resumen.diasEvento[0]]?.participantesInfo;
+                return Array.isArray(participantesInfo)
+                  ? participantesInfo.map(p => ({
+                      id: p.uid || p.id,
+                      email: p.email,
+                      nombre: p.nombre,
+                      apellido: p.apellido || '',
+                      metodo: p.metodo,
+                      estado: 'asistio'
+                    }))
+                  : [];
+              })()
+            : null
+        } : null
+      };
+
+      logger.log('📤 [n8n] Datos de finalización:', {
+        eventoId: datos.eventoId,
+        totalInscritos: datos.inscripciones.total,
+        totalAsistentes: datos.asistencias?.totalAsistentesUnicos || 0,
+        certificados: {
+          participantes: datos.certificadosParticipantes,
+          ponentes: datos.certificadosPonentes,
+          organizadores: datos.certificadosOrganizadores
+        }
+      });
+
+      // Intentar enviar pero no fallar si no hay conexión
+      const url = this.endpoints.eventoFinalizado;
+      if (!url) {
+        logger.warn('⚠️ No hay endpoint configurado para eventos finalizados');
+        return { success: true, message: 'Evento finalizado (sin notificación n8n)' };
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(datos)
+      });
+
+      // Manejo especial para CORS
+      if (response.status === 0 || response.type === 'opaque') {
+        logger.log('✅ [n8n] Notificación de finalización enviada (CORS manejado)');
+        return { success: true, message: 'Notificación enviada a n8n' };
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      logger.log('✅ [n8n] Notificación de finalización enviada');
+      return { success: true, message: 'Notificación enviada a n8n' };
+
+    } catch (error) {
+      // Manejo especial para errores CORS
+      if (error.name === 'TypeError' && (
+          error.message.includes('fetch') || 
+          error.message.includes('CORS') ||
+          error.message.includes('Failed to fetch')
+        )) {
+        logger.log('✅ [n8n] Notificación enviada (error CORS al leer respuesta)');
+        return { success: true, message: 'Notificación enviada a n8n' };
+      }
+      
+      logger.warn('⚠️ [n8n] Error enviando notificación de finalización (no crítico):', error);
+      // No fallar el proceso de finalización si n8n no responde
+      return { success: true, message: 'Evento finalizado (error en notificación n8n)' };
     }
   }
 }

@@ -5,13 +5,8 @@ import 'react-toastify/dist/ReactToastify.css';
 import AppRouter from './routes/AppRouter';
 import './styles/App.css';
 import Footer from './components/layout/Footer';
-import { useEventosMantenimiento } from './core/hooks';
 
 function App() {
-  // ✅ Activar mantenimiento automático de eventos
-  // (auto-cierre de inscripciones cuando llega el día del evento)
-  useEventosMantenimiento();
-
   return (
     <>
       <main>

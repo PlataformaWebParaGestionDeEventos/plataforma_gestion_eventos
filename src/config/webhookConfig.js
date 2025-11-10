@@ -61,6 +61,10 @@ const WEBHOOK_PATHS = {
   asistencias: {
     dev: import.meta.env.VITE_N8N_WEBHOOK_ASISTENCIAS_DEV || '/webhook-test/asistencias-finales',
     prod: import.meta.env.VITE_N8N_WEBHOOK_ASISTENCIAS_PROD || '/webhook/asistencias-finales'
+  },
+  eventoFinalizado: {
+    dev: import.meta.env.VITE_N8N_WEBHOOK_EVENTO_FINALIZADO_DEV || '/webhook-test/evento-finalizado',
+    prod: import.meta.env.VITE_N8N_WEBHOOK_EVENTO_FINALIZADO_PROD || '/webhook/evento-finalizado'
   }
 };
 
@@ -132,7 +136,8 @@ export const getAllWebhookUrls = () => {
     eventoCreado: getWebhookUrl('eventoCreado'),
     inscripcion: getWebhookUrl('inscripcion'),
     listaInscritos: getWebhookUrl('listaInscritos'),
-    asistencias: getWebhookUrl('asistencias')
+    asistencias: getWebhookUrl('asistencias'),
+    eventoFinalizado: getWebhookUrl('eventoFinalizado')
   };
 };
 

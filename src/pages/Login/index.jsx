@@ -207,18 +207,18 @@ const Login = ({ modoInicial = 'login' }) => {
                     }
                     
                     // Login exitoso - Obtener rol y navegar
-                    toastHelper.success('✅ Inicio de sesión exitoso');
+                    toastHelper.success('Inicio de sesión exitoso');
                     logger.log('✅ Usuario autenticado:', user.email);
                     
-                    // Obtener rol del usuario desde Firestore
+                    // Obtener role del usuario desde Firestore
                     try {
                         const userDoc = await getDoc(doc(db, 'users', user.uid));
                         if (userDoc.exists()) {
-                            const rol = userDoc.data().rol;
-                            logger.log('📋 Rol del usuario:', rol);
+                            const role = userDoc.data().role; // ✅ CORREGIDO: usar 'role' no 'rol'
+                            logger.log('📋 Role del usuario:', role);
                             
-                            // Navegar según rol
-                            if (rol === 'organizador') {
+                            // Navegar según role
+                            if (role === 'organizador') {
                                 navigate('/organizador');
                             } else {
                                 navigate('/alumno');
@@ -228,7 +228,7 @@ const Login = ({ modoInicial = 'login' }) => {
                             navigate('/alumno'); // Por defecto
                         }
                     } catch (error) {
-                        logger.error('❌ Error al obtener rol:', error);
+                        logger.error('❌ Error al obtener role:', error);
                         navigate('/alumno'); // Por defecto en caso de error
                     }
 

@@ -64,15 +64,15 @@ const GestionParticipantes = ({ evento }) => {
    * Enviar asistencias a n8n
    */
   const handleEnviarAsistencias = async () => {
+    // 🔧 FIX: Validar que participantes sea un array antes de usar .filter()
+    
     const confirmacion = await toastHelper.confirm(
       `¿Enviar reporte de asistencias a n8n?\n\n` +
-      `📊 Total Inscritos: ${estadisticas.totalParticipantes}\n` +
-      `✅ Asistieron: ${participantes.filter(p => p.asistio).length}\n` +
-      `❌ No asistieron: ${participantes.filter(p => !p.asistio).length}\n\n` +
       `Esta acción enviará el reporte de asistencias finales a n8n para:\n` +
-      `📧 Generar emails de certificados\n` +
-      `📊 Actualizar estadísticas\n` +
-      `📋 Registrar asistencia final\n\n` +
+      `- Enviar encuestas de satisfacción.\n` +
+      `- Generar certificados en blockchain.\n` +
+      `- Actualizar estadísticas.\n` +
+      `SOLO ENVIAR UNA POR EVENTO.\n\n` +
       `¿Continuar?`
     );
 
@@ -88,9 +88,7 @@ const GestionParticipantes = ({ evento }) => {
       
       if (result.success) {
         toastHelper.success(
-          `✅ Asistencias enviadas correctamente!\n\n` +
-          `Total Asistentes: ${result.data.totalAsistentes}/${result.data.totalInscritos}\n` +
-          `Porcentaje: ${result.data.porcentajeAsistencia}%`
+          `✅ Asistencias enviadas correctamente!\n\n`
         );
         logger.log('✅ Asistencias enviadas:', result.data);
       } else {
@@ -152,7 +150,9 @@ const GestionParticipantes = ({ evento }) => {
   };
 
   // Filtrar participantes
-  const participantesFiltrados = participantes.filter(participante => {
+  // 🔧 FIX: Validar que participantes sea un array antes de usar .filter()
+  const participantesArray = Array.isArray(participantes) ? participantes : [];
+  const participantesFiltrados = participantesArray.filter(participante => {
     // Filtro por estado de asistencia (usar campo asistio del sistema nuevo)
     const cumpleFiltro = filtro === 'todos' || 
       (filtro === 'asistio' && participante.asistio) ||
@@ -214,36 +214,36 @@ const GestionParticipantes = ({ evento }) => {
       )}
 
       {/* Estadísticas */}
-      <div className="row mb-4">
-        <div className="col-md-3">
-          <div className="card border-0 shadow-sm text-center">
-            <div className="card-body">
-              <h5 className="card-title text-primary">{estadisticas.totalParticipantes}</h5>
-              <p className="card-text text-muted mb-0">Total Inscritos</p>
+      <div className="row mb-4 g-3">
+        <div className="col-6 col-md-3">
+          <div className="card border-0 shadow-sm text-center h-100">
+            <div className="card-body py-3">
+              <h5 className="card-title text-primary mb-1">{estadisticas.totalParticipantes}</h5>
+              <p className="card-text text-muted mb-0 small">Total Inscritos</p>
             </div>
           </div>
         </div>
-        <div className="col-md-3">
-          <div className="card border-0 shadow-sm text-center">
-            <div className="card-body">
-              <h5 className="card-title text-info">{estadisticas.espaciosDisponibles}</h5>
-              <p className="card-text text-muted mb-0">Espacios Disponibles</p>
+        <div className="col-6 col-md-3">
+          <div className="card border-0 shadow-sm text-center h-100">
+            <div className="card-body py-3">
+              <h5 className="card-title text-info mb-1">{estadisticas.espaciosDisponibles}</h5>
+              <p className="card-text text-muted mb-0 small">Espacios Disponibles</p>
             </div>
           </div>
         </div>
-        <div className="col-md-3">
-          <div className="card border-0 shadow-sm text-center">
-            <div className="card-body">
-              <h5 className="card-title text-primary">{estadisticas.capacidadMaxima}</h5>
-              <p className="card-text text-muted mb-0">Capacidad Máxima</p>
+        <div className="col-6 col-md-3">
+          <div className="card border-0 shadow-sm text-center h-100">
+            <div className="card-body py-3">
+              <h5 className="card-title text-primary mb-1">{estadisticas.capacidadMaxima}</h5>
+              <p className="card-text text-muted mb-0 small">Capacidad Máxima</p>
             </div>
           </div>
         </div>
-        <div className="col-md-3">
-          <div className="card border-0 shadow-sm text-center">
-            <div className="card-body">
-              <h5 className="card-title text-warning">{estadisticas.porcentajeOcupacion.toFixed(1)}%</h5>
-              <p className="card-text text-muted mb-0">Ocupación</p>
+        <div className="col-6 col-md-3">
+          <div className="card border-0 shadow-sm text-center h-100">
+            <div className="card-body py-3">
+              <h5 className="card-title text-warning mb-1">{estadisticas.porcentajeOcupacion.toFixed(1)}%</h5>
+              <p className="card-text text-muted mb-0 small">Ocupación</p>
             </div>
           </div>
         </div>
@@ -272,57 +272,98 @@ const GestionParticipantes = ({ evento }) => {
 
       {/* Botones de acciones principales */}
       <div className="row mb-4">
-        <div className="col-12">
-          <div className="d-flex gap-3 flex-wrap">
-            {/* Ir a Gestión de Asistencia */}
-            <div className="flex-grow-1">
-              <div className="alert alert-info-custom d-flex align-items-center mb-0" role="alert">
-                <i className="bi bi-info-circle-fill me-3 fs-3 text-primary"></i>
+        {/* ✅ Botón de Reporte del Evento (solo si está finalizado) */}
+        {evento.estado === 'finalizado' && (
+          <div className="col-12 mb-3">
+            <div className="alert alert-primary mb-0" role="alert">
+              <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
+                <i className="bi bi-graph-up-arrow fs-3 text-success d-none d-md-block"></i>
                 <div className="flex-grow-1">
-                  <h6 className="alert-heading mb-1 fw-bold">📋 Registro de Asistencia</h6>
-                  <p className="mb-0">
-                    Para marcar asistencia de participantes, usa la página de <strong>Gestión de Asistencia.</strong> 
+                  <h6 className="alert-heading mb-1 fw-bold">
+                    <i className="bi bi-check-circle-fill me-2"></i>
+                    Evento Finalizado
+                  </h6>
+                  <p className="mb-2 mb-md-0 small">
+                    Ver estadísticas detalladas, gráficas y análisis completo del evento
                   </p>
                 </div>
                 <button 
-                  className="btn btn-primary-custom ms-3"
-                  onClick={() => navigate(`/organizador/asistencia/${evento.id}`)}
+                  className="btn btn-primary-custom w-100 w-md-auto"
+                  onClick={() => navigate(`/organizador/reporte-evento/${evento.id}`)}
                 >
-                  <i className="bi bi-qr-code-scan me-2"></i>
-                  Gestión de Asistencia
+                  <i className="bi bi-file-earmark-bar-graph me-2"></i>
+                  Ver Reporte del Evento
                 </button>
               </div>
             </div>
-            
-            {/* ✅ ACTUALIZADO: Enviar Asistencias a n8n - Disponible cuando el organizador quiera */}
-            <div className="flex-shrink-0">
-              <div className="alert alert-success mb-0 d-flex align-items-center h-100" role="alert">
-                <i className="bi bi-send-fill me-3 fs-3 text-success"></i>
-                <div className="flex-grow-1">
-                  <h6 className="alert-heading mb-1 fw-bold">📊 Reporte de Asistencias</h6>
-                  <p className="mb-0 small">
-                    Enviar reporte final a n8n cuando quieras
-                  </p>
-                </div>
-                <button 
-                  className="btn btn-success ms-3"
-                  onClick={handleEnviarAsistencias}
-                  disabled={enviandoAsistencias || participantes.length === 0}
-                  title="Enviar reporte de asistencias finales a n8n"
-                >
-                  {enviandoAsistencias ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                      Enviando...
-                    </>
-                  ) : (
-                    <>
-                      <i className="bi bi-send me-2"></i>
-                      Enviar Asistencias
-                    </>
-                  )}
-                </button>
+          </div>
+        )}
+        
+        {/* Ir a Gestión de Asistencia */}
+        <div className={`col-12 ${evento.estado === 'finalizado' ? 'col-lg-6' : 'col-lg-7'} mb-3 mb-lg-0`}>
+          <div className="alert alert-info-custom mb-0 h-100" role="alert">
+            <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
+              <i className="bi bi-info-circle-fill fs-3 text-primary d-none d-md-block"></i>
+              <div className="flex-grow-1">
+                <h6 className="alert-heading mb-1 fw-bold">📋 Registro de Asistencia</h6>
+                <p className="mb-2 mb-md-0 small">
+                  {evento.estado === 'finalizado' 
+                    ? 'El evento ha finalizado. Las asistencias están cerradas.'
+                    : 'Para marcar asistencia de participantes, usa la página de Gestión de Asistencia.'
+                  }
+                </p>
               </div>
+              <button 
+                className="btn btn-primary-custom w-100 w-md-auto"
+                onClick={() => navigate(`/organizador/asistencia/${evento.id}`)}
+                disabled={!evento.asistenciaAbierta || evento.estado === 'finalizado'}
+                title={
+                  !evento.asistenciaAbierta 
+                    ? 'Las asistencias están cerradas' 
+                    : evento.estado === 'finalizado'
+                    ? 'El evento ya finalizó'
+                    : 'Ir a gestión de asistencia'
+                }
+              >
+                <i className="bi bi-qr-code-scan me-2"></i>
+                Gestión de Asistencia
+                {(!evento.asistenciaAbierta || evento.estado === 'finalizado') && (
+                  <i className="bi bi-lock-fill ms-2"></i>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {/* ✅ ACTUALIZADO: Enviar Asistencias a n8n - Responsivo */}
+        <div className={`col-12 ${evento.estado === 'finalizado' ? 'col-lg-6' : 'col-lg-5'}`}>
+          <div className="alert alert-success mb-0 h-100" role="alert">
+            <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
+              <i className="bi bi-send-fill fs-3 text-success d-none d-md-block"></i>
+              <div className="flex-grow-1">
+                <h6 className="alert-heading mb-1 fw-bold">📊 Reporte de Asistencias</h6>
+                <p className="mb-2 mb-md-0 small">
+                  Enviar reporte final a n8n cuando quieras
+                </p>
+              </div>
+              <button 
+                className="btn btn-success w-100 w-md-auto"
+                onClick={handleEnviarAsistencias}
+                disabled={enviandoAsistencias || participantes.length === 0}
+                title="Enviar reporte de asistencias finales a n8n"
+              >
+                {enviandoAsistencias ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-send me-2"></i>
+                    Enviar Asistencias
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -385,8 +426,8 @@ const GestionParticipantes = ({ evento }) => {
                 <div className="row mt-3">
                   <div className="col-12">
                     <div className="alert alert-info mb-0">
-                      <div className="row text-center">
-                        <div className="col-md-4">
+                      <div className="row text-center g-3">
+                        <div className="col-6 col-md-4">
                           <div className="fw-bold fs-4 text-primary">
                             {resumenAsistencias.participantesConAsistenciaPerfecta.length}
                           </div>
@@ -395,8 +436,8 @@ const GestionParticipantes = ({ evento }) => {
                             Asistencia Perfecta
                           </small>
                         </div>
-                        <div className="col-md-4">
-                          <div className="fw-bold fs-4 text-warning">
+                        <div className="col-6 col-md-4">
+                          <div className="fw-bold fs-4 text-black">
                             {resumenAsistencias.participantesConAsistenciaParcial.length}
                           </div>
                           <small className="text-muted">
@@ -404,7 +445,7 @@ const GestionParticipantes = ({ evento }) => {
                             Asistencia Parcial
                           </small>
                         </div>
-                        <div className="col-md-4">
+                        <div className="col-12 col-md-4">
                           <div className="fw-bold fs-4 text-success">
                             {resumenAsistencias.porcentajeAsistenciaGeneral}%
                           </div>
@@ -429,8 +470,8 @@ const GestionParticipantes = ({ evento }) => {
           <div className="card border-0 shadow-sm">
             <div className="card-body">
               <div className="row g-3">
-                <div className="col-md-3">
-                  <label className="form-label">Filtrar por:</label>
+                <div className="col-12 col-md-4">
+                  <label className="form-label small fw-bold">Filtrar por:</label>
                   <select 
                     className="form-select"
                     value={filtro}
@@ -441,8 +482,8 @@ const GestionParticipantes = ({ evento }) => {
                     <option value="no-asistio">No asistieron</option>
                   </select>
                 </div>
-                <div className="col-md-3">
-                  <label className="form-label">Buscar:</label>
+                <div className="col-12 col-md-5">
+                  <label className="form-label small fw-bold">Buscar:</label>
                   <input
                     type="text"
                     className="form-control"
@@ -451,7 +492,7 @@ const GestionParticipantes = ({ evento }) => {
                     onChange={(e) => setBusqueda(e.target.value)}
                   />
                 </div>
-                <div className="col-md-3 d-flex align-items-end">
+                <div className="col-12 col-md-3 d-flex align-items-end">
                   <button 
                     className="btn btn-outline-secondary w-100"
                     onClick={() => {
@@ -507,45 +548,87 @@ const GestionParticipantes = ({ evento }) => {
                     </thead>
                     <tbody>
                       {participantesFiltrados.map(participante => {
-                        // ✅ NUEVO: Calcular estado de asistencia basado en días del evento
+                        // ✅ ACTUALIZADO: Calcular estado de asistencia según modo
                         let estadoAsistencia = { tipo: 'inscrito', texto: '📝 Inscrito', clase: 'badge-primary-custom' };
                         
-                        if (evento && esMultiDia && evento.asistenciasPorDia) {
-                          // Evento multi-día: calcular días asistidos
-                          const fechaInicio = evento.fechaInicio || evento.fecha;
-                          const fechaFin = evento.fechaFin || evento.fecha || fechaInicio;
-                          const diasEvento = formatters.calcularDiasEvento(fechaInicio, fechaFin);
-                          const totalDias = diasEvento.length;
+                        if (evento) {
+                          const modoAsistencia = evento.modoAsistencia || 'por_dia';
                           
-                          // Contar días que asistió
-                          let diasAsistidos = 0;
-                          diasEvento.forEach(dia => {
-                            if (evento.asistenciasPorDia[dia]?.asistentes?.includes(participante.id)) {
-                              diasAsistidos++;
+                          if (modoAsistencia === 'por_ponente' && evento.asistenciasPorPonente) {
+                            // MODO POR PONENTE: Contar ponentes asistidos
+                            const asistenciasPorPonente = evento.asistenciasPorPonente || {};
+                            const participanteUid = participante.uid || participante.id;
+                            const participanteId = participante.id || participante.uid;
+                            
+                            // 🔧 FIX: Buscar por ambos identificadores (uid y id)
+                            const ponentesAsistidos = Object.keys(asistenciasPorPonente).filter(ponenteKey => {
+                              const asistentes = asistenciasPorPonente[ponenteKey].asistentes || [];
+                              return asistentes.includes(participanteUid) || asistentes.includes(participanteId);
+                            });
+                            
+                            const totalPonentes = evento.expositores?.filter(exp => !exp.break).length || 0;
+                            const ponentesAsistidosCount = ponentesAsistidos.length;
+                            
+                            console.log(`📊 Participante ${participante.email}: ${ponentesAsistidosCount}/${totalPonentes} ponentes`);
+
+                            
+                            if (ponentesAsistidosCount === totalPonentes && totalPonentes > 0) {
+                              // Asistió a todos los ponentes
+                              estadoAsistencia = { tipo: 'completa', texto: 'Asistió', clase: 'badge-success-custom' };
+                            } else if (ponentesAsistidosCount > 0) {
+                              // Asistió a algunos ponentes (parcial)
+                              estadoAsistencia = { 
+                                tipo: 'parcial', 
+                                texto: `Parcial (${ponentesAsistidosCount}/${totalPonentes})`, 
+                                clase: 'bg-black text-white' 
+                              };
+                            } else {
+                              // No asistió a ningún ponente
+                              estadoAsistencia = { tipo: 'falta', texto: 'Falta', clase: 'bg-danger text-white' };
                             }
-                          });
-                          
-                          if (diasAsistidos === totalDias) {
-                            // Asistió todos los días
-                            estadoAsistencia = { tipo: 'completa', texto: '✅ Asistió', clase: 'badge-success-custom' };
-                          } else if (diasAsistidos > 0) {
-                            // Asistió algunos días (parcial)
-                            estadoAsistencia = { 
-                              tipo: 'parcial', 
-                              texto: `🟡 Parcial (${diasAsistidos}/${totalDias})`, 
-                              clase: 'bg-warning text-dark' 
-                            };
-                          } else {
-                            // No asistió ningún día
-                            estadoAsistencia = { tipo: 'falta', texto: '❌ Falta', clase: 'bg-danger text-white' };
-                          }
-                        } else if (evento && !esMultiDia) {
-                          // Evento de un solo día: verificar si asistió
-                          const asistio = participante.asistio || false;
-                          if (asistio) {
-                            estadoAsistencia = { tipo: 'completa', texto: '✅ Asistió', clase: 'badge-success-custom' };
-                          } else {
-                            estadoAsistencia = { tipo: 'falta', texto: '❌ Falta', clase: 'bg-danger text-white' };
+                            
+                          } else if (esMultiDia && evento.asistenciasPorDia) {
+                            // MODO POR DÍA (multi-día): calcular días asistidos
+                            const fechaInicio = evento.fechaInicio || evento.fecha;
+                            const fechaFin = evento.fechaFin || evento.fecha || fechaInicio;
+                            const diasEvento = formatters.calcularDiasEvento(fechaInicio, fechaFin);
+                            const totalDias = diasEvento.length;
+                            const participanteUid = participante.uid || participante.id;
+                            const participanteId = participante.id || participante.uid;
+                            
+                            // Contar días que asistió
+                            let diasAsistidos = 0;
+                            diasEvento.forEach(dia => {
+                              const asistentes = evento.asistenciasPorDia[dia]?.asistentes || [];
+                              if (asistentes.includes(participanteUid) || asistentes.includes(participanteId)) {
+                                diasAsistidos++;
+                              }
+                            });
+                            
+                            console.log(`📊 Participante ${participante.email}: ${diasAsistidos}/${totalDias} días`);
+                            
+                            if (diasAsistidos === totalDias) {
+                              // Asistió todos los días
+                              estadoAsistencia = { tipo: 'completa', texto: 'Asistió', clase: 'badge-success-custom' };
+                            } else if (diasAsistidos > 0) {
+                              // Asistió algunos días (parcial)
+                              estadoAsistencia = { 
+                                tipo: 'parcial', 
+                                texto: `Parcial (${diasAsistidos}/${totalDias})`, 
+                                clase: 'bg-black text-white' 
+                              };
+                            } else {
+                              // No asistió ningún día
+                              estadoAsistencia = { tipo: 'falta', texto: 'Falta', clase: 'bg-danger text-white' };
+                            }
+                          } else if (!esMultiDia) {
+                            // Evento de un solo día: verificar si asistió
+                            const asistio = participante.asistio || false;
+                            if (asistio) {
+                              estadoAsistencia = { tipo: 'completa', texto: 'Asistió', clase: 'badge-success-custom' };
+                            } else {
+                              estadoAsistencia = { tipo: 'falta', texto: 'Falta', clase: 'bg-danger text-white' };
+                            }
                           }
                         }
                         
@@ -605,7 +688,50 @@ const GestionParticipantes = ({ evento }) => {
                                 >
                                   {estadoAsistencia.texto}
                                 </span>
+                                
+                                {/* ✅ NUEVO: Detalle por ponente (solo modo por_ponente con asistencia parcial) */}
+                                {evento.modoAsistencia === 'por_ponente' && estadoAsistencia.tipo === 'parcial' && (
+                                  <div className="text-start">
+                                  <button 
+                                    className="btn btn-sm btn-outline-secondary mt-1"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target={`#detallePonente${participante.id}`}
+                                    aria-expanded="false"
+                                  >
+                                    <i className="bi bi-chevron-down me-1"></i>
+                                    Ver detalles
+                                  </button>
+                                  </div>
+                                )}
                               </div>
+                              
+                              {/* ✅ NUEVO: Collapse con detalle de ponentes */}
+                              {evento.modoAsistencia === 'por_ponente' && (estadoAsistencia.tipo === 'parcial' || estadoAsistencia.tipo === 'completa') && (
+                                <div className="collapse mt-2" id={`detallePonente${participante.id}`}>
+                                  <div className="card card-body p-2">
+                                    <small className="fw-bold mb-2">Asistencia por ponente:</small>
+                                    {evento.expositores?.filter(exp => !exp.break).map((exp, idx) => {
+                                      const ponenteKey = `ponente_${exp.dia}_${exp.hora}_${idx}`;
+                                      const asistentes = evento.asistenciasPorPonente?.[ponenteKey]?.asistentes || [];
+                                      const participanteUid = participante.uid || participante.id;
+                                      const participanteId = participante.id || participante.uid;
+                                      const asistio = asistentes.includes(participanteUid) || asistentes.includes(participanteId);
+                                      
+                                      return (
+                                        <div key={ponenteKey} className="d-flex justify-content-between small mb-1 pb-1 border-bottom">
+                                          <span className="text-truncate me-2">
+                                            <i className="bi bi-clock me-1"></i>
+                                            {exp.hora} - {exp.nombre}
+                                          </span>
+                                          <span className={asistio ? 'text-success fw-bold' : 'text-danger'}>
+                                            {asistio ? '✓ Asistió' : '✗ Faltó'}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                             </td>
                             <td>
                               <button 

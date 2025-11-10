@@ -19,7 +19,7 @@ export const qrService = {
    * @param {string} fechaDia - Fecha específica del día (YYYY-MM-DD)
    * @returns {Object} Datos del QR generado
    */
-  generarQRPorDia(eventoId, userId, userEmail, fechaDia) {
+  generarQRPorDia(eventoId, userId, userEmail, fechaDia, ponenteKey = null) {
     try {
       const timestamp = new Date().toISOString();
       
@@ -37,6 +37,11 @@ export const qrService = {
         usado: false,
         version: '3.0'  // ✅ Nueva versión con fechaDia
       };
+
+      // ✅ NUEVO: Agregar ponenteKey si se proporciona (para modo por ponente)
+      if (ponenteKey) {
+        payload.ponenteKey = ponenteKey;
+      }
 
       // Generar token de seguridad (hash con qrId + fechaDia)
       const dataString = `${qrId}|${eventoId}|${userId}|${fechaDia}|${timestamp}`;
@@ -116,64 +121,6 @@ export const qrService = {
   },
 
   /**
-   * DEPRECATED: Usar generarQRPorDia() o generarQRsParaEvento()
-   * Mantenido por compatibilidad temporal
-   * @param {string} eventoId - ID del evento
-   * @param {string} userId - ID del usuario
-   * @param {string} userEmail - Email del usuario
-   * @returns {Object} Datos del QR generado
-   */
-  generarQR(eventoId, userId, userEmail) {
-    try {
-      const timestamp = new Date().toISOString();
-      
-      // Generar ID único para el QR (UUID v4 simulado)
-      const qrId = `qr_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-      
-      // Crear payload con información del QR
-      const payload = {
-        qrId,           // ✅ ID único del QR
-        eventoId,
-        userId,
-        userEmail,
-        timestamp,
-        usado: false,   // ✅ Estado inicial: no usado
-        version: '2.0'  // ✅ Nueva versión con qrId
-      };
-
-      // Generar token de seguridad (hash con qrId)
-      const dataString = `${qrId}|${eventoId}|${userId}|${timestamp}`;
-      const token = CryptoJS.SHA256(dataString + SECRET_KEY).toString();
-
-      // Estructura completa del QR
-      const qrData = {
-        ...payload,
-        token,
-        // Expiración: 24 horas después del evento (se valida en el backend)
-        expirationBuffer: 24 * 60 * 60 * 1000 // 24 horas en ms
-      };
-
-      // Convertir a string para el QR
-      const qrString = JSON.stringify(qrData);
-
-      return {
-        success: true,
-        qrString,
-        qrData,
-        token,
-        qrId  // ✅ Devolver qrId para guardarlo en Firestore
-      };
-
-    } catch (error) {
-      logger.error('Error generando QR:', error);
-      return {
-        success: false,
-        error: 'Error al generar código QR'
-      };
-    }
-  },
-
-  /**
    * Validar código QR escaneado (ahora con validación de fecha específica)
    * @param {string} qrString - String del QR escaneado
    * @param {string} eventoIdEsperado - ID del evento actual
@@ -221,30 +168,10 @@ export const qrService = {
         };
       }
 
-      // ✅ ACTUALIZADO: Verificar fecha del QR vs fecha actual
-      // Permitir escanear el día del evento O ANTES (para llegadas tempranas)
-      // NO permitir escanear DESPUÉS de la fecha del evento
-      const { default: formatters } = await import('../core/utils/formatters.js');
-      const fechaHoy = fechaEscaneo || formatters.obtenerFechaActual();
-      const fechaQR = new Date(qrData.fechaDia + 'T00:00:00');
-      const fechaActual = new Date(fechaHoy + 'T00:00:00');
-      
-      // Validar que no se escanee DESPUÉS de la fecha del evento
-      if (fechaActual > fechaQR) {
-        const nombreDiaQR = formatters.formatearNombreDia(qrData.fechaDia);
-        
-        return {
-          success: false,
-          error: `❌ Este QR expiró. Era válido hasta ${nombreDiaQR}. No se puede registrar asistencia después de la fecha del evento.`,
-          estado: 'qr_expirado',
-          fechaQR: qrData.fechaDia,
-          fechaActual: fechaHoy
-        };
-      }
-      
-      // ✅ PERMITIDO: Escanear el mismo día O antes (llegadas tempranas)
-      console.log(`✅ Fecha válida - QR para: ${qrData.fechaDia}, Escaneando: ${fechaHoy}`);
-
+      // ✅ ACTUALIZADO: SIN validación de fecha - El organizador decide cuándo tomar asistencia
+      // Esto permite escanear QRs en cualquier momento (antes, durante o después del evento)
+      // El control de cuándo se puede tomar asistencia lo tiene el organizador mediante el campo "asistenciaAbierta"
+      console.log(`✅ QR para fecha: ${qrData.fechaDia} - Validación de fecha deshabilitada (control por organizador)`);
 
       // ✅ Verificar integridad del token (fórmula con qrId + fechaDia)
       const dataString = `${qrData.qrId}|${qrData.eventoId}|${qrData.userId}|${qrData.fechaDia}|${qrData.timestamp}`;
@@ -292,17 +219,34 @@ export const qrService = {
         };
       }
 
-      // ✅ NUEVO: Verificar si ya marcó asistencia para este día específico
+      // ✅ CORREGIDO: Validar según modo de asistencia (NO validar ambos)
+      const modoAsistencia = evento.modoAsistencia || 'por_dia';
       const fechaDia = qrData.fechaDia;
-      const asistentesDelDia = evento.asistenciasPorDia?.[fechaDia]?.asistentes || [];
       
-      if (asistentesDelDia.includes(qrData.userId)) {
-        return {
-          success: false,
-          error: `Ya se registró la asistencia para ${formatters.formatearNombreDia(fechaDia)}`,
-          estado: 'asistencia_ya_registrada',
-          fechaDia: fechaDia
-        };
+      if (modoAsistencia === 'por_ponente' && qrData.ponenteKey) {
+        // 🔧 MODO POR PONENTE: Solo validar asistencia del ponente específico
+        const asistenciasPonente = evento.asistenciasPorPonente?.[qrData.ponenteKey]?.asistentes || [];
+        
+        if (asistenciasPonente.includes(qrData.userId)) {
+          return {
+            success: false,
+            error: `Ya se registró la asistencia para este ponente`,
+            estado: 'asistencia_ya_registrada_ponente',
+            ponenteKey: qrData.ponenteKey
+          };
+        }
+      } else {
+        // 🔧 MODO POR DÍA: Solo validar asistencia del día específico
+        const asistentesDelDia = evento.asistenciasPorDia?.[fechaDia]?.asistentes || [];
+        
+        if (asistentesDelDia.includes(qrData.userId)) {
+          return {
+            success: false,
+            error: `Ya se registró la asistencia para el día ${fechaDia}`,
+            estado: 'asistencia_ya_registrada',
+            fechaDia: fechaDia
+          };
+        }
       }
 
       // QR VÁLIDO
@@ -331,21 +275,23 @@ export const qrService = {
    * @param {string} organizadorUid - UID del organizador
    * @param {string} qrId - ID único del QR escaneado
    * @param {string} fechaDia - Fecha del día del QR (YYYY-MM-DD)
+   * @param {string} ponenteKey - Clave del ponente (para modo por ponente)
    * @returns {Object} Resultado del registro
    */
-  async registrarAsistenciaQR(eventoId, userId, organizadorUid = null, qrId = null, fechaDia = null) {
+  async registrarAsistenciaQR(eventoId, userId, organizadorUid = null, qrId = null, fechaDia = null, ponenteKey = null) {
     try {
       // Importar firestoreService dinámicamente para evitar dependencia circular
       const { default: firestoreService } = await import('./firestoreService');
       
-      // ✅ ACTUALIZADO: Pasar fechaDia del QR para registrar asistencia del día correcto
+      // ✅ ACTUALIZADO: Pasar fechaDia y ponenteKey del QR para registrar asistencia correctamente
       const resultado = await firestoreService.marcarAsistencia(
         eventoId, 
         userId, 
         'qr', 
         organizadorUid,
-        qrId,      // ✅ Pasar el qrId para marcarlo como usado
-        fechaDia   // ✅ NUEVO: Pasar fecha del QR para registrar asistencia del día correcto
+        qrId,         // ✅ Pasar el qrId para marcarlo como usado
+        fechaDia,     // ✅ Pasar fecha del QR para registrar asistencia del día correcto
+        ponenteKey    // ✅ NUEVO: Pasar ponenteKey para modo por ponente
       );
 
       if (!resultado.success) {
@@ -358,9 +304,13 @@ export const qrService = {
       // Obtener info del participante para devolverla
       const eventoResult = await firestoreService.obtenerEventoPorId(eventoId);
       if (eventoResult.success) {
-        const participanteInfo = eventoResult.evento.participantesInfo?.find(
-          p => p.id === userId || p.uid === userId
-        );
+        // 🔧 FIX: Validar que participantesInfo sea un array antes de usar .find()
+        let participanteInfo = null;
+        if (Array.isArray(eventoResult.evento.participantesInfo)) {
+          participanteInfo = eventoResult.evento.participantesInfo.find(
+            p => p.id === userId || p.uid === userId
+          );
+        }
         
         return {
           success: true,

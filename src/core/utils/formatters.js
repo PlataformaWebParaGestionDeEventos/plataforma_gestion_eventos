@@ -230,17 +230,21 @@ export const formatters = {
 
     // Si se especifica fecha, buscar en ese día
     if (fecha && evento.asistenciasPorDia[fecha]) {
-      const participante = evento.asistenciasPorDia[fecha].participantesInfo?.find(
-        p => (p.uid || p.id) === uid
-      );
+      // 🔧 FIX: Validar que participantesInfo sea un array antes de usar .find()
+      const participantesInfo = evento.asistenciasPorDia[fecha].participantesInfo;
+      const participante = Array.isArray(participantesInfo)
+        ? participantesInfo.find(p => (p.uid || p.id) === uid)
+        : null;
       return participante?.metodo || null;
     }
 
     // Si no se especifica fecha, buscar en cualquier día (primera ocurrencia)
     for (const dia of Object.values(evento.asistenciasPorDia)) {
-      const participante = dia.participantesInfo?.find(
-        p => (p.uid || p.id) === uid
-      );
+      // 🔧 FIX: Validar que participantesInfo sea un array antes de usar .find()
+      const participantesInfo = dia.participantesInfo;
+      const participante = Array.isArray(participantesInfo)
+        ? participantesInfo.find(p => (p.uid || p.id) === uid)
+        : null;
       if (participante) {
         return participante.metodo || null;
       }

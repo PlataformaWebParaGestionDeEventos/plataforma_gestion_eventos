@@ -23,10 +23,10 @@ const useReportes = (organizadorEmail, eventoId = null) => {
         setCargando(true);
         logger.info('📊 Cargando eventos para reportes...');
         
-        // ✅ Removido orderBy para evitar necesidad de índice compuesto
+        // ✅ FIX CRÍTICO: El campo correcto es 'organizadorEmail' (no 'organizador')
         const q = query(
           collection(db, 'eventos'),
-          where('organizador', '==', organizadorEmail)
+          where('organizadorEmail', '==', organizadorEmail)
         );
 
         const snapshot = await getDocs(q);
@@ -60,15 +60,6 @@ const useReportes = (organizadorEmail, eventoId = null) => {
     };
 
     cargarEventos();
-    
-    // ⚡ Refetch automático cada 2 minutos (optimizado para reportes)
-    // Los reportes no necesitan actualizarse tan frecuentemente
-    const intervalId = setInterval(() => {
-      logger.log('🔄 Refetch automático de reportes (cada 2 min)');
-      cargarEventos();
-    }, 2 * 60 * 1000); // 120 segundos
-
-    return () => clearInterval(intervalId);
   }, [organizadorEmail, eventoId]);
 
   // ========== ESTADÍSTICAS GENERALES ==========
@@ -106,6 +97,27 @@ const useReportes = (organizadorEmail, eventoId = null) => {
     reportesService.calcularEstadoInscripciones(eventos), 
   [eventos]);
 
+  // ========== ESTADÍSTICAS DE EVENTO INDIVIDUAL ==========
+  const estadisticasEvento = useMemo(() => {
+    if (!eventoId || eventos.length === 0) return null;
+    return reportesService.calcularEstadisticasEvento(eventos[0]);
+  }, [eventos, eventoId]);
+
+  const estadisticasPorDia = useMemo(() => {
+    if (!eventoId || eventos.length === 0) return [];
+    return reportesService.calcularEstadisticasPorDia(eventos[0]);
+  }, [eventos, eventoId]);
+
+  const estadisticasPorPonente = useMemo(() => {
+    if (!eventoId || eventos.length === 0) return [];
+    return reportesService.calcularEstadisticasPorPonente(eventos[0]);
+  }, [eventos, eventoId]);
+
+  // ========== PROMEDIO EVENTOS FINALIZADOS ==========
+  const promedioFinalizados = useMemo(() => {
+    return reportesService.calcularPromedioEventosFinalizados(eventos);
+  }, [eventos]);
+
   return {
     eventos,
     cargando,
@@ -116,7 +128,13 @@ const useReportes = (organizadorEmail, eventoId = null) => {
     topEventosPorAsistencia,
     topEventosPorInscripciones,
     tasaConversion,
-    estadoInscripciones
+    estadoInscripciones,
+    // Datos para eventos individuales
+    estadisticasEvento,
+    estadisticasPorDia,
+    estadisticasPorPonente,
+    promedioFinalizados,
+    evento: eventos[0] || null
   };
 };
 

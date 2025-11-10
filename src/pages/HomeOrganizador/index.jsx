@@ -7,6 +7,7 @@ import firestoreService from "../../services/firestoreService";
 import { useAuth } from "../../core/hooks/useAuth";
 import toastHelper from "../../core/utils/toastHelper";
 import logger from "../../core/utils/logger";
+import ExpositoresTable from "../../components/ExpositoresTable";  // ✅ NUEVO
 const auth = getAuth(appFirebase);
 
 const HomeOrganizador = () => {
@@ -57,15 +58,11 @@ const HomeOrganizador = () => {
         capacidadMaxima: '',
         tipo: 'conferencia',
         estado: 'borrador',
-        expositores: [] // Array de {nombre, correo, hora, tema}
-    });
-
-    // Estado para el formulario de expositores
-    const [expositorActual, setExpositorActual] = useState({
-        nombre: '',
-        correo: '',
-        hora: '',
-        tema: ''
+        modoAsistencia: 'por_dia', // ✅ NUEVO: por_dia | por_ponente
+        expositores: [], // Array de {nombre, correo, hora, tema, dia, duracion, break}
+        certificadosParticipantes: true, // ✅ NUEVO: Certificados para participantes
+        certificadosPonentes: true,      // ✅ NUEVO: Certificados para ponentes
+        certificadosOrganizadores: false // ✅ NUEVO: Certificados para organizadores
     });
 
     // Estado para mostrar errores de validación en tiempo real
@@ -361,8 +358,45 @@ const HomeOrganizador = () => {
 
     // Validar que no haya horas duplicadas de expositores
     const validarExpositoresUnicos = (expositores) => {
-        const horas = expositores.map(exp => exp.hora);
-        return horas.length === new Set(horas).size;
+        // Agrupar expositores por día
+        const expositoresPorDia = {};
+        
+        expositores.forEach(exp => {
+            if (!expositoresPorDia[exp.dia]) {
+                expositoresPorDia[exp.dia] = [];
+            }
+            expositoresPorDia[exp.dia].push(exp);
+        });
+        
+        // Verificar solapamientos en cada día
+        for (const dia in expositoresPorDia) {
+            const exps = expositoresPorDia[dia];
+            
+            for (let i = 0; i < exps.length; i++) {
+                for (let j = i + 1; j < exps.length; j++) {
+                    const exp1 = exps[i];
+                    const exp2 = exps[j];
+                    
+                    // Calcular minutos de inicio y fin para cada expositor
+                    const [h1, m1] = exp1.hora.split(':').map(Number);
+                    const inicio1 = h1 * 60 + m1;
+                    const fin1 = inicio1 + (exp1.duracion || 60);
+                    
+                    const [h2, m2] = exp2.hora.split(':').map(Number);
+                    const inicio2 = h2 * 60 + m2;
+                    const fin2 = inicio2 + (exp2.duracion || 60);
+                    
+                    // Verificar si se solapan (NO hay conflicto si uno termina cuando el otro empieza)
+                    const haySolapamiento = (inicio1 < fin2) && (fin1 > inicio2);
+                    
+                    if (haySolapamiento) {
+                        return false; // Hay conflicto
+                    }
+                }
+            }
+        }
+        
+        return true; // No hay conflictos
     };
 
     // Validar que un expositor tenga todos los campos completos
@@ -371,60 +405,6 @@ const HomeOrganizador = () => {
                expositor.correo.trim() !== '' &&
                expositor.hora.trim() !== '' && 
                expositor.tema.trim() !== '';
-    };
-
-    // Agregar expositor a la lista
-    const agregarExpositor = () => {
-        // Validar que todos los campos estén completos
-        if (!validarExpositorCompleto(expositorActual)) {
-            toastHelper.error('❌ Todos los campos del expositor son obligatorios');
-            return;
-        }
-
-        // Validar que la hora esté en el rango permitido
-        if (!validarRangoHora(expositorActual.hora)) {
-            toastHelper.error('❌ La hora del expositor debe estar entre 06:00 y 23:00');
-            return;
-        }
-
-        // Validar que la hora del expositor esté dentro del horario del evento
-        if (!validarHoraExpositor(
-            expositorActual.hora, 
-            nuevoEvento.horaInicio, 
-            nuevoEvento.horaFin,
-            nuevoEvento.fechaInicio,
-            nuevoEvento.fechaFin
-        )) {
-            toastHelper.error('❌ La hora del expositor debe estar dentro del horario del evento');
-            return;
-        }
-
-        // Validar que no exista otra exposición a la misma hora
-        const horaExiste = nuevoEvento.expositores.some(exp => exp.hora === expositorActual.hora);
-        if (horaExiste) {
-            toastHelper.error('❌ Ya existe una exposición programada a esa hora');
-            return;
-        }
-
-        // Agregar a la lista
-        setNuevoEvento({
-            ...nuevoEvento,
-            expositores: [...nuevoEvento.expositores, { ...expositorActual }]
-        });
-
-        // Limpiar formulario
-        setExpositorActual({ nombre: '', correo: '', hora: '', tema: '' });
-        toastHelper.success('✅ Expositor agregado correctamente');
-    };
-
-    // Eliminar expositor de la lista
-    const eliminarExpositor = (index) => {
-        const nuevosExpositores = nuevoEvento.expositores.filter((_, i) => i !== index);
-        setNuevoEvento({
-            ...nuevoEvento,
-            expositores: nuevosExpositores
-        });
-        toastHelper.info('🗑️ Expositor eliminado');
     };
 
     // Función para crear evento
@@ -479,7 +459,7 @@ const HomeOrganizador = () => {
                     estado: 'borrador',
                     expositores: []
                 });
-                setExpositorActual({ nombre: '', hora: '', tema: '' });
+                // setExpositorActual({ nombre: '', hora: '', tema: '' }); // Ya no se usa
                 setMostrandoFormulario(false);
                 cargarEventos();
             } else {
@@ -511,6 +491,12 @@ const HomeOrganizador = () => {
 
     // Función para iniciar edición de evento
     const iniciarEdicion = (evento) => {
+        // Validar que el evento no esté finalizado
+        if (evento.estado === 'finalizado') {
+            toastHelper.warning('⚠️ Los eventos finalizados no pueden editarse. Puedes ver sus reportes en la sección de Reportes.');
+            return;
+        }
+
         setEventoEditando(evento);
         setNuevoEvento({
             titulo: evento.titulo,
@@ -523,7 +509,10 @@ const HomeOrganizador = () => {
             capacidadMaxima: evento.capacidadMaxima,
             tipo: evento.tipo,
             estado: evento.estado,
-            expositores: evento.expositores || []
+            expositores: evento.expositores || [],
+            certificadosParticipantes: evento.certificadosParticipantes ?? true,
+            certificadosPonentes: evento.certificadosPonentes ?? true,
+            certificadosOrganizadores: evento.certificadosOrganizadores ?? false
         });
         setMostrandoFormulario(true);
     };
@@ -571,7 +560,6 @@ const HomeOrganizador = () => {
                 estado: 'borrador',
                 expositores: []
             });
-            setExpositorActual({ nombre: '', hora: '', tema: '' });
             setEventoEditando(null);
             setMostrandoFormulario(false);
             cargarEventos();
@@ -597,7 +585,6 @@ const HomeOrganizador = () => {
             estado: 'borrador',
             expositores: []
         });
-        setExpositorActual({ nombre: '', hora: '', tema: '' });
         setMostrandoFormulario(false);
     };
 
@@ -615,11 +602,7 @@ const HomeOrganizador = () => {
     const cerrarInscripcionesManual = async (evento) => {
         const confirmacion = await toastHelper.confirm(
             `¿Cerrar inscripciones del evento "${evento.titulo}"?\n\n` +
-            `📊 Inscritos: ${evento.participantes?.length || 0}/${evento.capacidadMaxima}\n\n` +
-            `Esta acción:\n` +
-            `🔒 Cerrará las inscripciones inmediatamente\n` +
-            `📧 Enviará la lista final de inscritos a n8n\n` +
-            `❌ Los alumnos NO podrán inscribirse después\n\n` +
+            `⚠️ Los alumnos NO podrán inscribirse después\n\n` +
             `¿Continuar?`
         );
 
@@ -632,7 +615,7 @@ const HomeOrganizador = () => {
             const result = await firestoreService.cerrarInscripcionesYEnviarLista(evento.id);
             
             if (result.success) {
-                toastHelper.success('✅ Inscripciones cerradas y lista enviada a n8n');
+                toastHelper.success('✅ Inscripciones cerradas');
                 logger.log('✅ Cierre manual exitoso:', result);
                 await cargarEventos(); // Recargar para mostrar estado actualizado
             } else {
@@ -641,6 +624,143 @@ const HomeOrganizador = () => {
         } catch (error) {
             logger.error('❌ Error cerrando inscripciones:', error);
             toastHelper.error(`Error al cerrar inscripciones: ${error.message}`);
+        }
+    };
+
+    // ✅ NUEVO: Reabrir inscripciones manualmente
+    const reabrirInscripcionesManual = async (evento) => {
+        const confirmacion = await toastHelper.confirm(
+            `¿Reabrir inscripciones del evento "${evento.titulo}"?\n\n` +
+            `Esta acción:\n` +
+            `🔓 Permitirá nuevas inscripciones\n` +
+            `✅ Los alumnos podrán inscribirse nuevamente\n\n` +
+            `¿Continuar?`
+        );
+
+        if (!confirmacion) return;
+
+        try {
+            logger.log('🔓 Reabriendo inscripciones manualmente:', evento.id);
+            toastHelper.info('🔄 Reabriendo inscripciones...');
+            
+            const result = await firestoreService.reabrirInscripciones(evento.id);
+            
+            if (result.success) {
+                toastHelper.success('✅ Inscripciones reabiertas exitosamente');
+                logger.log('✅ Reapertura exitosa:', result);
+                await cargarEventos();
+            } else {
+                throw new Error(result.error || 'Error desconocido');
+            }
+        } catch (error) {
+            logger.error('❌ Error reabriendo inscripciones:', error);
+            toastHelper.error(`Error al reabrir inscripciones: ${error.message}`);
+        }
+    };
+
+    // ✅ NUEVO: Cerrar asistencia manualmente
+    const cerrarAsistenciaManual = async (evento) => {
+        const confirmacion = await toastHelper.confirm(
+            `¿Cerrar registro de asistencia del evento "${evento.titulo}"?\n\n` +
+            `Esta acción:\n` +
+            `🔒 Impedirá escanear QRs de asistencias\n` +
+            `⚠️ No se podrá registrar más asistencias\n\n` +
+            `¿Continuar?`
+        );
+
+        if (!confirmacion) return;
+
+        try {
+            logger.log('🔒 Cerrando asistencia manualmente:', evento.id);
+            toastHelper.info('🔄 Cerrando asistencia...');
+            
+            const result = await firestoreService.cerrarAsistencia(evento.id);
+            
+            if (result.success) {
+                toastHelper.success('✅ Asistencia cerrada exitosamente');
+                logger.log('✅ Cierre de asistencia exitoso:', result);
+                await cargarEventos();
+            } else {
+                throw new Error(result.error || 'Error desconocido');
+            }
+        } catch (error) {
+            logger.error('❌ Error cerrando asistencia:', error);
+            toastHelper.error(`Error al cerrar asistencia: ${error.message}`);
+        }
+    };
+
+    // ✅ NUEVO: Reabrir asistencia manualmente
+    const reabrirAsistenciaManual = async (evento) => {
+        const confirmacion = await toastHelper.confirm(
+            `¿Reabrir registro de asistencia del evento "${evento.titulo}"?\n\n` +
+            `Esta acción:\n` +
+            `🔓 Permitirá escanear QRs nuevamente\n` +
+            `✅ Se podrá registrar asistencia tardía\n\n` +
+            `¿Continuar?`
+        );
+
+        if (!confirmacion) return;
+
+        try {
+            logger.log('🔓 Reabriendo asistencia manualmente:', evento.id);
+            toastHelper.info('🔄 Reabriendo asistencia...');
+            
+            const result = await firestoreService.reabrirAsistencia(evento.id);
+            
+            if (result.success) {
+                toastHelper.success('✅ Asistencia reabierta exitosamente');
+                logger.log('✅ Reapertura de asistencia exitosa:', result);
+                await cargarEventos();
+            } else {
+                throw new Error(result.error || 'Error desconocido');
+            }
+        } catch (error) {
+            logger.error('❌ Error reabriendo asistencia:', error);
+            toastHelper.error(`Error al reabrir asistencia: ${error.message}`);
+        }
+    };
+
+    // ✅ NUEVO: Finalizar evento
+    const finalizarEvento = async (evento) => {
+        // Validar que inscripciones y asistencias estén cerradas
+        if (evento.inscripcionesAbiertas) {
+            toastHelper.error('❌ Debes cerrar las inscripciones primero');
+            return;
+        }
+
+        if (evento.asistenciaAbierta !== false) {
+            toastHelper.error('❌ Debes cerrar el registro de asistencia primero');
+            return;
+        }
+
+        const confirmacion = await toastHelper.confirm(
+            `¿Finalizar el evento "${evento.titulo}"?\n\n` +
+            `Esta acción:\n` +
+            `✅ Cambiará el estado del evento a "FINALIZADO"\n` +
+            `📊 Generará reportes y estadísticas finales\n` +
+            `🏆 Habilitará la generación de certificados\n` +
+            `🔒 El evento ya no podrá modificarse\n\n` +
+            `¿Estás seguro de continuar?`
+        );
+
+        if (!confirmacion) return;
+
+        try {
+            logger.log('🏁 Finalizando evento:', evento.id);
+            toastHelper.info('🔄 Finalizando evento...');
+            
+            const result = await firestoreService.finalizarEvento(evento.id);
+            
+            if (result.success) {
+                toastHelper.success('✅ Evento finalizado exitosamente. Los reportes están disponibles.');
+                logger.log('✅ Finalización de evento exitosa:', result);
+                await cargarEventos();
+            } else {
+                throw new Error(result.error || 'Error desconocido');
+            }
+        } catch (error) {
+            logger.error('❌ Error finalizando evento:', error);
+            toastHelper.error(`Error al finalizar evento: ${error.message}`);
         }
     };
 
@@ -676,7 +796,7 @@ const HomeOrganizador = () => {
                                     <div className="card-body text-center p-3">
                                         <div className="fs-2 text-primary mb-2">✅</div>
                                         <h5 className="card-title text-primary mb-1 fs-6">Publicados</h5>
-                                        <h3 className="text-primary mb-0">{eventos.filter(e => e.estado === 'publicado').length}</h3>
+                                        <h3 className="text-primary mb-0">{Array.isArray(eventos) ? eventos.filter(e => e.estado === 'publicado').length : 0}</h3>
                                     </div>
                                 </div>
                             </div>
@@ -686,7 +806,7 @@ const HomeOrganizador = () => {
                                     <div className="card-body text-center p-3">
                                         <div className="fs-2 text-warning mb-2">📝</div>
                                         <h5 className="card-title text-warning mb-1 fs-6">Borradores</h5>
-                                        <h3 className="text-warning mb-0">{eventos.filter(e => e.estado === 'borrador').length}</h3>
+                                        <h3 className="text-warning mb-0">{Array.isArray(eventos) ? eventos.filter(e => e.estado === 'borrador').length : 0}</h3>
                                     </div>
                                 </div>
                             </div>
@@ -694,12 +814,13 @@ const HomeOrganizador = () => {
                             <div className="col-6 col-md-3">
                                 <div className="card border-0 shadow-sm h-100">
                                     <div className="card-body text-center p-3">
-                                        <div className="fs-2 text-info mb-2">👥</div>
-                                        <h5 className="card-title text-info mb-1 fs-6">Participantes</h5>
-                                        <h3 className="text-info mb-0">{eventos.reduce((total, evento) => total + (evento.participantes?.length || 0), 0)}</h3>
+                                        <div className="fs-2 text-success mb-2">🏁</div>
+                                        <h5 className="card-title text-success mb-1 fs-6">Finalizados</h5>
+                                        <h3 className="text-success mb-0">{Array.isArray(eventos) ? eventos.filter(e => e.estado === 'finalizado').length : 0}</h3>
                                     </div>
                                 </div>
                             </div>
+                            
                         </div>
 
                         {/* Acciones rápidas */}
@@ -920,10 +1041,69 @@ const HomeOrganizador = () => {
                                                             className="form-select"
                                                             value={nuevoEvento.estado}
                                                             onChange={(e) => setNuevoEvento({...nuevoEvento, estado: e.target.value})}
+                                                            disabled={eventoEditando && eventoEditando.estado === 'finalizado'}
                                                         >
-                                                            <option value="borrador">📝 Borrador</option>
-                                                            <option value="publicado">✅ Publicado</option>
+                                                            <option value="borrador">Borrador</option>
+                                                            <option value="publicado">Publicado</option>
+                                                            {eventoEditando && eventoEditando.estado === 'finalizado' && (
+                                                                <option value="finalizado">Finalizado</option>
+                                                            )}
                                                         </select>
+                                                        {eventoEditando && eventoEditando.estado === 'finalizado' && (
+                                                            <small className="text-muted">Los eventos finalizados no pueden modificarse</small>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* ✅ NUEVO: Modo de Asistencia */}
+                                                <div className="row g-3 mt-3">
+                                                    <div className="col-12">
+                                                        <div className="alert alert-info d-flex align-items-start border-0 shadow-sm">
+                                                            <i className="bi bi-info-circle-fill fs-4 me-3"></i>
+                                                            <div className="flex-grow-1">
+                                                                <h6 className="fw-bold mb-2">Modo de Registro de Asistencia</h6>
+                                                                <div className="row g-3">
+                                                                    <div className="col-12 col-md-6">
+                                                                        <div className="form-check">
+                                                                            <input 
+                                                                                className="form-check-input" 
+                                                                                type="radio" 
+                                                                                name="modoAsistencia" 
+                                                                                id="modoPorDia"
+                                                                                value="por_dia"
+                                                                                checked={nuevoEvento.modoAsistencia === 'por_dia'}
+                                                                                onChange={(e) => setNuevoEvento({...nuevoEvento, modoAsistencia: e.target.value})}
+                                                                            />
+                                                                            <label className="form-check-label" htmlFor="modoPorDia">
+                                                                                <div className="fw-semibold">Por Día</div>
+                                                                                <small className="text-muted d-block">
+                                                                                    Un QR único por cada día del evento.
+                                                                                </small>
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="col-12 col-md-6">
+                                                                        <div className="form-check">
+                                                                            <input 
+                                                                                className="form-check-input" 
+                                                                                type="radio" 
+                                                                                name="modoAsistencia" 
+                                                                                id="modoPorPonente"
+                                                                                value="por_ponente"
+                                                                                checked={nuevoEvento.modoAsistencia === 'por_ponente'}
+                                                                                onChange={(e) => setNuevoEvento({...nuevoEvento, modoAsistencia: e.target.value})}
+                                                                            />
+                                                                            <label className="form-check-label" htmlFor="modoPorPonente">
+                                                                                <div className="fw-semibold">Por Ponente</div>
+                                                                                <small className="text-muted d-block">
+                                                                                    Un QR por cada expositor/ponencia.
+                                                                                </small>
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -941,120 +1121,94 @@ const HomeOrganizador = () => {
                                                     </div>
                                                 </div>
 
-                                                {/* Sección de Expositores */}
+                                                {/* ✅ NUEVO: Configuración de Certificados */}
                                                 <div className="row g-3 mt-3">
                                                     <div className="col-12">
-                                                        <div className="card border-primary">
-                                                            <div className="card-header bg-primary text-white">
-                                                                <h6 className="mb-0">
-                                                                    <i className="bi bi-people-fill me-2"></i>
-                                                                    Expositores * (Mínimo 1)
-                                                                </h6>
-                                                            </div>
-                                                            <div className="card-body">
-                                                                {/* Formulario para agregar expositor */}
-                                                                <div className="row g-2 mb-3">
-                                                                    <div className="col-12 col-md-3">
-                                                                        <input
-                                                                            type="text"
-                                                                            className="form-control"
-                                                                            placeholder="Nombre del expositor"
-                                                                            value={expositorActual.nombre}
-                                                                            onChange={(e) => setExpositorActual({...expositorActual, nombre: e.target.value})}
-                                                                        />
+                                                        <div className="alert alert-light border d-flex align-items-start">
+                                                            <i className="bi bi-award-fill fs-4 me-3 text-warning"></i>
+                                                            <div className="flex-grow-1">
+                                                                <h6 className="fw-bold mb-2">Certificados del Evento</h6>
+                                                                <p className="text-muted small mb-3">
+                                                                    Selecciona quiénes recibirán certificados al finalizar el evento
+                                                                </p>
+                                                                <div className="row g-3">
+                                                                    <div className="col-12 col-md-4">
+                                                                        <div className="form-check form-switch">
+                                                                            <input 
+                                                                                className="form-check-input" 
+                                                                                type="checkbox" 
+                                                                                id="certParticipantes"
+                                                                                checked={nuevoEvento.certificadosParticipantes}
+                                                                                onChange={(e) => setNuevoEvento({
+                                                                                    ...nuevoEvento, 
+                                                                                    certificadosParticipantes: e.target.checked
+                                                                                })}
+                                                                            />
+                                                                            <label className="form-check-label" htmlFor="certParticipantes">
+                                                                                <div className="fw-semibold">Participantes</div>
+                                                                                <small className="text-muted d-block">
+                                                                                    Asistentes que registraron su asistencia
+                                                                                </small>
+                                                                            </label>
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="col-12 col-md-3">
-                                                                        <input
-                                                                            type="email"
-                                                                            className="form-control"
-                                                                            placeholder="Correo del expositor"
-                                                                            value={expositorActual.correo}
-                                                                            onChange={(e) => setExpositorActual({...expositorActual, correo: e.target.value})}
-                                                                        />
+                                                                    <div className="col-12 col-md-4">
+                                                                        <div className="form-check form-switch">
+                                                                            <input 
+                                                                                className="form-check-input" 
+                                                                                type="checkbox" 
+                                                                                id="certPonentes"
+                                                                                checked={nuevoEvento.certificadosPonentes}
+                                                                                onChange={(e) => setNuevoEvento({
+                                                                                    ...nuevoEvento, 
+                                                                                    certificadosPonentes: e.target.checked
+                                                                                })}
+                                                                            />
+                                                                            <label className="form-check-label" htmlFor="certPonentes">
+                                                                                <div className="fw-semibold">Ponentes</div>
+                                                                                <small className="text-muted d-block">
+                                                                                    Expositores del evento
+                                                                                </small>
+                                                                            </label>
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="col-6 col-md-2">
-                                                                        <input
-                                                                            type="time"
-                                                                            className="form-control"
-                                                                            placeholder="Hora"
-                                                                            value={expositorActual.hora}
-                                                                            onChange={(e) => setExpositorActual({...expositorActual, hora: e.target.value})}
-                                                                            min="06:00"
-                                                                            max="23:00"
-                                                                        />
-                                                                    </div>
-                                                                    <div className="col-6 col-md-2">
-                                                                        <input
-                                                                            type="text"
-                                                                            className="form-control"
-                                                                            placeholder="Tema a exponer"
-                                                                            value={expositorActual.tema}
-                                                                            onChange={(e) => setExpositorActual({...expositorActual, tema: e.target.value})}
-                                                                        />
-                                                                    </div>
-                                                                    <div className="col-12 col-md-2">
-                                                                        <button
-                                                                            type="button"
-                                                                            className="btn btn-primary w-100"
-                                                                            onClick={agregarExpositor}
-                                                                        >
-                                                                            <i className="bi bi-plus-circle me-1"></i>
-                                                                            Agregar
-                                                                        </button>
+                                                                    <div className="col-12 col-md-4">
+                                                                        <div className="form-check form-switch">
+                                                                            <input 
+                                                                                className="form-check-input" 
+                                                                                type="checkbox" 
+                                                                                id="certOrganizadores"
+                                                                                checked={nuevoEvento.certificadosOrganizadores}
+                                                                                onChange={(e) => setNuevoEvento({
+                                                                                    ...nuevoEvento, 
+                                                                                    certificadosOrganizadores: e.target.checked
+                                                                                })}
+                                                                            />
+                                                                            <label className="form-check-label" htmlFor="certOrganizadores">
+                                                                                <div className="fw-semibold">Organizadores</div>
+                                                                                <small className="text-muted d-block">
+                                                                                    Staff organizador del evento
+                                                                                </small>
+                                                                            </label>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                                
-                                                                <small className="text-muted d-block mb-3">
-                                                                    <i className="bi bi-info-circle me-1"></i>
-                                                                    Las horas de los expositores deben estar entre {nuevoEvento.horaInicio} y {nuevoEvento.horaFin}
-                                                                </small>
-
-                                                                {/* Tabla de expositores agregados */}
-                                                                {nuevoEvento.expositores.length > 0 ? (
-                                                                    <div className="table-responsive">
-                                                                        <table className="table table-sm table-bordered">
-                                                                            <thead className="table-light">
-                                                                                <tr>
-                                                                                    <th>Expositor</th>
-                                                                                    <th>Correo</th>
-                                                                                    <th style={{width: '100px'}}>Hora</th>
-                                                                                    <th>Tema</th>
-                                                                                    <th style={{width: '80px'}}>Acción</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody>
-                                                                                {nuevoEvento.expositores
-                                                                                    .sort((a, b) => a.hora.localeCompare(b.hora))
-                                                                                    .map((exp, index) => (
-                                                                                    <tr key={index}>
-                                                                                        <td>{exp.nombre}</td>
-                                                                                        <td className="text-muted small">{exp.correo}</td>
-                                                                                        <td className="text-center">
-                                                                                            <span className="badge bg-info">{exp.hora}</span>
-                                                                                        </td>
-                                                                                        <td>{exp.tema}</td>
-                                                                                        <td className="text-center">
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                className="btn btn-sm btn-outline-danger"
-                                                                                                onClick={() => eliminarExpositor(index)}
-                                                                                            >
-                                                                                                <i className="bi bi-trash"></i>
-                                                                                            </button>
-                                                                                        </td>
-                                                                                    </tr>
-                                                                                ))}
-                                                                            </tbody>
-                                                                        </table>
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="alert alert-warning mb-0">
-                                                                        <i className="bi bi-exclamation-triangle me-2"></i>
-                                                                        Debe agregar al menos 1 expositor para crear el evento
-                                                                    </div>
-                                                                )}
                                                             </div>
                                                         </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* ✅ NUEVO: Componente de Expositores */}
+                                                <div className="row g-3 mt-3">
+                                                    <div className="col-12">
+                                                        <ExpositoresTable 
+                                                            expositores={nuevoEvento.expositores}
+                                                            setExpositores={(expositores) => setNuevoEvento({...nuevoEvento, expositores})}
+                                                            fechaInicio={nuevoEvento.fechaInicio}
+                                                            fechaFin={nuevoEvento.fechaFin}
+                                                            horaInicio={nuevoEvento.horaInicio}
+                                                            horaFin={nuevoEvento.horaFin}
+                                                        />
                                                     </div>
                                                 </div>
 
@@ -1120,8 +1274,14 @@ const HomeOrganizador = () => {
                                                                 <span className="badge bg-primary text-white">
                                                                     {evento.tipo}
                                                                 </span>
-                                                                <span className={`badge ${evento.estado === 'publicado' ? 'bg-primary' : 'bg-warning'}`}>
-                                                                    {evento.estado === 'publicado' ? '✅ Publicado' : '📝 Borrador'}
+                                                                <span className={`badge ${
+                                                                    evento.estado === 'publicado' ? 'bg-primary' : 
+                                                                    evento.estado === 'finalizado' ? 'bg-secondary' : 
+                                                                    'bg-warning'
+                                                                }`}>
+                                                                    {evento.estado === 'publicado' ? 'Publicado' : 
+                                                                     evento.estado === 'finalizado' ? 'Finalizado' : 
+                                                                     'Borrador'}
                                                                 </span>
                                                             </div>
                                                             
@@ -1160,51 +1320,135 @@ const HomeOrganizador = () => {
                                                                     <button 
                                                                         className="btn btn-outline-primary btn-sm"
                                                                         onClick={() => iniciarEdicion(evento)}
+                                                                        disabled={evento.estado === 'finalizado'}
+                                                                        title={evento.estado === 'finalizado' ? 'Los eventos finalizados no pueden editarse' : 'Editar evento'}
                                                                     >
-                                                                        Editar
+                                                                        {evento.estado === 'finalizado' ? '🔒 Finalizado' : 'Editar'}
                                                                     </button>
                                                                     
-                                                                    {/* Botones de acciones principales */}
+                                                                    {/* ✅ NUEVO: Controles Manuales de Inscripciones (solo si no está finalizado) */}
+                                                                    {evento.estado !== 'finalizado' && (
+                                                                    <>
+                                                                    <div className="alert alert-primary mb-2 py-2 px-3">
+                                                                        <small className="fw-semibold d-block mb-1">
+                                                                            <i className="bi bi-clipboard-check me-1"></i>
+                                                                            Inscripciones
+                                                                        </small>
+                                                                        <div className="row g-2">
+                                                                            <div className="col-6">
+                                                                                <button 
+                                                                                    className={`btn btn-sm w-100 ${evento.inscripcionesAbiertas ? 'btn-danger' : 'btn-secondary'}`}
+                                                                                    onClick={() => cerrarInscripcionesManual(evento)}
+                                                                                    disabled={!evento.inscripcionesAbiertas}
+                                                                                    title={evento.inscripcionesAbiertas ? 'Cerrar inscripciones' : 'Ya cerradas'}
+                                                                                >
+                                                                                    <i className="bi bi-lock-fill"></i>
+                                                                                    {evento.inscripcionesAbiertas ? 'Cerrar' : 'Cerradas'}
+                                                                                </button>
+                                                                            </div>
+                                                                            <div className="col-6">
+                                                                                <button 
+                                                                                    className={`btn btn-sm w-100 ${!evento.inscripcionesAbiertas ? 'btn-success' : 'btn-secondary'}`}
+                                                                                    onClick={() => reabrirInscripcionesManual(evento)}
+                                                                                    disabled={evento.inscripcionesAbiertas}
+                                                                                    title={!evento.inscripcionesAbiertas ? 'Reabrir inscripciones' : 'Ya abiertas'}
+                                                                                >
+                                                                                    <i className="bi bi-unlock-fill"></i>
+                                                                                    {!evento.inscripcionesAbiertas ? 'Reabrir' : 'Abiertas'}
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* ✅ NUEVO: Controles Manuales de Asistencia */}
+                                                                    <div className="alert alert-primary mb-2 py-2 px-3">
+                                                                        <small className="fw-semibold d-block mb-1">
+                                                                            <i className="bi bi-qr-code-scan me-1"></i>
+                                                                            Asistencia
+                                                                        </small>
+                                                                        <div className="row g-2">
+                                                                            <div className="col-6">
+                                                                                <button 
+                                                                                    className={`btn btn-sm w-100 ${evento.asistenciaAbierta !== false ? 'btn-danger' : 'btn-secondary'}`}
+                                                                                    onClick={() => cerrarAsistenciaManual(evento)}
+                                                                                    disabled={evento.asistenciaAbierta === false}
+                                                                                    title={evento.asistenciaAbierta !== false ? 'Cerrar asistencia' : 'Ya cerrada'}
+                                                                                >
+                                                                                    <i className="bi bi-lock-fill"></i>
+                                                                                    {evento.asistenciaAbierta !== false ? 'Cerrar' : 'Cerrada'}
+                                                                                </button>
+                                                                            </div>
+                                                                            <div className="col-6">
+                                                                                <button 
+                                                                                    className={`btn btn-sm w-100 ${evento.asistenciaAbierta === false ? 'btn-success' : 'btn-secondary'}`}
+                                                                                    onClick={() => reabrirAsistenciaManual(evento)}
+                                                                                    disabled={evento.asistenciaAbierta !== false}
+                                                                                    title={evento.asistenciaAbierta === false ? 'Reabrir asistencia' : 'Ya abierta'}
+                                                                                >
+                                                                                    <i className="bi bi-unlock-fill"></i>
+                                                                                    {evento.asistenciaAbierta === false ? 'Reabrir' : 'Abierta'}
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    </>
+                                                                    )}
+                                                                    
+                                                                    {/* Botones de acciones */}
                                                                     <div className="row g-2 mb-2">
                                                                         <div className="col-6">
                                                                             <button 
                                                                                 className="btn btn-outline-primary btn-sm w-100"
                                                                                 onClick={() => verGestionAsistencia(evento)}
-                                                                                title="Escanear QR y registrar asistencia"
+                                                                                title={
+                                                                                    evento.estado === 'finalizado' ? 'Evento finalizado' :
+                                                                                    evento.asistenciaAbierta === false ? 'Asistencia cerrada' :
+                                                                                    'Escanear QR y registrar asistencia'
+                                                                                }
+                                                                                disabled={evento.estado === 'finalizado' || evento.asistenciaAbierta === false}
                                                                             >
                                                                                 <i className="bi bi-qr-code-scan me-1"></i>
-                                                                                Gestión Asistencia
+                                                                                {evento.asistenciaAbierta === false ? '🔒 Cerrada' : 'QR Asistencia'}
                                                                             </button>
                                                                         </div>
                                                                         <div className="col-6">
                                                                             <button 
-                                                                                className={`btn btn-sm w-100 ${evento.inscripcionesAbiertas ? 'btn-outline-danger' : 'btn-secondary'}`}
-                                                                                onClick={() => cerrarInscripcionesManual(evento)}
-                                                                                disabled={!evento.inscripcionesAbiertas}
-                                                                                title={evento.inscripcionesAbiertas ? 'Cerrar inscripciones manualmente' : 'Inscripciones ya cerradas'}
-                                                                            >
-                                                                                <i className={`bi ${evento.inscripcionesAbiertas ? 'bi-lock-fill' : 'bi-lock'} me-1`}></i>
-                                                                                {evento.inscripcionesAbiertas ? 'Cerrar Inscripciones' : 'Cerrado'}
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                    
-                                                                    <div className="row g-2 mb-2">
-                                                                        <div className="col-12">
-                                                                            <button 
                                                                                 className="btn btn-outline-primary btn-sm w-100"
                                                                                 onClick={() => verParticipantes(evento)}
                                                                             >
+                                                                                <i className="bi bi-people me-1"></i>
                                                                                 Participantes
                                                                             </button>
                                                                         </div>
                                                                     </div>
+                                                                    
+                                                                    {/* ✅ NUEVO: Botón Finalizar Evento */}
+                                                                    {evento.estado === 'publicado' && 
+                                                                     evento.inscripcionesAbiertas === false && 
+                                                                     evento.asistenciaAbierta === false && (
+                                                                        <div className="alert alert-success mb-2 py-2 px-3">
+                                                                            <small className="fw-semibold d-block mb-2 text-center">
+                                                                                <i className="bi bi-flag-fill me-1"></i>
+                                                                                Listo para finalizar
+                                                                            </small>
+                                                                            <button 
+                                                                                className="btn btn-success btn-sm w-100"
+                                                                                onClick={() => finalizarEvento(evento)}
+                                                                                title="Finalizar evento y generar reportes"
+                                                                            >
+                                                                                <i className="bi bi-check-circle-fill me-1"></i>
+                                                                                Finalizar Evento
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                    
                                                                     <div className="row g-2">
                                                                         <div className="col-12">
                                                                             <button 
                                                                                 className="btn btn-outline-danger btn-sm w-100"
                                                                                 onClick={() => eliminarEvento(evento.id, evento.titulo)}
                                                                             >
+                                                                                <i className="bi bi-trash me-1"></i>
                                                                                 Eliminar Evento
                                                                             </button>
                                                                         </div>
