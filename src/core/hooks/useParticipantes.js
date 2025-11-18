@@ -1,10 +1,12 @@
 // Hook optimizado con React Query para gestión de participantes desde la perspectiva del organizador
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { firestoreService } from '../../services/firestoreService';
 import { useAuth } from './useAuth';
 import logger from '../utils/logger';
 import toastHelper from '../utils/toastHelper';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../config/credenciales';
 
 // Claves de queries para participantes
 export const participantesQueryKeys = {
@@ -16,6 +18,34 @@ export const participantesQueryKeys = {
 export const useParticipantes = (eventoId = null) => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+
+  // ✅ NUEVO: Listener en tiempo real para eventos de un solo día
+  useEffect(() => {
+    if (!eventoId || !user) return;
+
+    // Configurar listener en tiempo real para el evento
+    const eventoRef = doc(db, 'eventos', eventoId);
+    const unsubscribe = onSnapshot(eventoRef, (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        const eventoData = docSnapshot.data();
+        
+        // Si hay cambios en asistencias, invalidar cache para refetch inmediato
+        if (eventoData.asistenciasPorDia || eventoData.asistenciasPorPonente || eventoData.participantes) {
+          logger.log('🔄 Cambios detectados en asistencias, actualizando participantes...');
+          queryClient.invalidateQueries({ 
+            queryKey: participantesQueryKeys.byEvento(eventoId) 
+          });
+        }
+      }
+    }, (error) => {
+      logger.error('❌ Error en listener de evento:', error);
+    });
+
+    // Cleanup: detener listener cuando el componente se desmonte
+    return () => {
+      unsubscribe();
+    };
+  }, [eventoId, user, queryClient]);
 
   // Query para obtener participantes de un evento específico
   const {
@@ -46,9 +76,9 @@ export const useParticipantes = (eventoId = null) => {
       return result;
     },
     enabled: !!user && !!eventoId, // Solo ejecuta si hay usuario y eventoId
-    staleTime: 1 * 60 * 1000, // 1 minuto (datos más dinámicos, OK para participantes)
+    staleTime: 30 * 1000, // ✅ REDUCIDO: 30 segundos (más responsive)
     gcTime: 3 * 60 * 1000, // 3 minutos en caché
-    refetchInterval: 45 * 1000, // ⚡ Refetch cada 45 segundos - Balanceado para tiempo real
+    refetchInterval: false, // ✅ DESACTIVADO: Usamos onSnapshot en tiempo real
   });
 
   // Calcular estadísticas usando useMemo

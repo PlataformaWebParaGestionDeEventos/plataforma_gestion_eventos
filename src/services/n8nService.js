@@ -304,11 +304,12 @@ class N8nService {
   }
 
   /**
-   * Webhook para lista de asistencias (ACTUALIZADO: soporta eventos multi-día)
+   * Webhook para lista de asistencias (ACTUALIZADO: soporta eventos multi-día + link de encuesta)
    * @param {Object} evento - Datos del evento
    * @param {Object} resumenAsistencias - Resumen completo de asistencias (de firestoreService.obtenerResumenAsistencias)
+   * @param {string} linkEncuesta - URL de la encuesta de satisfacción
    */
-  async enviarAsistencias(evento, resumenAsistencias) {
+  async enviarAsistencias(evento, resumenAsistencias, linkEncuesta = null) {
     // Construir payload según si es evento multi-día o no
     const datos = {
       eventoId: evento.id,
@@ -335,6 +336,9 @@ class N8nService {
       // Datos del organizador
       organizadorId: evento.organizadorId,
       organizadorEmail: evento.organizadorEmail,
+      
+      // ✅ NUEVO: Link de encuesta de satisfacción
+      linkEncuesta: linkEncuesta || null,
       
       // Información del evento multi-día
       esEventoMultiDia: resumenAsistencias.esMultiDia,
@@ -423,7 +427,8 @@ class N8nService {
       totalDias: datos.totalDias,
       asistentesUnicos: datos.totalAsistentesUnicos,
       asistenciaPerfecta: datos.participantesConAsistenciaPerfecta.length,
-      asistenciaParcial: datos.participantesConAsistenciaParcial.length
+      asistenciaParcial: datos.participantesConAsistenciaParcial.length,
+      linkEncuesta: datos.linkEncuesta  // ✅ NUEVO LOG
     });
 
     return await this.enviarWebhook(

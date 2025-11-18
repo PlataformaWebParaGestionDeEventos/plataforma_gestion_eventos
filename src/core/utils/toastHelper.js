@@ -122,6 +122,87 @@ const toastHelper = {
         }
       }, 30000); // 30 segundos timeout
     });
+  },
+
+  /**
+   * ✅ NUEVO: Mostrar diálogo de entrada de texto (prompt)
+   * @param {string} message - Mensaje a mostrar
+   * @param {string} defaultValue - Valor predeterminado
+   * @returns {Promise<string|null>} - Texto ingresado o null si se cancela
+   */
+  prompt: (mensaje, valorPorDefecto = '') => {
+    return new Promise((resolve) => {
+      const toastId = toast(
+        ({ closeToast }) => {
+          let inputValue = valorPorDefecto;
+          
+          return React.createElement(
+            'div',
+            null,
+            React.createElement('p', { 
+              className: 'mb-3',
+              style: { whiteSpace: 'pre-line' }
+            }, mensaje),
+            React.createElement('input', {
+              type: 'text',
+              className: 'form-control mb-3',
+              defaultValue: valorPorDefecto,
+              placeholder: 'Ingresa el valor aquí...',
+              autoFocus: true,
+              onChange: (e) => { inputValue = e.target.value; },
+              onKeyDown: (e) => {
+                if (e.key === 'Enter') {
+                  closeToast();
+                  resolve(inputValue);
+                }
+              }
+            }),
+            React.createElement(
+              'div',
+              { className: 'd-flex gap-2 justify-content-end' },
+              React.createElement(
+                'button',
+                {
+                  className: 'btn btn-sm btn-secondary',
+                  onClick: () => {
+                    closeToast();
+                    resolve(null);
+                  }
+                },
+                'Cancelar'
+              ),
+              React.createElement(
+                'button',
+                {
+                  className: 'btn btn-sm btn-primary',
+                  onClick: () => {
+                    closeToast();
+                    resolve(inputValue);
+                  }
+                },
+                'Aceptar'
+              )
+            )
+          );
+        },
+        {
+          position: 'top-center',
+          autoClose: false,
+          closeButton: false,
+          draggable: false,
+          closeOnClick: false,
+          className: 'toast-prompt-wider'
+        }
+      );
+
+      // Si se cierra el toast sin confirmar/cancelar, resolver como null
+      setTimeout(() => {
+        if (toast.isActive(toastId)) {
+          toast.dismiss(toastId);
+          resolve(null);
+        }
+      }, 60000); // 60 segundos timeout
+    });
   }
 };
 

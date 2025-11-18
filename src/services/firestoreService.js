@@ -603,7 +603,57 @@ export const firestoreService = {
       
       // 🔧 FIX: Validar que participantesInfo sea un array antes de usarlo
       const participantesInfo = evento.participantesInfo;
-      const participantes = Array.isArray(participantesInfo) ? participantesInfo : [];
+      let participantes = Array.isArray(participantesInfo) ? participantesInfo : [];
+
+      // ✅ NUEVO: Calcular campo 'asistio' para cada participante
+      const modoAsistencia = evento.modoAsistencia || 'por_dia';
+      
+      participantes = participantes.map(participante => {
+        const participanteUid = participante.uid || participante.id;
+        const participanteId = participante.id || participante.uid;
+        let asistio = false;
+
+        if (modoAsistencia === 'por_ponente' && evento.asistenciasPorPonente) {
+          // MODO POR PONENTE: Verificar si asistió a TODOS los ponentes
+          const totalPonentes = evento.expositores?.filter(exp => !exp.break).length || 0;
+          const ponentesAsistidos = Object.keys(evento.asistenciasPorPonente).filter(ponenteKey => {
+            const asistentes = evento.asistenciasPorPonente[ponenteKey].asistentes || [];
+            return asistentes.includes(participanteUid) || asistentes.includes(participanteId);
+          });
+          
+          asistio = totalPonentes > 0 && ponentesAsistidos.length === totalPonentes;
+          
+        } else if (evento.asistenciasPorDia) {
+          // MODO POR DÍA: Verificar si asistió a TODOS los días
+          const fechaInicio = evento.fechaInicio || evento.fecha;
+          const fechaFin = evento.fechaFin || evento.fecha || fechaInicio;
+          
+          // Calcular días del evento
+          const diasEvento = [];
+          const inicio = new Date(fechaInicio + 'T00:00:00');
+          const fin = new Date(fechaFin + 'T00:00:00');
+          for (let d = new Date(inicio); d <= fin; d.setDate(d.getDate() + 1)) {
+            diasEvento.push(new Date(d).toISOString().split('T')[0]);
+          }
+          
+          // Contar días que asistió
+          let diasAsistidos = 0;
+          diasEvento.forEach(dia => {
+            const asistentes = evento.asistenciasPorDia[dia]?.asistentes || [];
+            if (asistentes.includes(participanteUid) || asistentes.includes(participanteId)) {
+              diasAsistidos++;
+            }
+          });
+          
+          // Asistió si completó TODOS los días
+          asistio = diasEvento.length > 0 && diasAsistidos === diasEvento.length;
+        }
+
+        return {
+          ...participante,
+          asistio // ✅ Agregar campo calculado
+        };
+      });
 
       return { 
         success: true, 
@@ -1370,9 +1420,11 @@ export const firestoreService = {
   },
 
   /**
-   * Enviar asistencias a n8n (ACTUALIZADO: soporta eventos multi-día)
+   * Enviar asistencias a n8n (ACTUALIZADO: soporta eventos multi-día + link de encuesta)
+   * @param {string} eventoId - ID del evento
+   * @param {string} linkEncuesta - URL de la encuesta de satisfacción
    */
-  async enviarAsistenciasN8n(eventoId) {
+  async enviarAsistenciasN8n(eventoId, linkEncuesta = null) {
     try {
       const eventoResult = await this.obtenerEventoPorId(eventoId);
       if (!eventoResult.success) {
@@ -1389,11 +1441,13 @@ export const firestoreService = {
 
       logger.log(`📊 Enviando asistencias: ${resumenResult.totalAsistentesUnicos}/${resumenResult.totalInscritos}`);
       logger.log(`📅 Evento multi-día: ${resumenResult.esMultiDia ? 'Sí' : 'No'} (${resumenResult.totalDias} días)`);
+      logger.log(`🔗 Link de encuesta: ${linkEncuesta || 'No proporcionado'}`);
 
-      // Enviar a n8n con el resumen completo
+      // Enviar a n8n con el resumen completo + link de encuesta
       const n8nResult = await n8nService.enviarAsistencias(
         evento, 
-        resumenResult
+        resumenResult,
+        linkEncuesta  // ✅ NUEVO PARÁMETRO
       );
 
       // Actualizar estado en Firestore
@@ -1409,6 +1463,7 @@ export const firestoreService = {
           esMultiDia: resumenResult.esMultiDia,
           participantesConAsistenciaPerfecta: resumenResult.participantesConAsistenciaPerfecta.length,
           participantesConAsistenciaParcial: resumenResult.participantesConAsistenciaParcial.length,
+          linkEncuesta: linkEncuesta || null,  // ✅ NUEVO: Guardar link de encuesta
           error: n8nResult.success ? null : n8nResult.error
         },
         estadoWorkflow: n8nResult.success ? 'asistencias_enviadas' : 'error_asistencias'
@@ -1427,6 +1482,7 @@ export const firestoreService = {
           esMultiDia: resumenResult.esMultiDia,
           participantesConAsistenciaPerfecta: resumenResult.participantesConAsistenciaPerfecta.length,
           participantesConAsistenciaParcial: resumenResult.participantesConAsistenciaParcial.length,
+          linkEncuesta: linkEncuesta,  // ✅ NUEVO
           n8nResponse: n8nResult
         }
       };

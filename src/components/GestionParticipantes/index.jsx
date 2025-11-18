@@ -61,18 +61,40 @@ const GestionParticipantes = ({ evento }) => {
   };
 
   /**
-   * Enviar asistencias a n8n
+   * ✅ ACTUALIZADO: Enviar asistencias a n8n CON link de encuesta
    */
   const handleEnviarAsistencias = async () => {
     // 🔧 FIX: Validar que participantes sea un array antes de usar .filter()
     
+    // ✅ NUEVO: Pedir link de encuesta
+    const linkEncuesta = await toastHelper.prompt(
+      'Ingresa el link de la encuesta de satisfacción:\n\n' +
+      'Este link será enviado a los participantes para que evalúen el evento.\n\n' +
+      'Ejemplo: https://forms.upao.edu.pe/encuesta-evento-123',
+      'https://forms.upao.edu.pe/'
+    );
+    
+    if (!linkEncuesta || linkEncuesta.trim() === '') {
+      toastHelper.info('ℹ️ Operación cancelada. No se envió el reporte.');
+      return;
+    }
+    
+    // Validar formato de URL
+    try {
+      new URL(linkEncuesta);
+    } catch (error) {
+      toastHelper.error('❌ El link ingresado no es una URL válida. Ejemplo: https://forms.upao.edu.pe/encuesta');
+      return;
+    }
+    
     const confirmacion = await toastHelper.confirm(
       `¿Enviar reporte de asistencias a n8n?\n\n` +
-      `Esta acción enviará el reporte de asistencias finales a n8n para:\n` +
-      `- Enviar encuestas de satisfacción.\n` +
-      `- Generar certificados en blockchain.\n` +
-      `- Actualizar estadísticas.\n` +
-      `SOLO ENVIAR UNA POR EVENTO.\n\n` +
+      `Esta acción enviará:\n` +
+      `- Reporte de asistencias finales\n` +
+      `- Link de encuesta: ${linkEncuesta}\n` +
+      `- Generar certificados en blockchain\n` +
+      `- Actualizar estadísticas\n\n` +
+      `⚠️ SOLO ENVIAR UNA VEZ POR EVENTO\n\n` +
       `¿Continuar?`
     );
 
@@ -83,8 +105,10 @@ const GestionParticipantes = ({ evento }) => {
     
     try {
       logger.log(`📊 Enviando asistencias del evento: ${evento.titulo}`);
+      logger.log(`🔗 Link de encuesta: ${linkEncuesta}`);
       
-      const result = await firestoreService.enviarAsistenciasN8n(evento.id);
+      // ✅ ACTUALIZADO: Pasar el link de encuesta a firestoreService
+      const result = await firestoreService.enviarAsistenciasN8n(evento.id, linkEncuesta);
       
       if (result.success) {
         toastHelper.success(

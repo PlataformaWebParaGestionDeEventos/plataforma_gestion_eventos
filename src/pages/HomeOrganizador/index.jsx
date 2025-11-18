@@ -287,10 +287,12 @@ const HomeOrganizador = () => {
         return errores;
     };
 
-    // Verificar conflictos de horario (misma fecha Y/O misma ubicación)
+    // ✅ ACTUALIZADO: Verificar conflictos SOLO si los 3 se cumplen simultáneamente (ubicación + fecha + hora)
     const verificarConflictoHorario = () => {
         const fechaInicio = nuevoEvento.fechaInicio;
         const fechaFin = nuevoEvento.fechaFin;
+        const horaInicio = nuevoEvento.horaInicio;
+        const horaFin = nuevoEvento.horaFin;
         const ubicacionEvento = nuevoEvento.ubicacion.toLowerCase().trim();
         
         return eventos.some(evento => {
@@ -304,14 +306,25 @@ const HomeOrganizador = () => {
                 return false;
             }
             
-            // Verificar solapamiento de fechas Y/O misma ubicación
+            // ✅ NUEVO: Deben cumplirse LAS 3 CONDICIONES SIMULTÁNEAMENTE
             const eventoInicio = evento.fechaInicio || evento.fecha;
             const eventoFin = evento.fechaFin || evento.fecha;
-            const fechasSeSuperponen = 
-                (fechaInicio <= eventoFin && fechaFin >= eventoInicio);
+            const eventoHoraInicio = evento.horaInicio || evento.hora || '00:00';
+            const eventoHoraFin = evento.horaFin || evento.hora || '23:59';
+            
+            // 1. Verificar si es la misma ubicación
             const mismaUbicacion = evento.ubicacion.toLowerCase().trim() === ubicacionEvento;
             
-            return fechasSeSuperponen || mismaUbicacion;
+            // 2. Verificar solapamiento de fechas
+            const fechasSeSuperponen = 
+                (fechaInicio <= eventoFin && fechaFin >= eventoInicio);
+            
+            // 3. Verificar solapamiento de horas
+            const horasSeSuperponen = 
+                (horaInicio < eventoHoraFin && horaFin > eventoHoraInicio);
+            
+            // ✅ CONFLICTO SOLO SI LAS 3 CONDICIONES SE CUMPLEN
+            return mismaUbicacion && fechasSeSuperponen && horasSeSuperponen;
         });
     };
 
@@ -530,9 +543,9 @@ const HomeOrganizador = () => {
             return;
         }
 
-        // Verificar conflictos de horario
+        // ✅ ACTUALIZADO: Verificar conflictos (ubicación + fecha + hora)
         if (verificarConflictoHorario()) {
-            toastHelper.warning('⚠️ Ya existe un evento en la misma fecha o ubicación. Elige otra fecha u otra ubicación.');
+            toastHelper.warning('⚠️ Ya existe un evento en el mismo lugar, fecha y hora. Cambia alguno de estos valores.');
             logger.warn('Conflicto de horario detectado');
             return;
         }
@@ -1231,15 +1244,16 @@ const HomeOrganizador = () => {
                             </div>
                         )}
 
-                        {/* Lista de eventos responsive */}
-                        <div className="row">
-                            <div className="col-12">
-                                <div className="card border-0 shadow-sm">
-                                    <div className="card-header bg-white border-0 d-flex justify-content-between align-items-center">
-                                        <h5 className="mb-0 fw-bold text-dark">Mis Eventos</h5>
-                                        <span className="badge bg-primary fs-6">{eventos.length} evento{eventos.length !== 1 ? 's' : ''}</span>
-                                    </div>
-                                    <div className="card-body p-4">
+                        {/* Lista de eventos responsive - ✅ OCULTAR cuando se muestra el formulario */}
+                        {!mostrandoFormulario && (
+                            <div className="row">
+                                <div className="col-12">
+                                    <div className="card border-0 shadow-sm">
+                                        <div className="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                                            <h5 className="mb-0 fw-bold text-dark">Mis Eventos</h5>
+                                            <span className="badge bg-primary fs-6">{eventos.length} evento{eventos.length !== 1 ? 's' : ''}</span>
+                                        </div>
+                                        <div className="card-body p-4">
                                         {cargandoEventos ? (
                                             <div className="text-center py-5">
                                                 <div className="spinner-border text-primary mb-3" role="status">
@@ -1464,6 +1478,7 @@ const HomeOrganizador = () => {
                                 </div>
                             </div>
                         </div>
+                        )}  {/* ✅ Cierre del condicional !mostrandoFormulario */}
                     </div>
                 )}
         </>

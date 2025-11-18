@@ -244,112 +244,7 @@ const ExpositoresTable = ({
         </div>
       </div>
       
-      {/* Tabla Estilo Horario (Horas en Eje Y) */}
-      {itemsDelDia.length > 0 ? (
-        <div className="table-responsive mb-3">
-          <table className="table table-bordered" style={{ fontSize: '0.9rem' }}>
-            <thead style={{ backgroundColor: 'var(--primary-700)', color: 'white' }}>
-              <tr>
-                <th style={{ width: '80px', textAlign: 'center' }}>Hora</th>
-                <th>Nombre</th>
-                <th>Correo</th>
-                <th>Tema / Descripción</th>
-                <th style={{ width: '100px', textAlign: 'center' }}>Duración</th>
-                <th style={{ width: '60px', textAlign: 'center' }}>Quitar</th>
-              </tr>
-            </thead>
-            <tbody>
-              {itemsDelDia.map((item, index) => {
-                const horaFin = calcularHoraFin(item.hora, item.duracion);
-                const esBreak = item.break === true;
-                const bgColor = esBreak ? '#888888' : 'white';
-                
-                return (
-                  <tr key={index} style={{ backgroundColor: bgColor }}>
-                    <td className="fw-bold text-center" style={{ color: 'var(--primary-800)' }}>
-                      {item.hora}<br/>
-                      <small style={{ color: 'var(--gray-600)' }}>↓</small><br/>
-                      {horaFin}
-                    </td>
-                    <td>
-                      {esBreak ? (
-                        <span 
-                          className="badge" 
-                          style={{ 
-                            backgroundColor: 'var(--primary-600)', 
-                            color: 'white',
-                            fontSize: '0.9rem',
-                            padding: '0.5rem'
-                          }}
-                        >
-                          {item.nombre}
-                        </span>
-                      ) : (
-                        <strong style={{ color: 'var(--gray-900)' }}>{item.nombre}</strong>
-                      )}
-                    </td>
-                    <td>
-                      <small style={{ color: 'var(--gray-700)' }}>
-                        {esBreak ? '—' : item.correo}
-                      </small>
-                    </td>
-                    <td>
-                      {esBreak ? (
-                        <em style={{ color: 'var(--primary-500)' }}>{item.tema}</em>
-                      ) : (
-                        <span style={{ color: 'var(--gray-800)' }}>{item.tema}</span>
-                      )}
-                    </td>
-                    <td className="text-center">
-                      <span 
-                        className="badge" 
-                        style={{ 
-                          backgroundColor: 'var(--primary-200)', 
-                          color: 'var(--primary-900)',
-                          fontSize: '0.85rem'
-                        }}
-                      >
-                        {item.duracion} min
-                      </span>
-                    </td>
-                    <td className="text-center">
-                      <button
-                        className="btn btn-sm"
-                        style={{
-                          border: 'none',
-                          color: 'white'
-                        }}
-                        onClick={() => handleEliminarItem(index)}
-                        disabled={disabled}
-                        title="Eliminar"
-                      >
-                        ❌
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div 
-          className="alert text-center py-4 mb-3" 
-          style={{ 
-            backgroundColor: 'var(--gray-100)', 
-            border: `2px dashed var(--gray-400)`,
-            color: 'var(--gray-700)'
-          }}
-        >
-          <i className="bi bi-calendar-x fs-1 d-block mb-2" style={{ color: 'var(--gray-500)' }}></i>
-          <p className="mb-0">
-            No hay expositores programados para <strong>{formatearFecha(diaSeleccionado)}</strong>
-          </p>
-          <small style={{ color: 'var(--gray-600)' }}>Agrega un expositor para comenzar</small>
-        </div>
-      )}
-      
-      {/* Formulario Agregar Expositor */}
+      {/* ✅ REORDENADO: Formulario Agregar Expositor ARRIBA */}
       <div className="card mb-3" style={{ borderColor: 'var(--primary-500)', borderWidth: '2px' }}>
         <div 
           className="card-header text-white" 
@@ -597,6 +492,111 @@ const ExpositoresTable = ({
           
         </div>
       </div>
+      
+      {/* ✅ REORDENADO: Tabla Estilo Horario (AHORA DEBAJO de los formularios) */}
+      {itemsDelDia.length > 0 ? (
+        <div className="table-responsive mb-3 mt-3">
+          <table className="table table-bordered" style={{ fontSize: '0.9rem' }}>
+            <thead style={{ backgroundColor: 'var(--primary-700)', color: 'white' }}>
+              <tr>
+                <th style={{ width: '80px', textAlign: 'center' }}>Hora</th>
+                <th>Nombre</th>
+                <th>Correo</th>
+                <th>Tema / Descripción</th>
+                <th style={{ width: '100px', textAlign: 'center' }}>Duración</th>
+                <th style={{ width: '60px', textAlign: 'center' }}>Quitar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itemsDelDia.map((item, index) => {
+                const horaFin = calcularHoraFin(item.hora, item.duracion);
+                const esBreak = item.break === true;
+                const bgColor = esBreak ? '#888888' : 'white';
+                
+                return (
+                  <tr key={index} style={{ backgroundColor: bgColor }}>
+                    <td className="fw-bold text-center" style={{ color: 'var(--primary-800)' }}>
+                      {item.hora}<br/>
+                      <small style={{ color: 'var(--gray-600)' }}>↓</small><br/>
+                      {horaFin}
+                    </td>
+                    <td>
+                      {esBreak ? (
+                        <span 
+                          className="badge" 
+                          style={{ 
+                            backgroundColor: 'var(--primary-600)', 
+                            color: 'white',
+                            fontSize: '0.9rem',
+                            padding: '0.5rem'
+                          }}
+                        >
+                          {item.nombre}
+                        </span>
+                      ) : (
+                        <strong style={{ color: 'var(--gray-900)' }}>{item.nombre}</strong>
+                      )}
+                    </td>
+                    <td>
+                      <small style={{ color: 'var(--gray-700)' }}>
+                        {esBreak ? '—' : item.correo}
+                      </small>
+                    </td>
+                    <td>
+                      {esBreak ? (
+                        <em style={{ color: 'var(--primary-500)' }}>{item.tema}</em>
+                      ) : (
+                        <span style={{ color: 'var(--gray-800)' }}>{item.tema}</span>
+                      )}
+                    </td>
+                    <td className="text-center">
+                      <span 
+                        className="badge" 
+                        style={{ 
+                          backgroundColor: 'var(--primary-200)', 
+                          color: 'var(--primary-900)',
+                          fontSize: '0.85rem'
+                        }}
+                      >
+                        {item.duracion} min
+                      </span>
+                    </td>
+                    <td className="text-center">
+                      <button
+                        className="btn btn-sm"
+                        style={{
+                          border: 'none',
+                          color: 'white'
+                        }}
+                        onClick={() => handleEliminarItem(index)}
+                        disabled={disabled}
+                        title="Eliminar"
+                      >
+                        ❌
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div 
+          className="alert text-center py-4 mb-3 mt-3" 
+          style={{ 
+            backgroundColor: 'var(--gray-100)', 
+            border: `2px dashed var(--gray-400)`,
+            color: 'var(--gray-700)'
+          }}
+        >
+          <i className="bi bi-calendar-x fs-1 d-block mb-2" style={{ color: 'var(--gray-500)' }}></i>
+          <p className="mb-0">
+            No hay expositores programados para <strong>{formatearFecha(diaSeleccionado)}</strong>
+          </p>
+          <small style={{ color: 'var(--gray-600)' }}>Agrega un expositor para comenzar</small>
+        </div>
+      )}
       
       {/* Resumen General */}
       {expositores.length > 0 && (

@@ -78,8 +78,7 @@ const LandingPage = () => {
                   <div className="row g-4 mb-4">
                     <div className="col-12">
                       <div className="d-flex align-items-start">
-                        <div className="bg-primary bg-opacity-10 rounded-circle p-3 me-3 flex-shrink-0">
-                          <i className="fas fa-calendar-check text-primary"></i>
+                        <div className="p-3 me-3">
                         </div>
                         <div>
                           <h5 className="fw-semibold mb-2">Eventos Académicos</h5>
@@ -92,8 +91,7 @@ const LandingPage = () => {
                     
                     <div className="col-12">
                       <div className="d-flex align-items-start">
-                        <div className="bg-success bg-opacity-10 rounded-circle p-3 me-3 flex-shrink-0">
-                          <i className="fas fa-certificate text-success"></i>
+                        <div className="p-3 me-3">
                         </div>
                         <div>
                           <h5 className="fw-semibold mb-2">Certificados Digitales</h5>
@@ -106,8 +104,7 @@ const LandingPage = () => {
                     
                     <div className="col-12">
                       <div className="d-flex align-items-start">
-                        <div className="bg-info bg-opacity-10 rounded-circle p-3 me-3 flex-shrink-0">
-                          <i className="fas fa-users text-info"></i>
+                        <div className="p-3 me-3">
                         </div>
                         <div>
                           <h5 className="fw-semibold mb-2">Networking</h5>
