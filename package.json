@@ -7,7 +7,17 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest --watch",
+    "test:ui": "vitest --ui",
+    "test:services": "vitest run Tests/services",
+    "test:hooks": "vitest run Tests/hooks",
+    "test:utils": "vitest run Tests/utils",
+    "test:components": "vitest run Tests/components",
+    "test:validation": "vitest run Tests/validation"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.2",
@@ -17,6 +27,7 @@
     "firebase": "^12.3.0",
     "html5-qrcode": "^2.3.8",
     "prop-types": "^15.8.1",
+    "puppeteer": "^24.30.0",
     "qrcode.react": "^3.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
@@ -27,13 +38,21 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.2",
+    "@vitest/coverage-v8": "^4.0.10",
     "eslint": "^9.35.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.4.0",
-    "vite": "^7.1.6"
+    "happy-dom": "^20.0.10",
+    "jsdom": "^27.2.0",
+    "vite": "^7.1.6",
+    "vitest": "^4.0.10"
   }
 }
