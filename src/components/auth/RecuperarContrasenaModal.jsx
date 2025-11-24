@@ -82,7 +82,7 @@ const RecuperarContrasenaModal = ({ show, onClose }) => {
                         <div className="modal-body" style={{ padding: '30px' }}>
                             <div className="alert alert-info-custom mb-4">
                                 <i className="bi bi-info-circle-fill me-2"></i>
-                                Te enviaremos un email con instrucciones para restablecer tu contraseña.
+                                Te enviaremos un email con instrucciones para restablecer tu contraseña (expira en 1 hora).
                             </div>
                             
                             <div className="mb-3">

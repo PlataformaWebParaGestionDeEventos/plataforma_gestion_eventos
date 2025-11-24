@@ -1,3 +1,5 @@
+import { isDisposableEmail } from '../../config/disposableEmailDomains';
+
 // Utilidades para validaciones
 export const validations = {
   // Validar email
@@ -6,9 +8,41 @@ export const validations = {
     return emailRegex.test(email);
   },
 
+  // Validar que el email NO sea temporal/desechable
+  isDisposableEmail: (email) => {
+    return isDisposableEmail(email);
+  },
+
   // Validar email de Gmail específicamente
   isValidGmail: (email) => {
     return email.endsWith('@gmail.com') && email.length > 10;
+  },
+
+  // Validar nombre (solo letras, espacios, acentos, ñ)
+  isValidName: (name) => {
+    // Permite letras (mayúsculas y minúsculas), espacios, acentos y ñ/Ñ
+    // No permite números ni símbolos especiales
+    const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/;
+    return nameRegex.test(name.trim()) && name.trim().length >= 2;
+  },
+
+  // Obtener mensaje de error para nombre inválido
+  getNameErrorMessage: (name, fieldName = 'nombre') => {
+    const trimmedName = name.trim();
+    
+    if (trimmedName.length < 2) {
+      return `El ${fieldName} debe tener al menos 2 caracteres`;
+    }
+    
+    if (/[0-9]/.test(trimmedName)) {
+      return `El ${fieldName} no puede contener números`;
+    }
+    
+    if (/[!@#$%^&*(),.?":{}|<>_\-=+[\]\\\/;'`~]/.test(trimmedName)) {
+      return `El ${fieldName} no puede contener símbolos especiales`;
+    }
+    
+    return `El ${fieldName} solo puede contener letras y espacios`;
   },
 
   // Validar contraseña segura

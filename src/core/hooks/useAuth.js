@@ -59,6 +59,13 @@ export const useAuth = () => {
           const result = await authService.obtenerDatosUsuario(firebaseUser.uid);
           
           if (result.success) {
+            // Actualizar emailVerificado en Firestore si es necesario
+            if (result.userData.emailVerificado === false) {
+              await authService.actualizarEstadoVerificacion(firebaseUser.uid, true);
+              // Actualizar estado local
+              result.userData.emailVerificado = true;
+            }
+            
             setUser(firebaseUser);
             setUserData(result.userData);
             setRole(result.userData.role);

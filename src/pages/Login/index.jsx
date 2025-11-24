@@ -9,6 +9,8 @@ import { doc, setDoc, getDoc } from "firebase/firestore"
 import toastHelper from "../../core/utils/toastHelper"
 import logger from "../../core/utils/logger"
 import RecuperarContrasenaModal from "../../components/auth/RecuperarContrasenaModal"
+import { validations } from "../../core/utils/validations"
+import { authService } from "../../services/authService"
 
 const auth = getAuth(appFirebase)
 const googleProvider = new GoogleAuthProvider()
@@ -68,8 +70,11 @@ const Login = ({ modoInicial = 'login' }) => {
             try {
                 await reload(usuarioCreado);
                 if (usuarioCreado.emailVerified) {
+                    // Actualizar emailVerificado en Firestore
+                    await authService.actualizarEstadoVerificacion(usuarioCreado.uid, true);
+                    
                     toastHelper.success('✅ ¡Email verificado exitosamente! Ya puedes iniciar sesión.');
-                    logger.log('✅ Email verificado');
+                    logger.log('✅ Email verificado y actualizado en Firestore');
                     setEsperandoVerificacion(false);
                     setUsuarioCreado(null);
                     setRegistrando(false);
@@ -109,6 +114,12 @@ const Login = ({ modoInicial = 'login' }) => {
                 return;
             }
 
+            // Validar que NO sea correo temporal/desechable (solo en registro)
+            if (registrando && validations.isDisposableEmail(gmail)) {
+                toastHelper.error('❌ No se permiten correos temporales o desechables. Usa un email válido y permanente.');
+                return;
+            }
+
             if (registrando) {
                 // Obtener campos adicionales si está registrando
                 const nombre = e.target.nombre?.value || '';
@@ -118,6 +129,20 @@ const Login = ({ modoInicial = 'login' }) => {
                 // Validar campos adicionales para registro
                 if (!nombre.trim() || !apellido.trim()) {
                     toastHelper.warning('⚠️ Por favor, completa todos los campos para el registro.');
+                    return;
+                }
+
+                // Validar nombre (solo letras, sin números ni símbolos)
+                if (!validations.isValidName(nombre)) {
+                    const errorMsg = validations.getNameErrorMessage(nombre, 'nombre');
+                    toastHelper.error(`❌ ${errorMsg}`);
+                    return;
+                }
+
+                // Validar apellido (solo letras, sin números ni símbolos)
+                if (!validations.isValidName(apellido)) {
+                    const errorMsg = validations.getNameErrorMessage(apellido, 'apellido');
+                    toastHelper.error(`❌ ${errorMsg}`);
                     return;
                 }
 
@@ -135,6 +160,13 @@ const Login = ({ modoInicial = 'login' }) => {
                 }
 
                 try {
+                    // Verificar si el email ya está registrado en Firestore
+                    const emailExiste = await authService.verificarEmailExistente(gmail);
+                    if (emailExiste) {
+                        toastHelper.error('❌ Este email ya está registrado. Si es tuyo, intenta iniciar sesión o recuperar tu contraseña.');
+                        return;
+                    }
+
                     // Crear usuario en Firebase Auth
                     const userCredential = await createUserWithEmailAndPassword(auth, gmail, password);
                     const user = userCredential.user;
@@ -215,7 +247,15 @@ const Login = ({ modoInicial = 'login' }) => {
                     try {
                         const userDoc = await getDoc(doc(db, 'users', user.uid));
                         if (userDoc.exists()) {
-                            const role = userDoc.data().role; // ✅ CORREGIDO: usar 'role' no 'rol'
+                            const userData = userDoc.data();
+                            const role = userData.role; // ✅ CORREGIDO: usar 'role' no 'rol'
+                            
+                            // Actualizar emailVerificado en Firestore si es necesario
+                            if (userData.emailVerificado === false && user.emailVerified) {
+                                await authService.actualizarEstadoVerificacion(user.uid, true);
+                                logger.log('✅ Estado de verificación actualizado en Firestore');
+                            }
+                            
                             logger.log('📋 Role del usuario:', role);
                             
                             // Navegar según role
@@ -247,7 +287,7 @@ const Login = ({ modoInicial = 'login' }) => {
         }
     
     /**
-     * ✅ NUEVO: Iniciar sesión con Google
+     * NUEVO: Iniciar sesión con Google
      */
     const iniciarSesionConGoogle = async () => {
         try {
@@ -372,7 +412,7 @@ const Login = ({ modoInicial = 'login' }) => {
                                                 </p>
                                                 <strong className="small">{usuarioCreado?.email}</strong>
                                             </div>
-                                            <small className="text-muted">Revisa tu bandeja de entrada y spam</small>
+                                            <small className="text-muted">Revisa tu bandeja de entrada y spam (expira en 1 día)</small>
                                         </div>
                                         
                                         <div className="d-grid gap-2 mb-3">
@@ -514,7 +554,7 @@ const Login = ({ modoInicial = 'login' }) => {
                                             {!registrando && (
                                                 <>
                                                     <div className="text-center mb-3">
-                                                        <small className="text-muted">O continúa con</small>
+                                                        <small className="text-muted">O</small>
                                                     </div>
                                                     <div className="d-grid mb-3">
                                                         <button 
