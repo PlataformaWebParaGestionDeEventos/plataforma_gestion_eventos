@@ -25,6 +25,7 @@ import NotFound from '../pages/NotFound';
 import OrganizadorLayout from '../pages/OrganizadorLayout';
 import AlumnoLayout from '../pages/AlumnoLayout';
 import Perfil from '../pages/Perfil';
+import VerificarCertificado from '../pages/VerificarCertificado';
 
 const AppRouter = () => {
   return (
@@ -54,6 +55,15 @@ const AppRouter = () => {
           element={
             <PublicRoute>
               <Login modoInicial="register" />
+            </PublicRoute>
+          } 
+        />
+        
+        <Route 
+          path="/verificar-certificado" 
+          element={
+            <PublicRoute>
+              <VerificarCertificado />
             </PublicRoute>
           } 
         />

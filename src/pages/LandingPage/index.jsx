@@ -2,7 +2,6 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import loginVectorImage from '../../assets/fondo2Sistemas.jpg';
 import FondoImage from '../../assets/fondo.jpg';
-import toastHelper from '../../core/utils/toastHelper';
 
 
 const LandingPage = () => {
@@ -129,7 +128,7 @@ const LandingPage = () => {
                     
                     <button 
                       className="btn btn-outline-info btn-lg rounded-pill fw-semibold py-3 position-relative"
-                      onClick={() => toastHelper.info('Función en desarrollo - Próximamente podrás verificar certificados en blockchain')}
+                      onClick={() => navigate('/verificar-certificado')}
                       style={{ 
                         borderWidth: '2px',
                         background: 'linear-gradient(45deg, rgba(13, 202, 240, 0.1), rgba(13, 110, 253, 0.1))'
