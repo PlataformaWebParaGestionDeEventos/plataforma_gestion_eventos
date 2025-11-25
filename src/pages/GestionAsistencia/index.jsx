@@ -13,6 +13,7 @@ import QRScanner from '../../components/qr/QRScanner';
 import firestoreService from '../../services/firestoreService';
 import toastHelper from '../../core/utils/toastHelper';
 import formatters from '../../core/utils/formatters';
+import { useButtonDebounce } from '../../core/hooks';
 import './GestionAsistencia.css';
 
 const auth = getAuth(appFirebase);
@@ -20,6 +21,7 @@ const auth = getAuth(appFirebase);
 const GestionAsistencia = () => {
   const { eventoId } = useParams();
   const navigate = useNavigate();
+  const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(5000);
   
   const [evento, setEvento] = useState(null);
   const [participantes, setParticipantes] = useState([]);

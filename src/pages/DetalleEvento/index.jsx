@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEventosAlumno } from '../../core/hooks/useEventosAlumno';
+import { useButtonDebounce } from '../../core/hooks';
 import toastHelper from '../../core/utils/toastHelper';
 import logger from '../../core/utils/logger';
 import formatters from '../../core/utils/formatters';
@@ -9,6 +10,7 @@ const DetalleEvento = () => {
   const { eventoId } = useParams();
   const navigate = useNavigate();
   const { obtenerEvento, inscribirseEvento, estaInscrito, loading } = useEventosAlumno();
+  const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(5000);
   const [evento, setEvento] = useState(null);
   const [procesandoInscripcion, setProcesandoInscripcion] = useState(false);
 
@@ -193,8 +195,8 @@ const DetalleEvento = () => {
                 ) : (
                   <button 
                     className="btn btn-lg btn-primary-custom"
-                    onClick={handleInscripcion}
-                    disabled={procesandoInscripcion || eventoLleno}
+                    onClick={handleButtonClick(handleInscripcion)}
+                    disabled={procesandoInscripcion || eventoLleno || isButtonDisabled}
                   >
                     {procesandoInscripcion ? (
                       <>

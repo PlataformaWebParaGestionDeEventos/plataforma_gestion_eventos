@@ -5,6 +5,7 @@ import { getAuth } from "firebase/auth";
 import { collection, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import firestoreService from "../../services/firestoreService";
 import { useAuth } from "../../core/hooks/useAuth";
+import { useButtonDebounce } from "../../core/hooks";
 import toastHelper from "../../core/utils/toastHelper";
 import logger from "../../core/utils/logger";
 import ExpositoresTable from "../../components/ExpositoresTable";  // ✅ NUEVO
@@ -14,6 +15,7 @@ const HomeOrganizador = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user, userData } = useAuth();
+    const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(5000);
     
     // Detectar vista actual según la ruta
     const [vistaLocal, setVistaLocal] = useState(null); // Para vistas internas como 'participantes'
@@ -93,6 +95,18 @@ const HomeOrganizador = () => {
                     errores.descripcion = 'Máximo 500 caracteres';
                 } else {
                     delete errores.descripcion;
+                }
+                break;
+                
+            case 'horaInicio':
+            case 'horaFin':
+                if (valor) {
+                    const [hora] = valor.split(':').map(Number);
+                    if (hora < 6 || hora >= 23) {
+                        errores[campo] = 'La hora debe estar entre 6:00 AM y 11:00 PM';
+                    } else {
+                        delete errores[campo];
+                    }
                 }
                 break;
                 
@@ -504,12 +518,7 @@ const HomeOrganizador = () => {
 
     // Función para iniciar edición de evento
     const iniciarEdicion = (evento) => {
-        // Validar que el evento no esté finalizado
-        if (evento.estado === 'finalizado') {
-            toastHelper.warning('⚠️ Los eventos finalizados no pueden editarse. Puedes ver sus reportes en la sección de Reportes.');
-            return;
-        }
-
+        // ✅ PERMITIR editar eventos finalizados
         setEventoEditando(evento);
         setNuevoEvento({
             titulo: evento.titulo,
@@ -918,7 +927,7 @@ const HomeOrganizador = () => {
                                             </h5>
                                         </div>
                                         <div className="card-body p-4">
-                                            <form onSubmit={eventoEditando ? actualizarEvento : crearEvento}>
+                                            <form onSubmit={handleButtonClick(eventoEditando ? actualizarEvento : crearEvento)}>
                                                 <div className="row g-3">
                                                     <div className="col-12 col-md-8">
                                                         <label className="form-label fw-semibold">Título del Evento *</label>
@@ -1000,9 +1009,10 @@ const HomeOrganizador = () => {
                                                                 unAnoDespues.setFullYear(unAnoDespues.getFullYear() + 1);
                                                                 return unAnoDespues.toISOString().split('T')[0];
                                                             })()}
+                                                            disabled={!nuevoEvento.fechaInicio}
                                                             required
                                                         />
-                                                        <small className="text-muted">Puede ser igual o posterior a la fecha de inicio</small>
+                                                        <small className="text-muted">{!nuevoEvento.fechaInicio ? 'Selecciona primero la fecha de inicio' : 'Puede ser igual o posterior a la fecha de inicio'}</small>
                                                     </div>
                                                 </div>
 
@@ -1016,9 +1026,10 @@ const HomeOrganizador = () => {
                                                             onChange={(e) => setNuevoEvento({...nuevoEvento, horaInicio: e.target.value})}
                                                             min="06:00"
                                                             max="23:00"
+                                                            disabled={!nuevoEvento.fechaInicio}
                                                             required
                                                         />
-                                                        <small className="text-muted">6:00 AM - 11:00 PM</small>
+                                                        <small className="text-muted">{!nuevoEvento.fechaInicio ? 'Selecciona primero la fecha de inicio' : '6:00 AM - 11:00 PM'}</small>
                                                     </div>
                                                     <div className="col-6 col-md-3">
                                                         <label className="form-label fw-semibold">Hora de Fin *</label>
@@ -1029,9 +1040,10 @@ const HomeOrganizador = () => {
                                                             onChange={(e) => setNuevoEvento({...nuevoEvento, horaFin: e.target.value})}
                                                             min="06:00"
                                                             max="23:00"
+                                                            disabled={!nuevoEvento.fechaInicio || !nuevoEvento.horaInicio}
                                                             required
                                                         />
-                                                        <small className="text-muted">6:00 AM - 11:00 PM</small>
+                                                        <small className="text-muted">{!nuevoEvento.fechaInicio || !nuevoEvento.horaInicio ? 'Selecciona primero fecha y hora de inicio' : '6:00 AM - 11:00 PM'}</small>
                                                     </div>
                                                     <div className="col-6 col-md-3">
                                                         <label className="form-label fw-semibold">Capacidad *</label>
@@ -1054,17 +1066,11 @@ const HomeOrganizador = () => {
                                                             className="form-select"
                                                             value={nuevoEvento.estado}
                                                             onChange={(e) => setNuevoEvento({...nuevoEvento, estado: e.target.value})}
-                                                            disabled={eventoEditando && eventoEditando.estado === 'finalizado'}
                                                         >
                                                             <option value="borrador">Borrador</option>
                                                             <option value="publicado">Publicado</option>
-                                                            {eventoEditando && eventoEditando.estado === 'finalizado' && (
-                                                                <option value="finalizado">Finalizado</option>
-                                                            )}
+                                                            <option value="finalizado">Finalizado</option>
                                                         </select>
-                                                        {eventoEditando && eventoEditando.estado === 'finalizado' && (
-                                                            <small className="text-muted">Los eventos finalizados no pueden modificarse</small>
-                                                        )}
                                                     </div>
                                                 </div>
 
@@ -1075,6 +1081,11 @@ const HomeOrganizador = () => {
                                                             <i className="bi bi-info-circle-fill fs-4 me-3"></i>
                                                             <div className="flex-grow-1">
                                                                 <h6 className="fw-bold mb-2">Modo de Registro de Asistencia</h6>
+                                                                {eventoEditando && (
+                                                                    <div className="alert alert-warning py-2 px-3 mb-2">
+                                                                        <small><i className="bi bi-lock-fill me-1"></i> No se puede cambiar el modo de asistencia en eventos existentes</small>
+                                                                    </div>
+                                                                )}
                                                                 <div className="row g-3">
                                                                     <div className="col-12 col-md-6">
                                                                         <div className="form-check">
@@ -1086,6 +1097,7 @@ const HomeOrganizador = () => {
                                                                                 value="por_dia"
                                                                                 checked={nuevoEvento.modoAsistencia === 'por_dia'}
                                                                                 onChange={(e) => setNuevoEvento({...nuevoEvento, modoAsistencia: e.target.value})}
+                                                                                disabled={!!eventoEditando}
                                                                             />
                                                                             <label className="form-check-label" htmlFor="modoPorDia">
                                                                                 <div className="fw-semibold">Por Día</div>
@@ -1105,6 +1117,7 @@ const HomeOrganizador = () => {
                                                                                 value="por_ponente"
                                                                                 checked={nuevoEvento.modoAsistencia === 'por_ponente'}
                                                                                 onChange={(e) => setNuevoEvento({...nuevoEvento, modoAsistencia: e.target.value})}
+                                                                                disabled={!!eventoEditando}
                                                                             />
                                                                             <label className="form-check-label" htmlFor="modoPorPonente">
                                                                                 <div className="fw-semibold">Por Ponente</div>
@@ -1226,7 +1239,7 @@ const HomeOrganizador = () => {
                                                 </div>
 
                                                 <div className="d-flex flex-column flex-sm-row gap-2 mt-4">
-                                                    <button type="submit" className="btn btn-primary">
+                                                    <button type="submit" className="btn btn-primary" disabled={isButtonDisabled}>
                                                         {eventoEditando ? 'Actualizar Evento' : 'Crear Evento'}
                                                     </button>
                                                     <button 
@@ -1333,8 +1346,8 @@ const HomeOrganizador = () => {
                                                                 <div className="d-flex flex-column gap-2">
                                                                     <button 
                                                                         className="btn btn-outline-primary btn-sm"
-                                                                        onClick={() => iniciarEdicion(evento)}
-                                                                        disabled={evento.estado === 'finalizado'}
+                                                                        onClick={handleButtonClick(() => iniciarEdicion(evento))}
+                                                                        disabled={evento.estado === 'finalizado' || isButtonDisabled}
                                                                         title={evento.estado === 'finalizado' ? 'Los eventos finalizados no pueden editarse' : 'Editar evento'}
                                                                     >
                                                                         {evento.estado === 'finalizado' ? '🔒 Finalizado' : 'Editar'}
@@ -1352,8 +1365,8 @@ const HomeOrganizador = () => {
                                                                             <div className="col-6">
                                                                                 <button 
                                                                                     className={`btn btn-sm w-100 ${evento.inscripcionesAbiertas ? 'btn-danger' : 'btn-secondary'}`}
-                                                                                    onClick={() => cerrarInscripcionesManual(evento)}
-                                                                                    disabled={!evento.inscripcionesAbiertas}
+                                                                                    onClick={handleButtonClick(() => cerrarInscripcionesManual(evento))}
+                                                                                    disabled={!evento.inscripcionesAbiertas || isButtonDisabled}
                                                                                     title={evento.inscripcionesAbiertas ? 'Cerrar inscripciones' : 'Ya cerradas'}
                                                                                 >
                                                                                     <i className="bi bi-lock-fill"></i>
@@ -1363,8 +1376,8 @@ const HomeOrganizador = () => {
                                                                             <div className="col-6">
                                                                                 <button 
                                                                                     className={`btn btn-sm w-100 ${!evento.inscripcionesAbiertas ? 'btn-success' : 'btn-secondary'}`}
-                                                                                    onClick={() => reabrirInscripcionesManual(evento)}
-                                                                                    disabled={evento.inscripcionesAbiertas}
+                                                                                    onClick={handleButtonClick(() => reabrirInscripcionesManual(evento))}
+                                                                                    disabled={evento.inscripcionesAbiertas || isButtonDisabled}
                                                                                     title={!evento.inscripcionesAbiertas ? 'Reabrir inscripciones' : 'Ya abiertas'}
                                                                                 >
                                                                                     <i className="bi bi-unlock-fill"></i>
@@ -1384,8 +1397,8 @@ const HomeOrganizador = () => {
                                                                             <div className="col-6">
                                                                                 <button 
                                                                                     className={`btn btn-sm w-100 ${evento.asistenciaAbierta !== false ? 'btn-danger' : 'btn-secondary'}`}
-                                                                                    onClick={() => cerrarAsistenciaManual(evento)}
-                                                                                    disabled={evento.asistenciaAbierta === false}
+                                                                                    onClick={handleButtonClick(() => cerrarAsistenciaManual(evento))}
+                                                                                    disabled={evento.asistenciaAbierta === false || isButtonDisabled}
                                                                                     title={evento.asistenciaAbierta !== false ? 'Cerrar asistencia' : 'Ya cerrada'}
                                                                                 >
                                                                                     <i className="bi bi-lock-fill"></i>
@@ -1395,8 +1408,8 @@ const HomeOrganizador = () => {
                                                                             <div className="col-6">
                                                                                 <button 
                                                                                     className={`btn btn-sm w-100 ${evento.asistenciaAbierta === false ? 'btn-success' : 'btn-secondary'}`}
-                                                                                    onClick={() => reabrirAsistenciaManual(evento)}
-                                                                                    disabled={evento.asistenciaAbierta !== false}
+                                                                                    onClick={handleButtonClick(() => reabrirAsistenciaManual(evento))}
+                                                                                    disabled={evento.asistenciaAbierta !== false || isButtonDisabled}
                                                                                     title={evento.asistenciaAbierta === false ? 'Reabrir asistencia' : 'Ya abierta'}
                                                                                 >
                                                                                     <i className="bi bi-unlock-fill"></i>
@@ -1447,7 +1460,8 @@ const HomeOrganizador = () => {
                                                                             </small>
                                                                             <button 
                                                                                 className="btn btn-success btn-sm w-100"
-                                                                                onClick={() => finalizarEvento(evento)}
+                                                                                onClick={handleButtonClick(() => finalizarEvento(evento))}
+                                                                                disabled={isButtonDisabled}
                                                                                 title="Finalizar evento y generar reportes"
                                                                             >
                                                                                 <i className="bi bi-check-circle-fill me-1"></i>
@@ -1460,7 +1474,8 @@ const HomeOrganizador = () => {
                                                                         <div className="col-12">
                                                                             <button 
                                                                                 className="btn btn-outline-danger btn-sm w-100"
-                                                                                onClick={() => eliminarEvento(evento.id, evento.titulo)}
+                                                                                onClick={handleButtonClick(() => eliminarEvento(evento.id, evento.titulo))}
+                                                                                disabled={isButtonDisabled}
                                                                             >
                                                                                 <i className="bi bi-trash me-1"></i>
                                                                                 Eliminar Evento

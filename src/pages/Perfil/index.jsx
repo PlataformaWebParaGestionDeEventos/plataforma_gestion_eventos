@@ -199,7 +199,7 @@ const Perfil = () => {
                             </h5>
                         </div>
                         <div className="card-body">
-                            <form onSubmit={handleUpdateProfile}>
+                            <form onSubmit={handleButtonClick(handleUpdateProfile)}>
                                 <div className="mb-3">
                                     <label className="form-label fw-semibold">Correo Electrónico</label>
                                     <input
@@ -251,8 +251,8 @@ const Perfil = () => {
 
                                 <button 
                                     type="submit" 
-                                    className="btn btn-primary-custom w-100"
-                                    disabled={updating}
+                                    className="btn btn-primary"
+                                    disabled={updating || isButtonDisabled}
                                 >
                                     {updating ? (
                                         <>
@@ -281,7 +281,7 @@ const Perfil = () => {
                             </h5>
                         </div>
                         <div className="card-body">
-                            <form onSubmit={handleChangePassword}>
+                            <form onSubmit={handleButtonClick(handleChangePassword)}>
                                 <div className="mb-3">
                                     <label className="form-label fw-semibold">
                                         Contraseña Actual <span className="text-danger">*</span>
@@ -330,7 +330,7 @@ const Perfil = () => {
                                 <button 
                                     type="submit" 
                                     className="btn btn-primary-custom w-100"
-                                    disabled={changingPassword}
+                                    disabled={changingPassword || isButtonDisabled}
                                 >
                                     {changingPassword ? (
                                         <>

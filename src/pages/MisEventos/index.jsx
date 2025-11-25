@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEventosAlumno } from '../../core/hooks/useEventosAlumno';
+import { useButtonDebounce } from '../../core/hooks';
 import QRGenerator from '../../components/qr/QRGenerator';
 import { authService } from '../../services/authService';
 import formatters from '../../core/utils/formatters';
@@ -10,6 +11,7 @@ import logger from '../../core/utils/logger';
 const MisEventos = () => {
   const navigate = useNavigate();
   const { eventosInscritos, desinscribirseEvento, loading, error } = useEventosAlumno();
+  const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(5000);
   const currentUser = authService.getCurrentUser();
 
   const handleDesinscripcion = async (eventoId) => {
@@ -299,7 +301,8 @@ const MisEventos = () => {
                                   ) : !participanteInfo?.asistio ? (
                                     <button 
                                       className="btn btn-outline-danger btn-sm"
-                                      onClick={() => handleDesinscripcion(evento.id)}
+                                      onClick={handleButtonClick(() => handleDesinscripcion(evento.id))}
+                                      disabled={isButtonDisabled}
                                     >
                                       <i className="bi bi-x-circle me-2"></i>
                                       Desinscribirse

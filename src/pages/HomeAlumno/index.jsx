@@ -2,11 +2,13 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useEventosAlumno } from "../../core/hooks/useEventosAlumno";
 import { useAuth } from "../../core/hooks/useAuth";
+import { useButtonDebounce } from "../../core/hooks";
 import formatters from "../../core/utils/formatters";
 
 const HomeAlumno = () => {
     const navigate = useNavigate();
     const { user, userData } = useAuth();
+    const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(5000);
     
     const { 
         eventosDisponibles,
@@ -144,8 +146,8 @@ const HomeAlumno = () => {
                                                                         </button>
                                                                         <button 
                                                                             className={`btn fw-semibold ${yaInscrito ? 'btn-info-custom' : inscripcionesCerradas ? 'btn-secondary' : 'btn-primary-custom'}`}
-                                                                            onClick={() => handleInscripcion(evento)}
-                                                                            disabled={isInscribiendo || isDesinscribiendo || (inscripcionesCerradas && !yaInscrito)}
+                                                                            onClick={handleButtonClick(() => handleInscripcion(evento))}
+                                                                            disabled={isInscribiendo || isDesinscribiendo || (inscripcionesCerradas && !yaInscrito) || isButtonDisabled}
                                                                         >
                                                                             {(isInscribiendo || isDesinscribiendo) ? (
                                                                                 <>

@@ -2,6 +2,8 @@
 import PropTypes from 'prop-types';
 import { validateExpositor } from '../../core/validation/eventoValidation';
 import { VALIDATION_RULES } from '../../config/constants';
+import toastHelper from '../../core/utils/toastHelper';
+import { useButtonDebounce } from '../../core/hooks';
 
 const ExpositoresTable = ({ 
   expositores = [], 
@@ -23,6 +25,12 @@ const ExpositoresTable = ({
     horaInicio: '',
     horaFin: ''
   });
+  // ✅ NUEVO: Estados para edición
+  const [editandoIndex, setEditandoIndex] = useState(null);
+  const [editandoBreak, setEditandoBreak] = useState(false);
+  
+  // ✅ Hook para prevenir múltiples clics
+  const { isDisabled, handleClick } = useButtonDebounce(5000);
 
   // Generar array de días del evento
   const diasDelEvento = useMemo(() => {
@@ -41,26 +49,6 @@ const ExpositoresTable = ({
     if (!diaSeleccionado) return [];
     return expositores.filter(item => item.dia === diaSeleccionado).sort((a, b) => a.hora.localeCompare(b.hora));
   }, [expositores, diaSeleccionado]);
-  
-  // Generar array de horas del evento (cada 30 minutos)
-  const horasDelEvento = useMemo(() => {
-    if (!horaInicio || !horaFin) return [];
-    const horas = [];
-    const [horaIni, minIni] = horaInicio.split(':').map(Number);
-    const [horaFinal, minFinal] = horaFin.split(':').map(Number);
-    
-    let minutoActual = horaIni * 60 + minIni;
-    const minutoFinal = horaFinal * 60 + minFinal;
-    
-    while (minutoActual <= minutoFinal) {
-      const h = Math.floor(minutoActual / 60);
-      const m = minutoActual % 60;
-      horas.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-      minutoActual += 30; // Intervalos de 30 minutos
-    }
-    
-    return horas;
-  }, [horaInicio, horaFin]);
 
   useEffect(() => {
     if (diasDelEvento.length > 0 && !diaSeleccionado) {
@@ -82,8 +70,10 @@ const ExpositoresTable = ({
     }
   };
 
-  const verificarConflictoHorario = (nuevoItem) => {
-    const itemsDelMismoDia = expositores.filter(item => item.dia === nuevoItem.dia);
+  const verificarConflictoHorario = (nuevoItem, indexAIgnorar = null) => {
+    const itemsDelMismoDia = expositores.filter((item, idx) => 
+      item.dia === nuevoItem.dia && idx !== indexAIgnorar
+    );
     const [horaInicioNuevo, minInicioNuevo] = nuevoItem.hora.split(':').map(Number);
     const inicioNuevoMinutos = horaInicioNuevo * 60 + minInicioNuevo;
     const finNuevoMinutos = inicioNuevoMinutos + nuevoItem.duracion;
@@ -105,23 +95,66 @@ const ExpositoresTable = ({
     return false;
   };
 
-  const handleAgregarExpositor = async (e) => {
-    e.preventDefault();
+  // ✅ NUEVO: Validar que la hora esté dentro del rango del evento
+  const validarHoraEnRango = (hora) => {
+    if (!horaInicio || !horaFin || !hora) return true;
+    
+    const [h, m] = hora.split(':').map(Number);
+    const [hInicio, mInicio] = horaInicio.split(':').map(Number);
+    const [hFin, mFin] = horaFin.split(':').map(Number);
+    
+    const minutos = h * 60 + m;
+    const minutosInicio = hInicio * 60 + mInicio;
+    const minutosFin = hFin * 60 + mFin;
+    
+    return minutos >= minutosInicio && minutos <= minutosFin;
+  };
+
+  const handleAgregarExpositor = async (e = null) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     if (!diaSeleccionado) {
       setErrors({ general: 'Selecciona un día primero' });
       return;
     }
+    
+    // ✅ NUEVO: Validar que la hora esté dentro del rango del evento
+    if (!validarHoraEnRango(formData.hora)) {
+      setErrors({ hora: `La hora debe estar entre ${horaInicio} y ${horaFin}` });
+      return;
+    }
+    
     const validation = await validateExpositor({ ...formData, dia: diaSeleccionado, duracion: Number(formData.duracion), break: false });
     if (!validation.isValid) {
       setErrors(validation.errors);
       return;
     }
+    
     const nuevoExpositor = validation.data;
-    if (verificarConflictoHorario(nuevoExpositor)) {
-      setErrors({ hora: 'Ya existe un expositor o break en ese horario' });
-      return;
+    
+    // Si estamos editando, actualizar el expositor existente
+    if (editandoIndex !== null) {
+      const indexReal = expositores.findIndex((_, idx) => idx === editandoIndex);
+      if (verificarConflictoHorario(nuevoExpositor, indexReal)) {
+        setErrors({ hora: 'Ya existe un expositor o break en ese horario' });
+        return;
+      }
+      const nuevosExpositores = [...expositores];
+      nuevosExpositores[indexReal] = nuevoExpositor;
+      setExpositores(nuevosExpositores);
+      setEditandoIndex(null);
+    } else {
+      // Si no estamos editando, agregar nuevo
+      if (verificarConflictoHorario(nuevoExpositor)) {
+        setErrors({ hora: 'Ya existe un expositor o break en ese horario' });
+        return;
+      }
+      setExpositores([...expositores, nuevoExpositor]);
     }
-    setExpositores([...expositores, nuevoExpositor]);
+    
     setFormData({ nombre: '', correo: '', tema: '', hora: horaInicio || '', duracion: 60 });
     setErrors({});
   };
@@ -131,16 +164,26 @@ const ExpositoresTable = ({
     setMensajeBreak(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleAgregarBreak = async (e) => {
-    e.preventDefault();
+  const handleAgregarBreak = async (e = null) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     if (!diaSeleccionado) {
-      alert('Selecciona un día primero');
+      toastHelper.error('❌ Selecciona un día primero');
       return;
     }
     
     // Validar que se hayan completado los campos
     if (!mensajeBreak.horaInicio || !mensajeBreak.horaFin) {
-      alert('Debes completar la hora de inicio y fin del break');
+      toastHelper.error('❌ Debes completar la hora de inicio y fin del break');
+      return;
+    }
+    
+    // ✅ NUEVO: Validar que la hora de inicio esté dentro del rango del evento
+    if (!validarHoraEnRango(mensajeBreak.horaInicio)) {
+      toastHelper.error(`❌ La hora de inicio debe estar entre ${horaInicio} y ${horaFin}`);
       return;
     }
     
@@ -150,12 +193,12 @@ const ExpositoresTable = ({
     const duracion = (hFin * 60 + mFin) - (hIni * 60 + mIni);
     
     if (duracion <= 0) {
-      alert('La hora de fin debe ser posterior a la hora de inicio');
+      toastHelper.error('❌ La hora de fin debe ser posterior a la hora de inicio');
       return;
     }
     
     if (duracion < 5 || duracion > 480) {
-      alert('La duración del break debe estar entre 5 y 480 minutos');
+      toastHelper.error('❌ La duración del break debe estar entre 5 y 480 minutos');
       return;
     }
     
@@ -169,22 +212,83 @@ const ExpositoresTable = ({
       break: true
     };
     
-    // No validamos con validateExpositor porque los breaks no son expositores reales
-    // Solo verificamos conflictos horarios
-    if (verificarConflictoHorario(nuevoBreak)) {
-      alert('Ya existe un expositor o break en ese horario');
-      return;
+    // Si estamos editando, actualizar el break existente
+    if (editandoIndex !== null) {
+      const indexReal = expositores.findIndex((_, idx) => idx === editandoIndex);
+      if (verificarConflictoHorario(nuevoBreak, indexReal)) {
+        toastHelper.error('❌ Ya existe un expositor o break en ese horario');
+        return;
+      }
+      const nuevosExpositores = [...expositores];
+      nuevosExpositores[indexReal] = nuevoBreak;
+      setExpositores(nuevosExpositores);
+      setEditandoIndex(null);
+    } else {
+      // Si no estamos editando, agregar nuevo
+      if (verificarConflictoHorario(nuevoBreak)) {
+        toastHelper.error('❌ Ya existe un expositor o break en ese horario');
+        return;
+      }
+      setExpositores([...expositores, nuevoBreak]);
     }
     
-    setExpositores([...expositores, nuevoBreak]);
     setMensajeBreak({ mensaje: '', horaInicio: '', horaFin: '' });
     setMostrarFormBreak(false);
+    setEditandoBreak(false);
   };
 
   const handleEliminarItem = (index) => {
     const item = itemsDelDia[index];
     const nuevosExpositores = expositores.filter(exp => !(exp.dia === item.dia && exp.hora === item.hora && exp.nombre === item.nombre));
     setExpositores(nuevosExpositores);
+  };
+
+  // ✅ NUEVO: Función para editar un expositor o break
+  const handleEditarItem = (index) => {
+    const item = itemsDelDia[index];
+    const indexReal = expositores.findIndex(exp => 
+      exp.dia === item.dia && exp.hora === item.hora && exp.nombre === item.nombre
+    );
+    
+    if (item.break) {
+      // Es un break/mensaje
+      const [hFin, mFin] = item.hora.split(':').map(Number);
+      const finMinutos = hFin * 60 + mFin + item.duracion;
+      const horaFinCalculada = `${String(Math.floor(finMinutos / 60)).padStart(2, '0')}:${String(finMinutos % 60).padStart(2, '0')}`;
+      
+      setMensajeBreak({
+        mensaje: item.tema,
+        horaInicio: item.hora,
+        horaFin: horaFinCalculada
+      });
+      setMostrarFormBreak(true);
+      setEditandoBreak(true);
+      setEditandoIndex(indexReal);
+    } else {
+      // Es un expositor
+      setFormData({
+        nombre: item.nombre,
+        correo: item.correo,
+        tema: item.tema,
+        hora: item.hora,
+        duracion: item.duracion
+      });
+      setEditandoIndex(indexReal);
+      setEditandoBreak(false);
+    }
+    
+    // Hacer scroll al formulario
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // ✅ NUEVO: Función para cancelar edición
+  const handleCancelarEdicion = () => {
+    setEditandoIndex(null);
+    setEditandoBreak(false);
+    setFormData({ nombre: '', correo: '', tema: '', hora: horaInicio || '', duracion: 60 });
+    setMensajeBreak({ mensaje: '', horaInicio: '', horaFin: '' });
+    setMostrarFormBreak(false);
+    setErrors({});
   };
 
   const formatearFecha = (fechaISO) => {
@@ -250,7 +354,9 @@ const ExpositoresTable = ({
           className="card-header text-white" 
           style={{ backgroundColor: 'var(--primary-600)' }}
         >
-          <h6 className="mb-0">Agregar Expositor</h6>
+          <h6 className="mb-0">
+            {editandoIndex !== null && !editandoBreak ? '✏️ Editar Expositor' : 'Agregar Expositor'}
+          </h6>
         </div>
         <div className="card-body" style={{ backgroundColor: 'var(--primary-50)' }}>
           <div className="row g-3">
@@ -349,25 +455,47 @@ const ExpositoresTable = ({
               )}
               
               <div className="col-12">
-                <button 
-                  type="button"
-                  className="btn"
-                  style={{
-                    backgroundColor: 'var(--primary-600)',
-                    border: 'none',
-                    color: 'white',
-                    fontWeight: 'bold',
-                    padding: '0.75rem 1.5rem'
-                  }}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleAgregarExpositor(e);
-                  }}
-                  disabled={disabled}
-                >
-                  ➕ Agregar Expositor al {formatearFecha(diaSeleccionado)}
-                </button>
+                <div className="d-flex gap-2">
+                  <button 
+                    type="button"
+                    className="btn"
+                    style={{
+                      backgroundColor: 'var(--primary-600)',
+                      border: 'none',
+                      color: 'white',
+                      fontWeight: 'bold',
+                      padding: '0.75rem 1.5rem'
+                    }}
+                    onClick={handleClick(async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      await handleAgregarExpositor();
+                    })}
+                    disabled={disabled || isDisabled}
+                  >
+                    {editandoIndex !== null && !editandoBreak ? '💾 Guardar Cambios' : `➕ Agregar Expositor al ${formatearFecha(diaSeleccionado)}`}
+                  </button>
+                  {editandoIndex !== null && !editandoBreak && (
+                    <button 
+                      type="button"
+                      className="btn"
+                      style={{
+                        backgroundColor: 'var(--gray-500)',
+                        border: 'none',
+                        color: 'white',
+                        padding: '0.75rem 1.5rem'
+                      }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleCancelarEdicion();
+                      }}
+                      disabled={disabled}
+                    >
+                      ❌ Cancelar
+                    </button>
+                  )}
+                </div>
               </div>
               
             </div>
@@ -380,12 +508,15 @@ const ExpositoresTable = ({
           className="card-header text-white" 
           style={{ backgroundColor: 'var(--primary-500)' }}
         >
-          <h6 className="mb-0">Mensajes/Recesos</h6>
+          <h6 className="mb-0">
+            {editandoBreak ? '✏️ Editar Mensaje/Receso' : 'Mensajes/Recesos'}
+          </h6>
         </div>
         <div className="card-body" style={{ backgroundColor: '#e7f7ff' }}>
           
           {!mostrarFormBreak ? (
             <button
+              type="button"
               className="btn w-100"
               style={{
                 backgroundColor: 'var(--primary-500)',
@@ -393,7 +524,11 @@ const ExpositoresTable = ({
                 color: 'white',
                 fontWeight: 'bold'
               }}
-              onClick={() => setMostrarFormBreak(true)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setMostrarFormBreak(true);
+              }}
               disabled={disabled}
             >
             Agregar al {formatearFecha(diaSeleccionado)}
@@ -452,11 +587,6 @@ const ExpositoresTable = ({
                   <div className="d-flex gap-2">
                     <button 
                       type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleAgregarBreak(e);
-                      }}
                       className="btn"
                       style={{
                         backgroundColor: 'var(--primary-600)',
@@ -464,9 +594,14 @@ const ExpositoresTable = ({
                         color: 'white',
                         fontWeight: 'bold'
                       }}
-                      disabled={disabled}
+                      onClick={handleClick(async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        await handleAgregarBreak();
+                      })}
+                      disabled={disabled || isDisabled}
                     >
-                      Agregar
+                      {editandoBreak ? '💾 Guardar Cambios' : 'Agregar'}
                     </button>
                     <button 
                       type="button" 
@@ -476,9 +611,15 @@ const ExpositoresTable = ({
                         border: 'none',
                         color: 'white'
                       }}
-                      onClick={() => {
-                        setMostrarFormBreak(false);
-                        setMensajeBreak({ mensaje: '', horaInicio: '', horaFin: '' });
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (editandoBreak) {
+                          handleCancelarEdicion();
+                        } else {
+                          setMostrarFormBreak(false);
+                          setMensajeBreak({ mensaje: '', horaInicio: '', horaFin: '' });
+                        }
                       }}
                       disabled={disabled}
                     >
@@ -504,7 +645,7 @@ const ExpositoresTable = ({
                 <th>Correo</th>
                 <th>Tema / Descripción</th>
                 <th style={{ width: '100px', textAlign: 'center' }}>Duración</th>
-                <th style={{ width: '60px', textAlign: 'center' }}>Quitar</th>
+                <th style={{ width: '120px', textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -562,18 +703,48 @@ const ExpositoresTable = ({
                       </span>
                     </td>
                     <td className="text-center">
-                      <button
-                        className="btn btn-sm"
-                        style={{
-                          border: 'none',
-                          color: 'white'
-                        }}
-                        onClick={() => handleEliminarItem(index)}
-                        disabled={disabled}
-                        title="Eliminar"
-                      >
-                        ❌
-                      </button>
+                      <div className="d-flex gap-1 justify-content-center">
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{
+                            backgroundColor: 'var(--primary-600)',
+                            border: 'none',
+                            color: 'white',
+                            fontSize: '0.75rem',
+                            padding: '0.25rem 0.5rem'
+                          }}
+                          onClick={handleClick(async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            await handleEditarItem(index);
+                          })}
+                          disabled={disabled || isDisabled}
+                          title="Editar"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{
+                            backgroundColor: '#dc3545',
+                            border: 'none',
+                            color: 'white',
+                            fontSize: '0.75rem',
+                            padding: '0.25rem 0.5rem'
+                          }}
+                          onClick={handleClick(async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            await handleEliminarItem(index);
+                          })}
+                          disabled={disabled || isDisabled}
+                          title="Eliminar"
+                        >
+                          ❌
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -599,31 +770,76 @@ const ExpositoresTable = ({
       )}
       
       {/* Resumen General */}
-      {expositores.length > 0 && (
-        <div 
-          className="alert mt-3" 
-          style={{ 
-            backgroundColor: 'var(--primary-100)', 
-            borderLeft: `4px solid var(--primary-600)`,
-            color: 'var(--primary-900)'
-          }}
-        >
-          <div className="row">
-            <div className="col-md-4">
-              <strong>📊 Total Expositores:</strong>{' '}
-              <span style={{ color: 'var(--primary-700)', fontSize: '1.1rem' }}>
-                {expositores.filter(e => !e.break).length}
-              </span>
+      {expositores.length > 0 && (() => {
+        // Calcular días con expositores reales (no breaks)
+        const expositoresReales = expositores.filter(e => !e.break);
+        const diasConExpositores = new Set(expositoresReales.map(e => e.dia));
+        const diasSinExpositores = diasDelEvento.filter(dia => !diasConExpositores.has(dia));
+        const hayDiasSinExpositores = diasSinExpositores.length > 0 && diasDelEvento.length > 1;
+        
+        return (
+          <>
+            <div 
+              className="alert mt-3" 
+              style={{ 
+                backgroundColor: 'var(--primary-100)', 
+                borderLeft: `4px solid var(--primary-600)`,
+                color: 'var(--primary-900)'
+              }}
+            >
+              <div className="row">
+                <div className="col-md-4">
+                  <strong>📊 Total Expositores:</strong>{' '}
+                  <span style={{ color: 'var(--primary-700)', fontSize: '1.1rem' }}>
+                    {expositoresReales.length}
+                  </span>
+                </div>
+                <div className="col-md-4">
+                  <strong>📅 Días con programación:</strong>{' '}
+                  <span style={{ color: diasConExpositores.size === diasDelEvento.length ? 'var(--success-dark)' : '#dc3545', fontSize: '1.1rem' }}>
+                    {diasConExpositores.size} / {diasDelEvento.length}
+                  </span>
+                </div>
+                <div className="col-md-4">
+                  <strong>☕ Breaks/Mensajes:</strong>{' '}
+                  <span style={{ color: 'var(--gray-700)', fontSize: '1.1rem' }}>
+                    {expositores.filter(e => e.break).length}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="col-md-4">
-              <strong>📅 Días con programación:</strong>{' '}
-              <span style={{ color: 'var(--success-dark)', fontSize: '1.1rem' }}>
-                {new Set(expositores.map(e => e.dia)).size} / {diasDelEvento.length}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+            
+            {/* ✅ NUEVO: Advertencia si faltan expositores en algunos días */}
+            {hayDiasSinExpositores && (
+              <div 
+                className="alert alert-warning mt-3" 
+                style={{ 
+                  borderLeft: `4px solid #ffc107`,
+                  backgroundColor: '#fff3cd'
+                }}
+              >
+                <div className="d-flex align-items-start">
+                  <div style={{ fontSize: '1.5rem', marginRight: '1rem' }}>⚠️</div>
+                  <div>
+                    <strong>Atención: Faltan expositores en algunos días</strong>
+                    <p className="mb-2 mt-1">Los siguientes días no tienen expositores programados:</p>
+                    <ul className="mb-0">
+                      {diasSinExpositores.map(dia => (
+                        <li key={dia}>
+                          <strong>{formatearFecha(dia)}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mb-0 mt-2" style={{ fontSize: '0.9rem', color: '#856404' }}>
+                      💡 <em>Para eventos de varios días, se recomienda agregar al menos un expositor por día.</em>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
       
     </div>
   );

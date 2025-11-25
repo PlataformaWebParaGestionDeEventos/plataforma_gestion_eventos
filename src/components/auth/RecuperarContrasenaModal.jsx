@@ -3,12 +3,14 @@ import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
 import toastHelper from '../../core/utils/toastHelper';
 import logger from '../../core/utils/logger';
 import { validations } from "../../core/utils/validations"
+import { useButtonDebounce } from '../../core/hooks';
 
 
 const RecuperarContrasenaModal = ({ show, onClose }) => {
     const [email, setEmail] = useState('');
     const [enviando, setEnviando] = useState(false);
     const auth = getAuth();
+    const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(5000);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -86,7 +88,7 @@ const RecuperarContrasenaModal = ({ show, onClose }) => {
                             disabled={enviando}
                         ></button>
                     </div>
-                    <form onSubmit={handleSubmit}>
+                    <form onSubmit={handleButtonClick(handleSubmit)}>
                         <div className="modal-body" style={{ padding: '30px' }}>
                             <div className="alert alert-info-custom mb-4">
                                 <i className="bi bi-info-circle-fill me-2"></i>
@@ -140,7 +142,7 @@ const RecuperarContrasenaModal = ({ show, onClose }) => {
                             <button 
                                 type="submit" 
                                 className="btn btn-primary-custom"
-                                disabled={enviando}
+                                disabled={enviando || isButtonDisabled}
                                 style={{
                                     borderRadius: '10px',
                                     padding: '10px 24px',

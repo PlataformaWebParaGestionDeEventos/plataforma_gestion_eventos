@@ -131,6 +131,10 @@ service cloud.firestore {
         && request.resource.data.email == resource.data.email
         && request.resource.data.role == resource.data.role
         && request.resource.data.uid == resource.data.uid;
+      allow update: if isAuthenticated() 
+        && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['emailVerificado', 'fechaVerificacion']);
     }
     
     // ============================================

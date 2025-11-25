@@ -11,12 +11,14 @@ import logger from "../../core/utils/logger"
 import RecuperarContrasenaModal from "../../components/auth/RecuperarContrasenaModal"
 import { validations } from "../../core/utils/validations"
 import { authService } from "../../services/authService"
+import { useButtonDebounce } from "../../core/hooks"
 
 const auth = getAuth(appFirebase)
 const googleProvider = new GoogleAuthProvider()
 
 const Login = ({ modoInicial = 'login' }) => {
         const navigate = useNavigate();
+        const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(5000);
 
         const [registrando, setRegistrando] = React.useState(modoInicial === 'register')
         const [esperandoVerificacion, setEsperandoVerificacion] = React.useState(false)
@@ -419,15 +421,16 @@ const Login = ({ modoInicial = 'login' }) => {
                                         <div className="d-grid gap-2 mb-3">
                                             <button 
                                                 className="btn btn-success btn-sm" 
-                                                onClick={verificarEmailConfirmado}
+                                                onClick={handleButtonClick(verificarEmailConfirmado)}
+                                                disabled={isButtonDisabled}
                                             >
                                                 ✓ Ya verifiqué mi email
                                             </button>
                                             
                                             <button 
                                                 className="btn btn-outline-primary btn-sm"
-                                                onClick={reenviarEmailVerificacion}
-                                                disabled={cargandoReenvio}
+                                                onClick={handleButtonClick(reenviarEmailVerificacion)}
+                                                disabled={cargandoReenvio || isButtonDisabled}
                                             >
                                                 {cargandoReenvio ? 'Enviando...' : 'Reenviar email'}
                                             </button>
@@ -447,7 +450,7 @@ const Login = ({ modoInicial = 'login' }) => {
                                 ) : (
                                     // Vista normal de login/registro
                                     <>
-                                        <form onSubmit={functAutentication}>
+                                        <form onSubmit={handleButtonClick(functAutentication)}>
                                             <div className="text-center mb-4">
                                                 <img 
                                                     src={ImageUpao} 
@@ -546,7 +549,7 @@ const Login = ({ modoInicial = 'login' }) => {
                                             )}
                                             
                                             <div className="d-grid mb-3">
-                                                <button type="submit" className="btn btn-primary btn-lg fw-semibold">
+                                                <button type="submit" className="btn btn-primary btn-lg fw-semibold" disabled={isButtonDisabled}>
                                                     {registrando ? "Crear Cuenta" : "Iniciar Sesión"}
                                                 </button>
                                             </div>
