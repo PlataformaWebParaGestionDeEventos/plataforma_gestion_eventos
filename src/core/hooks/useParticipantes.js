@@ -1,100 +1,206 @@
-// Hook personalizado para gestión de participantes desde la perspectiva del organizador
-import { useState, useCallback } from 'react';
+// Hook optimizado con React Query para gestión de participantes desde la perspectiva del organizador
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useEffect } from 'react';
 import { firestoreService } from '../../services/firestoreService';
 import { useAuth } from './useAuth';
+import logger from '../utils/logger';
+import toastHelper from '../utils/toastHelper';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../config/credenciales';
 
-export const useParticipantes = () => {
-  const [participantes, setParticipantes] = useState([]);
-  const [estadisticas, setEstadisticas] = useState({
-    totalParticipantes: 0,
-    capacidadMaxima: 0,
-    espaciosDisponibles: 0,
-    porcentajeOcupacion: 0
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+// Claves de queries para participantes
+export const participantesQueryKeys = {
+  all: ['participantes'],
+  byEvento: (eventoId) => [...participantesQueryKeys.all, 'evento', eventoId],
+  estadisticas: (eventoId) => [...participantesQueryKeys.all, 'estadisticas', eventoId],
+};
+
+export const useParticipantes = (eventoId = null) => {
+  const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  // Cargar participantes de un evento
-  const cargarParticipantes = useCallback(async (eventoId) => {
-    if (!user || !eventoId) {
-      setError('Usuario no autenticado o evento no especificado');
-      return;
-    }
+  // ✅ NUEVO: Listener en tiempo real para eventos de un solo día
+  useEffect(() => {
+    if (!eventoId || !user) return;
 
-    setLoading(true);
-    setError(null);
-    
-    try {
+    // Configurar listener en tiempo real para el evento
+    const eventoRef = doc(db, 'eventos', eventoId);
+    const unsubscribe = onSnapshot(eventoRef, (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        const eventoData = docSnapshot.data();
+        
+        // Si hay cambios en asistencias, invalidar cache para refetch inmediato
+        if (eventoData.asistenciasPorDia || eventoData.asistenciasPorPonente || eventoData.participantes) {
+          logger.log('🔄 Cambios detectados en asistencias, actualizando participantes...');
+          queryClient.invalidateQueries({ 
+            queryKey: participantesQueryKeys.byEvento(eventoId) 
+          });
+        }
+      }
+    }, (error) => {
+      logger.error('❌ Error en listener de evento:', error);
+    });
+
+    // Cleanup: detener listener cuando el componente se desmonte
+    return () => {
+      unsubscribe();
+    };
+  }, [eventoId, user, queryClient]);
+
+  // Query para obtener participantes de un evento específico
+  const {
+    data: participantesData,
+    isLoading: loadingParticipantes,
+    error: errorParticipantes,
+    refetch: refetchParticipantes
+  } = useQuery({
+    queryKey: participantesQueryKeys.byEvento(eventoId),
+    queryFn: async () => {
+      if (!eventoId) {
+        const errorMsg = 'ID de evento requerido';
+        logger.error('❌', errorMsg);
+        throw new Error(errorMsg);
+      }
+      
+      logger.log('👥 Obteniendo participantes del evento:', eventoId);
       const result = await firestoreService.obtenerParticipantesEvento(eventoId);
       
-      if (result.success) {
-        setParticipantes(result.participantes);
-        setEstadisticas({
-          totalParticipantes: result.totalParticipantes,
-          capacidadMaxima: result.capacidadMaxima,
-          espaciosDisponibles: result.espaciosDisponibles,
-          porcentajeOcupacion: (result.totalParticipantes / result.capacidadMaxima) * 100
-        });
-      } else {
-        setError(result.error);
-        setParticipantes([]);
-        setEstadisticas({
-          totalParticipantes: 0,
-          capacidadMaxima: 0,
-          espaciosDisponibles: 0,
-          porcentajeOcupacion: 0
-        });
+      if (!result.success) {
+        const errorMsg = result.error || 'Error al obtener participantes';
+        logger.error('❌ Error obteniendo participantes:', errorMsg);
+        toastHelper.error(`Error al cargar participantes: ${errorMsg}`);
+        throw new Error(errorMsg);
       }
-    } catch (err) {
-      setError('Error al cargar participantes');
-      setParticipantes([]);
-      setEstadisticas({
+      
+      logger.log(`✅ ${result.participantes.length} participantes obtenidos`);
+      return result;
+    },
+    enabled: !!user && !!eventoId, // Solo ejecuta si hay usuario y eventoId
+    staleTime: 30 * 1000, // ✅ REDUCIDO: 30 segundos (más responsive)
+    gcTime: 3 * 60 * 1000, // 3 minutos en caché
+    refetchInterval: false, // ✅ DESACTIVADO: Usamos onSnapshot en tiempo real
+  });
+
+  // Calcular estadísticas usando useMemo
+  const estadisticas = useMemo(() => {
+    if (!participantesData) {
+      return {
         totalParticipantes: 0,
         capacidadMaxima: 0,
         espaciosDisponibles: 0,
         porcentajeOcupacion: 0
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  // Marcar asistencia de un participante
-  const marcarAsistencia = async (eventoId, alumnoId) => {
-    if (!user) {
-      return { success: false, error: 'Usuario no autenticado' };
+      };
     }
 
-    try {
-      const result = await firestoreService.marcarAsistencia(eventoId, alumnoId);
+    const total = participantesData.totalParticipantes;
+    const capacidad = participantesData.capacidadMaxima;
+    
+    return {
+      totalParticipantes: total,
+      capacidadMaxima: capacidad,
+      espaciosDisponibles: Math.max(0, capacidad - total),
+      porcentajeOcupacion: capacidad > 0 ? (total / capacidad) * 100 : 0
+    };
+  }, [participantesData]);
+
+  // Extraer lista de participantes
+  // 🔧 FIX: Validar que participantes sea un array (puede ser objeto si está corrupto)
+  const participantes = Array.isArray(participantesData?.participantes) 
+    ? participantesData.participantes 
+    : [];
+
+  // Mutación para marcar asistencia
+  const asistenciaMutation = useMutation({
+    mutationFn: async ({ eventoId: evId, alumnoId }) => {
+      if (!user) {
+        const errorMsg = 'Usuario no autenticado';
+        logger.error('❌', errorMsg);
+        toastHelper.error(errorMsg);
+        throw new Error(errorMsg);
+      }
       
-      if (result.success) {
-        // Recargar participantes después de marcar asistencia
-        await cargarParticipantes(eventoId);
+      logger.log('✅ Marcando asistencia para alumno:', alumnoId);
+      const result = await firestoreService.marcarAsistencia(evId, alumnoId);
+      
+      if (!result.success) {
+        const errorMsg = result.error || 'Error al marcar asistencia';
+        logger.error('❌ Error marcando asistencia:', errorMsg);
+        throw new Error(errorMsg);
       }
       
       return result;
-    } catch (err) {
-      return { success: false, error: 'Error al marcar asistencia' };
+    },
+    onSuccess: (data, variables) => {
+      logger.log('✅ Asistencia marcada exitosamente');
+      toastHelper.success('✅ Asistencia registrada correctamente');
+      
+      // Invalidar caché para recargar participantes
+      queryClient.invalidateQueries({ 
+        queryKey: participantesQueryKeys.byEvento(variables.eventoId) 
+      });
+      
+      // También invalidar eventos para actualizar contadores
+      queryClient.invalidateQueries({ queryKey: ['eventos'] });
+    },
+    onError: (error) => {
+      logger.error('❌ Error al marcar asistencia:', error);
+      toastHelper.error(error.message || 'Error al marcar asistencia');
+    }
+  });
+
+  // Función helper para cargar participantes manualmente
+  const cargarParticipantes = (evId) => {
+    if (evId && evId !== eventoId) {
+      // Si es un evento diferente, invalidar esa query específica
+      queryClient.invalidateQueries({ 
+        queryKey: participantesQueryKeys.byEvento(evId) 
+      });
+    } else {
+      // Refetch de la query actual
+      refetchParticipantes();
     }
   };
 
-  // Exportar lista de participantes
+  // Función para marcar asistencia
+  const marcarAsistencia = async (evId, alumnoId) => {
+    try {
+      await asistenciaMutation.mutateAsync({ eventoId: evId, alumnoId });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Función para exportar participantes (mejorada)
   const exportarParticipantes = (eventoTitulo) => {
-    if (participantes.length === 0) {
+    // 🔧 FIX: Validar que participantes sea un array antes de usar .length y .map()
+    const participantesArray = Array.isArray(participantes) ? participantes : [];
+    
+    if (participantesArray.length === 0) {
       return { success: false, error: 'No hay participantes para exportar' };
     }
 
     try {
-      // Crear CSV
-      const headers = ['Email', 'Fecha de Inscripción', 'Estado'];
+      // Crear CSV con más información
+      const headers = [
+        'Email',
+        'Fecha de Inscripción',
+        'Estado',
+        'Total Participantes',
+        'Capacidad Máxima',
+        'Espacios Disponibles'
+      ];
+      
       const csvContent = [
         headers.join(','),
-        ...participantes.map(p => [
+        ...participantesArray.map((p, index) => [
           p.email,
-          new Date(p.fechaInscripcion.toDate()).toLocaleDateString(),
-          'Inscrito'
+          new Date(p.fechaInscripcion.toDate()).toLocaleDateString('es-ES'),
+          'Inscrito',
+          // Solo incluir estadísticas en la primera fila
+          index === 0 ? estadisticas.totalParticipantes : '',
+          index === 0 ? estadisticas.capacidadMaxima : '',
+          index === 0 ? estadisticas.espaciosDisponibles : ''
         ].join(','))
       ].join('\n');
 
@@ -103,36 +209,67 @@ export const useParticipantes = () => {
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `participantes_${eventoTitulo.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', 
+        `participantes_${eventoTitulo.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`
+      );
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
 
-      return { success: true, message: 'Lista de participantes exportada exitosamente' };
+      return { 
+        success: true, 
+        message: `Lista de ${participantesArray.length} participantes exportada exitosamente` 
+      };
     } catch (err) {
+      console.error('Error al exportar participantes:', err);
       return { success: false, error: 'Error al exportar la lista de participantes' };
     }
   };
 
-  // Enviar recordatorio a participantes (función placeholder)
-  const enviarRecordatorio = async (eventoId, mensaje) => {
-    // Esta función se puede implementar más adelante con un servicio de email
-    return { 
-      success: true, 
-      message: `Recordatorio enviado a ${participantes.length} participantes` 
-    };
+  // Función placeholder para enviar recordatorios
+  const enviarRecordatorio = async (evId, mensaje) => {
+    // Simular envío de recordatorio
+    console.log(`Enviando recordatorio para evento ${evId}: ${mensaje}`);
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({ 
+          success: true, 
+          message: `Recordatorio enviado a ${participantes.length} participantes` 
+        });
+      }, 1000);
+    });
   };
 
+  // Estados unificados
+  const loading = loadingParticipantes || asistenciaMutation.isPending;
+  const error = errorParticipantes?.message || asistenciaMutation.error?.message;
+
   return {
+    // Datos
     participantes,
     estadisticas,
-    loading,
-    error,
+    
+    // Acciones
     cargarParticipantes,
     marcarAsistencia,
     exportarParticipantes,
-    enviarRecordatorio
+    enviarRecordatorio,
+    
+    // Estados
+    loading,
+    error,
+    
+    // Estados específicos de React Query (para uso avanzado)
+    loadingParticipantes,
+    isMarcandoAsistencia: asistenciaMutation.isPending,
+    
+    // Funciones de mutación directas (para uso avanzado)
+    asistenciaMutation,
+    
+    // Funciones de utilidad
+    refetchParticipantes,
   };
 };
 

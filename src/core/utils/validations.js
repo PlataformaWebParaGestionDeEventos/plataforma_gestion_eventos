@@ -1,3 +1,6 @@
+// Dominios de email permitidos
+const ALLOWED_EMAIL_DOMAINS = ['gmail.com', 'hotmail.com', 'upao.edu.pe'];
+
 // Utilidades para validaciones
 export const validations = {
   // Validar email
@@ -6,9 +9,51 @@ export const validations = {
     return emailRegex.test(email);
   },
 
+  // Validar que el dominio del email esté en la lista permitida
+  isAllowedEmailDomain: (email) => {
+    if (!email || typeof email !== 'string') return false;
+    
+    const domain = email.toLowerCase().split('@')[1];
+    if (!domain) return false;
+    
+    return ALLOWED_EMAIL_DOMAINS.includes(domain);
+  },
+
+  // Obtener lista de dominios permitidos
+  getAllowedDomains: () => {
+    return ALLOWED_EMAIL_DOMAINS;
+  },
+
   // Validar email de Gmail específicamente
   isValidGmail: (email) => {
     return email.endsWith('@gmail.com') && email.length > 10;
+  },
+
+  // Validar nombre (solo letras, espacios, acentos, ñ)
+  isValidName: (name) => {
+    // Permite letras (mayúsculas y minúsculas), espacios, acentos y ñ/Ñ
+    // No permite números ni símbolos especiales
+    const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/;
+    return nameRegex.test(name.trim()) && name.trim().length >= 2;
+  },
+
+  // Obtener mensaje de error para nombre inválido
+  getNameErrorMessage: (name, fieldName = 'nombre') => {
+    const trimmedName = name.trim();
+    
+    if (trimmedName.length < 2) {
+      return `El ${fieldName} debe tener al menos 2 caracteres`;
+    }
+    
+    if (/[0-9]/.test(trimmedName)) {
+      return `El ${fieldName} no puede contener números`;
+    }
+    
+    if (/[!@#$%^&*(),.?":{}|<>_\-=+[\]\\;'`~]/.test(trimmedName)) {
+      return `El ${fieldName} no puede contener símbolos especiales`;
+    }
+    
+    return `El ${fieldName} solo puede contener letras y espacios`;
   },
 
   // Validar contraseña segura

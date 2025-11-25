@@ -1,6 +1,27 @@
 /* === UPAO Events - Estilos Globales Minimos === */
 /* Bootstrap 5 handle la mayoría del diseño responsive */
 
+/* ✅ NUEVO: Estilos para toast prompt más ancho */
+.toast-prompt-wider {
+  min-width: 500px !important;
+  max-width: 600px !important;
+}
+
+.toast-prompt-wider .Toastify__toast-body {
+  padding: 1rem;
+}
+
+.toast-prompt-wider input {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .toast-prompt-wider {
+    min-width: 90vw !important;
+    max-width: 95vw !important;
+  }
+}
+
 /* Iconos SVG para contraseñas */
 .password-icon {
     width: 18px;

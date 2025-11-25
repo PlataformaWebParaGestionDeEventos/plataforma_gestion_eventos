@@ -1,9 +1,51 @@
-// Hook personalizado para autenticación
+/**
+ * @fileoverview Hook personalizado para gestión de autenticación
+ * @module core/hooks/useAuth
+ * @description Hook React para manejar autenticación, roles y estado del usuario
+ */
+
 import { useState, useEffect } from 'react';
 import { authService } from '../../services/authService';
 
+/**
+ * Hook personalizado para autenticación de usuarios
+ * Provee acceso al estado de autenticación, datos del usuario y funciones de auth
+ * @function useAuth
+ * @returns {Object} Objeto con estado y funciones de autenticación
+ * @returns {Object|null} return.user - Usuario de Firebase Auth (null si no autenticado)
+ * @returns {Object|null} return.userData - Datos adicionales del usuario desde Firestore
+ * @returns {string|null} return.role - Rol del usuario ('alumno'|'organizador'|null)
+ * @returns {boolean} return.loading - Estado de carga durante verificación de auth
+ * @returns {Function} return.login - Función para iniciar sesión
+ * @returns {Function} return.register - Función para registrar nuevo usuario
+ * @returns {Function} return.logout - Función para cerrar sesión
+ * @returns {Function} return.resendVerification - Función para reenviar email de verificación
+ * @returns {boolean} return.isAuthenticated - True si el usuario está autenticado
+ * @returns {boolean} return.isOrganizador - True si el rol es 'organizador'
+ * @returns {boolean} return.isAlumno - True si el rol es 'alumno'
+ * @example
+ * function MyComponent() {
+ *   const { user, role, loading, login, logout } = useAuth();
+ *   
+ *   if (loading) return <LoadingSpinner />;
+ *   
+ *   return (
+ *     <div>
+ *       {user ? (
+ *         <>
+ *           <p>Bienvenido {user.email} - Rol: {role}</p>
+ *           <button onClick={logout}>Cerrar Sesión</button>
+ *         </>
+ *       ) : (
+ *         <button onClick={() => login('email@upao.edu.pe', 'password')}>Iniciar Sesión</button>
+ *       )}
+ *     </div>
+ *   );
+ * }
+ */
 export const useAuth = () => {
   const [user, setUser] = useState(null);
+  const [userData, setUserData] = useState(null);
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -17,20 +59,31 @@ export const useAuth = () => {
           const result = await authService.obtenerDatosUsuario(firebaseUser.uid);
           
           if (result.success) {
+            // Actualizar emailVerificado en Firestore si es necesario
+            if (result.userData.emailVerificado === false) {
+              await authService.actualizarEstadoVerificacion(firebaseUser.uid, true);
+              // Actualizar estado local
+              result.userData.emailVerificado = true;
+            }
+            
             setUser(firebaseUser);
+            setUserData(result.userData);
             setRole(result.userData.role);
           } else {
             // Si no existen datos en Firestore, crear perfil básico
             setUser(firebaseUser);
+            setUserData(null);
             setRole('alumno'); // rol por defecto
           }
         } else {
           setUser(null);
+          setUserData(null);
           setRole(null);
         }
       } catch (error) {
         console.error('Error en useAuth:', error);
         setUser(null);
+        setUserData(null);
         setRole(null);
       } finally {
         setLoading(false);
@@ -58,6 +111,7 @@ export const useAuth = () => {
 
   return {
     user,
+    userData,
     role,
     loading,
     login,

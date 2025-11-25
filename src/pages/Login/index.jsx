@@ -1,13 +1,24 @@
 import React from "react"
+import { useNavigate } from "react-router-dom"
 import ImageUpao from '../../assets/logo_upao.jpeg'
 import FondoImage from '../../assets/fondo.jpg'
 
 import appFirebase, { db } from "../../config/credenciales"
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, reload } from "firebase/auth"
-import { doc, setDoc } from "firebase/firestore"
-const auth = getAuth(appFirebase)
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, reload, GoogleAuthProvider, signInWithPopup } from "firebase/auth"
+import { doc, setDoc, getDoc } from "firebase/firestore"
+import toastHelper from "../../core/utils/toastHelper"
+import logger from "../../core/utils/logger"
+import RecuperarContrasenaModal from "../../components/auth/RecuperarContrasenaModal"
+import { validations } from "../../core/utils/validations"
+import { authService } from "../../services/authService"
+import { useButtonDebounce } from "../../core/hooks"
 
-const Login = ({ modoInicial = 'login', onVolverLanding }) => {
+const auth = getAuth(appFirebase)
+const googleProvider = new GoogleAuthProvider()
+
+const Login = ({ modoInicial = 'login' }) => {
+        const navigate = useNavigate();
+        const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(5000);
 
         const [registrando, setRegistrando] = React.useState(modoInicial === 'register')
         const [esperandoVerificacion, setEsperandoVerificacion] = React.useState(false)
@@ -15,6 +26,7 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
         const [cargandoReenvio, setCargandoReenvio] = React.useState(false)
         const [mostrarPassword, setMostrarPassword] = React.useState(false)
         const [mostrarConfirmPassword, setMostrarConfirmPassword] = React.useState(false)
+        const [mostrarModalRecuperar, setMostrarModalRecuperar] = React.useState(false)
 
         // Función para validar contraseña segura
         const validarPasswordSegura = (password) => {
@@ -43,9 +55,11 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
             setCargandoReenvio(true);
             try {
                 await sendEmailVerification(usuarioCreado);
-                alert('Email de verificación reenviado. Revisa tu bandeja de entrada y spam.');
-            } catch {
-                alert('Error al reenviar el email. Intenta de nuevo más tarde.');
+                toastHelper.success('📧 Email de verificación reenviado. Revisa tu bandeja de entrada y spam.');
+                logger.log('✅ Email de verificación reenviado');
+            } catch (error) {
+                toastHelper.error('❌ Error al reenviar el email. Intenta de nuevo más tarde.');
+                logger.error('❌ Error al reenviar email:', error);
             } finally {
                 setCargandoReenvio(false);
             }
@@ -58,15 +72,20 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
             try {
                 await reload(usuarioCreado);
                 if (usuarioCreado.emailVerified) {
-                    alert('¡Email verificado exitosamente! Ya puedes iniciar sesión.');
+                    // Actualizar emailVerificado en Firestore
+                    await authService.actualizarEstadoVerificacion(usuarioCreado.uid, true);
+                    
+                    toastHelper.success('✅ ¡Email verificado exitosamente! Ya puedes iniciar sesión.');
+                    logger.log('✅ Email verificado y actualizado en Firestore');
                     setEsperandoVerificacion(false);
                     setUsuarioCreado(null);
                     setRegistrando(false);
                 } else {
-                    alert('El email aún no ha sido verificado. Revisa tu bandeja de entrada.');
+                    toastHelper.warning('⚠️ El email aún no ha sido verificado. Revisa tu bandeja de entrada.');
                 }
-            } catch {
-                alert('Error al verificar el estado del email.');
+            } catch (error) {
+                toastHelper.error('❌ Error al verificar el estado del email.');
+                logger.error('❌ Error al verificar email:', error);
             }
         }
 
@@ -90,15 +109,17 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
             const gmail = e.target.gmail.value;
             const password = e.target.password.value;
 
-            // Validación del formato de Gmail
-            if (!gmail.endsWith('@gmail.com')) {
-                alert('Por favor, ingresa un email válido con formato @gmail.com');
+            // Validación del formato de email
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(gmail)) {
+                toastHelper.error('❌ Por favor, ingresa un email válido. Ejemplo: usuario@dominio.com');
                 return;
             }
 
-            // Validación adicional para asegurar que no solo sea "@gmail.com"
-            if (gmail.length <= 10 || gmail === '@gmail.com') {
-                alert('Por favor, ingresa un email válido. Ejemplo: usuario@gmail.com');
+            // Validar que el dominio del email esté permitido (solo en registro)
+            if (registrando && !validations.isAllowedEmailDomain(gmail)) {
+                const dominiosPermitidos = validations.getAllowedDomains().join(', ');
+                toastHelper.error(`❌ Solo se permiten correos de: ${dominiosPermitidos}`);
                 return;
             }
 
@@ -110,24 +131,45 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
 
                 // Validar campos adicionales para registro
                 if (!nombre.trim() || !apellido.trim()) {
-                    alert('Por favor, completa todos los campos para el registro.');
+                    toastHelper.warning('⚠️ Por favor, completa todos los campos para el registro.');
+                    return;
+                }
+
+                // Validar nombre (solo letras, sin números ni símbolos)
+                if (!validations.isValidName(nombre)) {
+                    const errorMsg = validations.getNameErrorMessage(nombre, 'nombre');
+                    toastHelper.error(`❌ ${errorMsg}`);
+                    return;
+                }
+
+                // Validar apellido (solo letras, sin números ni símbolos)
+                if (!validations.isValidName(apellido)) {
+                    const errorMsg = validations.getNameErrorMessage(apellido, 'apellido');
+                    toastHelper.error(`❌ ${errorMsg}`);
                     return;
                 }
 
                 // Validar contraseña segura
                 const errorPassword = validarPasswordSegura(password);
                 if (errorPassword) {
-                    alert(errorPassword);
+                    toastHelper.error(`❌ ${errorPassword}`);
                     return;
                 }
 
                 // Validar que las contraseñas coincidan
                 if (password !== confirmPassword) {
-                    alert('Las contraseñas no coinciden. Por favor, verifica e intenta de nuevo.');
+                    toastHelper.error('❌ Las contraseñas no coinciden. Por favor, verifica e intenta de nuevo.');
                     return;
                 }
 
                 try {
+                    // Verificar si el email ya está registrado en Firestore
+                    const emailExiste = await authService.verificarEmailExistente(gmail);
+                    if (emailExiste) {
+                        toastHelper.error('❌ Este email ya está registrado. Si es tuyo, intenta iniciar sesión o recuperar tu contraseña.');
+                        return;
+                    }
+
                     // Crear usuario en Firebase Auth
                     const userCredential = await createUserWithEmailAndPassword(auth, gmail, password);
                     const user = userCredential.user;
@@ -152,21 +194,23 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
                     }
 
                     // Mostrar mensaje y cambiar estado
-                    alert('¡Cuenta creada exitosamente! Se ha enviado un email de verificación a tu correo. Debes verificar tu email antes de iniciar sesión.');
+                    toastHelper.success('✅ ¡Cuenta creada exitosamente! Se ha enviado un email de verificación a tu correo.');
+                    logger.log('✅ Cuenta creada:', user.email);
                     setUsuarioCreado(user);
                     setEsperandoVerificacion(true);
                     
                 } catch (error) {
+                    logger.error('❌ Error al crear cuenta:', error);
                     if (error.code === 'auth/email-already-in-use') {
-                        alert('Este email ya está registrado. Intenta iniciar sesión.');
+                        toastHelper.error('❌ Este email ya está registrado. Intenta iniciar sesión.');
                     } else if (error.code === 'auth/weak-password') {
-                        alert('La contraseña debe tener al menos 6 caracteres.');
+                        toastHelper.error('❌ La contraseña debe tener al menos 6 caracteres.');
                     } else if (error.code === 'auth/invalid-email') {
-                        alert('El formato del email no es válido.');
+                        toastHelper.error('❌ El formato del email no es válido.');
                     } else if (error.code === 'auth/operation-not-allowed') {
-                        alert('El registro con email/contraseña no está habilitado. Contacta al administrador.');
+                        toastHelper.error('❌ El registro con email/contraseña no está habilitado. Contacta al administrador.');
                     } else {
-                        alert(`Error al crear la cuenta: ${error.message}. Por favor, inténtalo de nuevo.`);
+                        toastHelper.error(`❌ Error al crear la cuenta: ${error.message}`);
                     }
                 }
             } else {
@@ -181,33 +225,135 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
                     if (!user.emailVerified) {
                         // Cerrar sesión inmediatamente si no está verificado
                         await auth.signOut();
-                        alert('Debes verificar tu email antes de iniciar sesión. Revisa tu bandeja de entrada.');
+                        toastHelper.warning('⚠️ Debes verificar tu email antes de iniciar sesión. Revisa tu bandeja de entrada.');
                         
                         // Ofrecer reenviar email
-                        const reenviar = confirm('¿Quieres que reenviemos el email de verificación?');
+                        const reenviar = await toastHelper.confirm('¿Quieres que reenviemos el email de verificación?');
                         if (reenviar) {
                             try {
                                 await sendEmailVerification(user);
-                                alert('Email de verificación reenviado. Revisa tu bandeja de entrada y spam.');
-                            } catch {
-                                alert('Error al reenviar el email.');
+                                toastHelper.success('📧 Email de verificación reenviado. Revisa tu bandeja de entrada y spam.');
+                                logger.log('✅ Email reenviado');
+                            } catch (error) {
+                                toastHelper.error('❌ Error al reenviar el email.');
+                                logger.error('❌ Error al reenviar:', error);
                             }
                         }
                         return;
                     }
                     
+                    // Login exitoso - Obtener rol y navegar
+                    toastHelper.success('Inicio de sesión exitoso');
+                    logger.log('✅ Usuario autenticado:', user.email);
+                    
+                    // Obtener role del usuario desde Firestore
+                    try {
+                        const userDoc = await getDoc(doc(db, 'users', user.uid));
+                        if (userDoc.exists()) {
+                            const userData = userDoc.data();
+                            const role = userData.role; // ✅ CORREGIDO: usar 'role' no 'rol'
+                            
+                            // Actualizar emailVerificado en Firestore si es necesario
+                            if (userData.emailVerificado === false && user.emailVerified) {
+                                await authService.actualizarEstadoVerificacion(user.uid, true);
+                                logger.log('✅ Estado de verificación actualizado en Firestore');
+                            }
+                            
+                            logger.log('📋 Role del usuario:', role);
+                            
+                            // Navegar según role
+                            if (role === 'organizador') {
+                                navigate('/organizador');
+                            } else {
+                                navigate('/alumno');
+                            }
+                        } else {
+                            logger.warn('⚠️ Documento de usuario no encontrado');
+                            navigate('/alumno'); // Por defecto
+                        }
+                    } catch (error) {
+                        logger.error('❌ Error al obtener role:', error);
+                        navigate('/alumno'); // Por defecto en caso de error
+                    }
 
                 } catch (error) {
+                    logger.error('❌ Error al iniciar sesión:', error);
                     if (error.code === 'auth/user-not-found') {
-                        alert('No existe una cuenta con este email. ¿Deseas registrarte?');
+                        toastHelper.error('❌ No existe una cuenta con este email. ¿Deseas registrarte?');
                     } else if (error.code === 'auth/wrong-password') {
-                        alert('Contraseña incorrecta. Por favor, inténtalo de nuevo.');
+                        toastHelper.error('❌ Contraseña incorrecta. Por favor, inténtalo de nuevo.');
                     } else {
-                        alert('Error al iniciar sesión. Verifica tus credenciales.');
+                        toastHelper.error('❌ Error al iniciar sesión. Verifica tus credenciales.');
                     }
                 }
             }
         }
+    
+    /**
+     * NUEVO: Iniciar sesión con Google
+     */
+    const iniciarSesionConGoogle = async () => {
+        try {
+            logger.log('🔵 Iniciando sesión con Google...');
+            const result = await signInWithPopup(auth, googleProvider);
+            const user = result.user;
+            
+            logger.log('✅ Usuario autenticado con Google:', user.email);
+            
+            // Verificar si el usuario ya existe en Firestore
+            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            
+            if (!userDoc.exists()) {
+                // Usuario nuevo de Google, crear documento en Firestore
+                const nombres = user.displayName?.split(' ') || ['Usuario', 'Google'];
+                const nombre = nombres[0] || 'Usuario';
+                const apellido = nombres.slice(1).join(' ') || 'Google';
+                
+                await setDoc(doc(db, 'users', user.uid), {
+                    uid: user.uid,
+                    nombre: nombre,
+                    apellido: apellido,
+                    email: user.email,
+                    role: 'alumno', // Por defecto alumno
+                    fechaRegistro: new Date(),
+                    tipo: 'google',
+                    emailVerificado: true, // Google ya verifica el email
+                    photoURL: user.photoURL || null
+                });
+                
+                logger.log('✅ Usuario de Google registrado en Firestore');
+                toastHelper.success('✅ Cuenta creada con Google exitosamente!');
+            } else {
+                logger.log('📋 Usuario existente de Google');
+                toastHelper.success('Inicio de sesión exitoso');
+            }
+            
+            // Obtener role y navegar
+            const userData = userDoc.exists() ? userDoc.data() : { role: 'alumno' };
+            const role = userData.role;
+            
+            logger.log('📋 Role del usuario:', role);
+            
+            // Navegar según role
+            if (role === 'organizador') {
+                navigate('/organizador');
+            } else {
+                navigate('/alumno');
+            }
+            
+        } catch (error) {
+            logger.error('❌ Error al iniciar sesión con Google:', error);
+            
+            if (error.code === 'auth/popup-closed-by-user') {
+                toastHelper.info('ℹ️ Ventana de Google cerrada');
+            } else if (error.code === 'auth/cancelled-popup-request') {
+                logger.log('⚠️ Popup cancelado (ya hay uno abierto)');
+            } else {
+                toastHelper.error(`❌ Error al iniciar sesión con Google: ${error.message}`);
+            }
+        }
+    };
+    
     return (
         <div 
             className="min-vh-100 d-flex align-items-center position-relative" 
@@ -234,10 +380,9 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
                     <div className="col-11 col-sm-8 col-md-6 col-lg-5 col-xl-4 col-xxl-3">
                         <div className="card border-0 shadow-lg" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)' }}>
                             <div className="card-body p-4 p-sm-5">                                  
-                                {onVolverLanding && (
                                 <button 
                                     className="btn position-absolute top-0 start-0 m-3 text-p fw-bold"
-                                    onClick={onVolverLanding}
+                                    onClick={() => navigate('/')}
                                     style={{ 
                                     zIndex: 10, 
                                     fontSize: '20px',
@@ -251,7 +396,6 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
                                 >
                                     {"<"}
                                 </button>
-                                )}
             
                                 {esperandoVerificacion ? (
                                     // Vista de verificación de email
@@ -271,21 +415,22 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
                                                 </p>
                                                 <strong className="small">{usuarioCreado?.email}</strong>
                                             </div>
-                                            <small className="text-muted">Revisa tu bandeja de entrada y spam</small>
+                                            <small className="text-muted">Revisa tu bandeja de entrada y spam (expira en 1 día)</small>
                                         </div>
                                         
                                         <div className="d-grid gap-2 mb-3">
                                             <button 
                                                 className="btn btn-success btn-sm" 
-                                                onClick={verificarEmailConfirmado}
+                                                onClick={handleButtonClick(verificarEmailConfirmado)}
+                                                disabled={isButtonDisabled}
                                             >
                                                 ✓ Ya verifiqué mi email
                                             </button>
                                             
                                             <button 
                                                 className="btn btn-outline-primary btn-sm"
-                                                onClick={reenviarEmailVerificacion}
-                                                disabled={cargandoReenvio}
+                                                onClick={handleButtonClick(reenviarEmailVerificacion)}
+                                                disabled={cargandoReenvio || isButtonDisabled}
                                             >
                                                 {cargandoReenvio ? 'Enviando...' : 'Reenviar email'}
                                             </button>
@@ -305,7 +450,7 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
                                 ) : (
                                     // Vista normal de login/registro
                                     <>
-                                        <form onSubmit={functAutentication}>
+                                        <form onSubmit={handleButtonClick(functAutentication)}>
                                             <div className="text-center mb-4">
                                                 <img 
                                                     src={ImageUpao} 
@@ -324,7 +469,7 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
                                                     <div className="col-6">
                                                         <input 
                                                             type="text" 
-                                                            placeholder="Nombre" 
+                                                            placeholder="Nombre(s)" 
                                                             className="form-control" 
                                                             id="nombre" 
                                                             required={registrando}
@@ -333,7 +478,7 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
                                                     <div className="col-6">
                                                         <input 
                                                             type="text" 
-                                                            placeholder="Apellido" 
+                                                            placeholder="Apellidos" 
                                                             className="form-control" 
                                                             id="apellido" 
                                                             required={registrando}
@@ -404,10 +549,49 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
                                             )}
                                             
                                             <div className="d-grid mb-3">
-                                                <button type="submit" className="btn btn-primary btn-lg fw-semibold">
+                                                <button type="submit" className="btn btn-primary btn-lg fw-semibold" disabled={isButtonDisabled}>
                                                     {registrando ? "Crear Cuenta" : "Iniciar Sesión"}
                                                 </button>
                                             </div>
+                                            
+                                            {/* ✅ NUEVO: Botón de Google */}
+                                            {!registrando && (
+                                                <>
+                                                    <div className="text-center mb-3">
+                                                        <small className="text-muted">O</small>
+                                                    </div>
+                                                    <div className="d-grid mb-3">
+                                                        <button 
+                                                            type="button"
+                                                            className="btn btn-outline-secondary btn-lg d-flex align-items-center justify-content-center gap-2"
+                                                            onClick={iniciarSesionConGoogle}
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 48 48">
+                                                                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                                                                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                                                                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                                                                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                                                                <path fill="none" d="M0 0h48v48H0z"/>
+                                                            </svg>
+                                                            <span className="fw-semibold">Iniciar con Google</span>
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
+                                            
+                                            {!registrando && (
+                                                <div className="text-center mb-3">
+                                                    <button 
+                                                        type="button"
+                                                        className="btn btn-link p-0 text-decoration-none small" 
+                                                        onClick={() => setMostrarModalRecuperar(true)}
+                                                        style={{ color: 'var(--primary-600)' }}
+                                                    >
+                                                        <i className="bi bi-key me-1"></i>
+                                                        ¿Olvidaste tu contraseña?
+                                                    </button>
+                                                </div>
+                                            )}
                                         </form>
                                         
                                         <div className="text-center border-top pt-3">
@@ -428,6 +612,12 @@ const Login = ({ modoInicial = 'login', onVolverLanding }) => {
                     </div>
                 </div>
             </div>
+            
+            {/* Modal de Recuperar Contraseña */}
+            <RecuperarContrasenaModal 
+                show={mostrarModalRecuperar}
+                onClose={() => setMostrarModalRecuperar(false)}
+            />
         </div>
     )
 }

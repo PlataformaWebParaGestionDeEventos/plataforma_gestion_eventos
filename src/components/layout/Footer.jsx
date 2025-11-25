@@ -1,5 +1,6 @@
 // Componente Footer reutilizable
 import React from 'react';
+import toastHelper from '../../core/utils/toastHelper';
 
 const Footer = ({ className = '' }) => {
   const currentYear = new Date().getFullYear();
@@ -71,14 +72,14 @@ const Footer = ({ className = '' }) => {
               <button 
                 className="btn btn-link btn-sm text-light opacity-75 p-0"
                 style={{ textDecoration: 'none' }}
-                onClick={() => alert('Información sobre privacidad y términos de uso.')}
+                onClick={() => toastHelper.info('Información sobre privacidad y términos de uso.')}
               >
                 📋 Términos
               </button>
               <button 
                 className="btn btn-link btn-sm text-light opacity-75 p-0"
                 style={{ textDecoration: 'none' }}
-                onClick={() => alert('Para soporte contactar a: soporte@upao.edu.pe')}
+                onClick={() => toastHelper.info('Para soporte contactar a: soporte@upao.edu.pe')}
               >
                 🛠️ Soporte
               </button>

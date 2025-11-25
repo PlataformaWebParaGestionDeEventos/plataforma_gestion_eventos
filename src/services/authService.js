@@ -7,16 +7,39 @@ import {
   sendEmailVerification,
   onAuthStateChanged
 } from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, query, collection, where, getDocs } from "firebase/firestore";
 import { db } from "../config/credenciales";
 import appFirebase from "../config/credenciales";
 
 const auth = getAuth(appFirebase);
 
 export const authService = {
+  // Verificar si un email ya existe en Firestore
+  async verificarEmailExistente(email) {
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", email.toLowerCase()));
+      const querySnapshot = await getDocs(q);
+      
+      return !querySnapshot.empty; // Retorna true si existe, false si no
+    } catch (error) {
+      console.error("Error al verificar email:", error);
+      return false;
+    }
+  },
+
   // Registrar nuevo usuario
   async registrarUsuario(email, password, nombre, apellido, role = 'alumno') {
     try {
+      // Verificar si el email ya existe en Firestore
+      const emailExiste = await this.verificarEmailExistente(email);
+      if (emailExiste) {
+        return { 
+          success: false, 
+          error: "Este email ya está registrado. Intenta iniciar sesión." 
+        };
+      }
+
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
@@ -28,7 +51,7 @@ export const authService = {
         uid: user.uid,
         nombre: nombre.trim(),
         apellido: apellido.trim(),
-        email: email,
+        email: email.toLowerCase(),
         role: role,
         fechaRegistro: new Date(),
         emailVerificado: false
@@ -44,7 +67,7 @@ export const authService = {
       
       switch (error.code) {
         case 'auth/email-already-in-use':
-          mensaje = "Este email ya está registrado";
+          mensaje = "Este email ya está registrado en Firebase Auth";
           break;
         case 'auth/weak-password':
           mensaje = "La contraseña debe tener al menos 6 caracteres";
@@ -55,6 +78,21 @@ export const authService = {
       }
 
       return { success: false, error: mensaje };
+    }
+  },
+
+  // Actualizar estado de verificación de email en Firestore
+  async actualizarEstadoVerificacion(uid, emailVerificado) {
+    try {
+      await setDoc(doc(db, "users", uid), {
+        emailVerificado: emailVerificado,
+        fechaVerificacion: emailVerificado ? new Date() : null
+      }, { merge: true });
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error al actualizar estado de verificación:", error);
+      return { success: false, error: "Error al actualizar estado" };
     }
   },
 
@@ -98,7 +136,7 @@ export const authService = {
     try {
       await signOut(auth);
       return { success: true };
-    } catch (error) {
+    } catch {
       return { success: false, error: "Error al cerrar sesión" };
     }
   },
@@ -112,7 +150,7 @@ export const authService = {
         return { success: true, message: "Email de verificación enviado" };
       }
       return { success: false, error: "No hay usuario autenticado" };
-    } catch (error) {
+    } catch {
       return { success: false, error: "Error al enviar email de verificación" };
     }
   },
@@ -125,7 +163,7 @@ export const authService = {
         return { success: true, userData: userDoc.data() };
       }
       return { success: false, error: "Usuario no encontrado" };
-    } catch (error) {
+    } catch {
       return { success: false, error: "Error al obtener datos del usuario" };
     }
   },

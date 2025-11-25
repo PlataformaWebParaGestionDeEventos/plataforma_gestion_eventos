@@ -2,93 +2,327 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Reglas para usuarios
-    match /users/{userId} {
-      // Los usuarios pueden leer y escribir solo su propio documento
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    
+    // ============================================
+    // FUNCIONES AUXILIARES
+    // ============================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
     }
     
-    // Reglas para eventos
+    function isOwner(organizadorId) {
+      return isAuthenticated() && request.auth.uid == organizadorId;
+    }
+    
+    function isValidString(value, minLength, maxLength) {
+      return value is string 
+        && value.size() >= minLength 
+        && value.size() <= maxLength;
+    }
+    
+    // ✅ ACTUALIZADA: Validar estructura de expositor con campos nuevos
+    function isValidExpositor(expositor) {
+      return expositor is map
+        && expositor.keys().hasAll(['nombre', 'correo', 'hora', 'tema', 'dia', 'duracion', 'break'])
+        && expositor.nombre is string
+        && expositor.nombre.size() >= 2
+        && expositor.nombre.size() <= 200
+        && expositor.correo is string
+        && expositor.correo.size() >= 5
+        && expositor.correo.size() <= 200
+        && expositor.correo.matches('.*@.*\\..*')
+        && expositor.tema is string
+        && expositor.tema.size() >= 3
+        && expositor.tema.size() <= 300
+        // ✅ NUEVOS CAMPOS
+        && expositor.dia is string
+        && expositor.dia.size() == 10
+        && expositor.dia.matches('\\d{4}-\\d{2}-\\d{2}')  // YYYY-MM-DD
+        && expositor.hora is string
+        && expositor.hora.size() == 5
+        && expositor.hora.matches('\\d{2}:\\d{2}')  // HH:MM
+        && expositor.duracion is int
+        && expositor.duracion >= 15
+        && expositor.duracion <= 480
+        && expositor.break is bool;
+    }
+    
+    // ✅ NUEVA FUNCIÓN: Validar array de expositores
+    function isValidExpositoresArray(expositores) {
+      return expositores is list
+        && expositores.size() >= 1
+        && expositores.size() <= 20;
+    }
+    
+    // ✅ NUEVA FUNCIÓN: Validar modo de asistencia
+    function isValidModoAsistencia(modo) {
+      return modo is string && modo in ['por_dia', 'por_ponente'];
+    }
+    
+    // ✅ NUEVA FUNCIÓN: Validar estructura de QR individual
+    function isValidQRData(qrData) {
+      return qrData is map
+        && qrData.keys().hasAll(['qrString', 'qrId', 'token', 'fechaDia', 'generadoEn', 'usado'])
+        && qrData.qrString is string
+        && qrData.qrString.size() >= 10
+        && qrData.qrString.size() <= 5000
+        && qrData.qrId is string
+        && qrData.qrId.size() >= 10
+        && qrData.qrId.size() <= 200
+        && qrData.token is string
+        && qrData.token.size() == 64  // SHA256 hash
+        && qrData.fechaDia is string
+        && qrData.fechaDia.size() == 10  // Formato YYYY-MM-DD
+        && qrData.fechaDia.matches('\\d{4}-\\d{2}-\\d{2}')
+        && qrData.generadoEn is string
+        && qrData.usado is bool;
+    }
+    
+    // ✅ NUEVA FUNCIÓN: Validar objeto qrsPorDia (QRs por día)
+    function isValidQRsPorDia(qrsPorDia) {
+      return qrsPorDia is map
+        && qrsPorDia.size() >= 1
+        && qrsPorDia.size() <= 365;  // Máximo 365 días de evento
+    }
+    
+    // ✅ NUEVA FUNCIÓN: Validar estructura de participante (nuevo formato)
+    function isValidParticipanteInfo(participante) {
+      return participante is map
+        && participante.keys().hasAll(['id', 'email', 'fechaInscripcion', 'estado'])
+        && participante.id is string
+        && participante.email is string
+        && participante.email.matches('.*@.*\\..*')
+        && participante.fechaInscripcion is string
+        && participante.estado in ['inscrito', 'cancelado', 'asistio']
+        // Validar qrsPorDia si existe (nuevo formato)
+        && (!participante.keys().hasAny(['qrsPorDia']) 
+            || isValidQRsPorDia(participante.qrsPorDia))
+        // Permitir qrData para compatibilidad con formato antiguo
+        && (!participante.keys().hasAny(['qrData']) 
+            || participante.qrData is map);
+    }
+    
+    // ============================================
+    // REGLAS PARA USUARIOS
+    // ============================================
+    
+    match /users/{userId} {
+      // Los usuarios pueden leer su propio documento
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Los usuarios pueden crear su propio documento al registrarse
+      allow create: if isAuthenticated() 
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasAll(['uid', 'nombre', 'apellido', 'email', 'role'])
+        && request.resource.data.uid == userId
+        && request.resource.data.email == request.auth.token.email
+        && isValidString(request.resource.data.nombre, 2, 100)
+        && isValidString(request.resource.data.apellido, 2, 100)
+        && request.resource.data.role in ['alumno', 'organizador'];
+      
+      // ✅ ACTUALIZADO: Los usuarios pueden actualizar solo nombre y apellido
+      allow update: if isAuthenticated() 
+        && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nombre', 'apellido'])
+        && isValidString(request.resource.data.nombre, 2, 100)
+        && isValidString(request.resource.data.apellido, 2, 100)
+        // No se puede cambiar el email ni el role
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.uid == resource.data.uid;
+      allow update: if isAuthenticated() 
+        && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['emailVerificado', 'fechaVerificacion']);
+    }
+    
+    // ============================================
+    // REGLAS PARA EVENTOS
+    // ============================================
+    
     match /eventos/{eventoId} {
-      // Permitir lectura pública de eventos publicados
-      allow read: if request.auth != null && resource.data.estado == 'publicado';
       
-      // Permitir lectura completa solo al organizador del evento
-      allow read: if request.auth != null && request.auth.uid == resource.data.organizadorId;
+      // -------------------------------------------
+      // LECTURA DE EVENTOS
+      // -------------------------------------------
       
-      // Permitir crear eventos solo a usuarios autenticados
-      allow create: if request.auth != null 
+      // Permitir lectura pública de eventos publicados Y finalizados
+      allow read: if isAuthenticated() && resource.data.estado in ['publicado', 'finalizado'];
+      
+      // Permitir lectura completa solo al organizador del evento (por UID)
+      allow read: if isOwner(resource.data.organizadorId);
+      
+      // ✅ ACTUALIZADO: Permitir lectura por email del organizador (para reportes)
+      allow read: if isAuthenticated() 
+        && resource.data.organizadorEmail == request.auth.token.email;
+      
+      // -------------------------------------------
+      // CREACIÓN DE EVENTOS
+      // -------------------------------------------
+      
+      allow create: if isAuthenticated() 
         && request.auth.uid == request.resource.data.organizadorId
-        && request.resource.data.keys().hasAll([
-          'titulo', 'descripcion', 'fecha', 'hora', 
-          'ubicacion', 'capacidadMaxima', 'tipo', 'estado'
-        ])
+        // Validar que tenga todos los campos requeridos (nuevo modelo O modelo antiguo para compatibilidad)
+        && (
+          // NUEVO MODELO: Soporte para fechaInicio/fechaFin/horaInicio/horaFin/expositores
+          (request.resource.data.keys().hasAll([
+            'titulo', 'descripcion', 'fechaInicio', 'fechaFin', 'horaInicio', 'horaFin',
+            'ubicacion', 'capacidadMaxima', 'tipo', 'estado', 'organizadorId', 'expositores'
+          ]) &&
+          request.resource.data.fechaInicio is string &&
+          request.resource.data.fechaFin is string &&
+          request.resource.data.horaInicio is string &&
+          request.resource.data.horaFin is string &&
+          isValidExpositoresArray(request.resource.data.expositores))
+          ||
+          // MODELO ANTIGUO: Soporte para fecha/hora/expositor (compatibilidad retroactiva)
+          (request.resource.data.keys().hasAll([
+            'titulo', 'descripcion', 'fecha', 'hora', 
+            'ubicacion', 'capacidadMaxima', 'tipo', 'estado', 'organizadorId'
+          ]) &&
+          request.resource.data.fecha is string &&
+          request.resource.data.hora is string)
+        )
+        // Validar tipos de datos y rangos (campos comunes)
         && request.resource.data.organizadorId is string
-        && request.resource.data.titulo is string
-        && request.resource.data.descripcion is string
-        && request.resource.data.fecha is string
-        && request.resource.data.hora is string
-        && request.resource.data.ubicacion is string
-        && request.resource.data.capacidadMaxima is number
+        && isValidString(request.resource.data.titulo, 10, 100)
+        && isValidString(request.resource.data.descripcion, 20, 500)
+        && isValidString(request.resource.data.ubicacion, 3, 200)
+        && request.resource.data.capacidadMaxima is int
+        && request.resource.data.capacidadMaxima >= 1
+        && request.resource.data.capacidadMaxima <= 1000
         && request.resource.data.tipo in ['conferencia', 'seminario', 'taller', 'curso', 'charla']
-        && request.resource.data.estado in ['borrador', 'publicado'];
+        && request.resource.data.estado in ['borrador', 'publicado', 'finalizado']
+        // Validar campo expositor (opcional - modelo antiguo)
+        && (!request.resource.data.keys().hasAny(['expositor']) 
+            || (request.resource.data.expositor is string && request.resource.data.expositor.size() <= 200))
+        // Validar campo expositorEmail (opcional - modelo antiguo)
+        && (!request.resource.data.keys().hasAny(['expositorEmail']) 
+            || (request.resource.data.expositorEmail is string 
+                && request.resource.data.expositorEmail.size() >= 5
+                && request.resource.data.expositorEmail.size() <= 200
+                && request.resource.data.expositorEmail.matches('.*@.*\\..*')))
+        // Validar arrays de participantes (deben iniciar vacíos o no existir)
+        && (!request.resource.data.keys().hasAny(['participantes']) 
+            || request.resource.data.participantes.size() == 0)
+        && (!request.resource.data.keys().hasAny(['participantesInfo']) 
+            || request.resource.data.participantesInfo.size() == 0)
+        // ✅ OPTIMIZADO: Sin validación de 'asistentes' o 'asistenciaQR' (ya no se usan)
+        && (!request.resource.data.keys().hasAny(['asistenciasPorDia']) 
+            || request.resource.data.asistenciasPorDia is map)
+        // ✅ NUEVAS VALIDACIONES: modoAsistencia y asistenciaAbierta
+        && (!request.resource.data.keys().hasAny(['modoAsistencia']) 
+            || isValidModoAsistencia(request.resource.data.modoAsistencia))
+        && (!request.resource.data.keys().hasAny(['asistenciaAbierta']) 
+            || request.resource.data.asistenciaAbierta is bool)
+        && (!request.resource.data.keys().hasAny(['inscripcionesAbiertas']) 
+            || request.resource.data.inscripcionesAbiertas is bool);
       
-      // Permitir actualizar solo al organizador O para operaciones de inscripción
-      allow update: if request.auth != null && (
-        // El organizador puede actualizar cualquier campo
+      // -------------------------------------------
+      // ACTUALIZACIÓN DE EVENTOS
+      // -------------------------------------------
+      
+      allow update: if isAuthenticated() && (
+        // CASO 1: El organizador actualiza su evento (por UID)
+        (isOwner(resource.data.organizadorId) &&
+         isOwner(request.resource.data.organizadorId) &&
+         // Validaciones de campos editables (comunes)
+         isValidString(request.resource.data.titulo, 10, 100) &&
+         isValidString(request.resource.data.descripcion, 20, 500) &&
+         request.resource.data.capacidadMaxima >= 1 &&
+         request.resource.data.capacidadMaxima <= 1000 &&
+         request.resource.data.tipo in ['conferencia', 'seminario', 'taller', 'curso', 'charla'] &&
+         request.resource.data.estado in ['borrador', 'publicado', 'finalizado'] &&
+         // Validaciones modelo antiguo (opcional)
+         (!request.resource.data.keys().hasAny(['expositor']) 
+             || (request.resource.data.expositor is string && request.resource.data.expositor.size() <= 200)) &&
+         (!request.resource.data.keys().hasAny(['expositorEmail']) 
+             || (request.resource.data.expositorEmail is string 
+                 && request.resource.data.expositorEmail.size() >= 5
+                 && request.resource.data.expositorEmail.size() <= 200
+                 && request.resource.data.expositorEmail.matches('.*@.*\\..*'))) &&
+         // Validaciones modelo nuevo (si existen estos campos)
+         (!request.resource.data.keys().hasAny(['expositores']) 
+             || isValidExpositoresArray(request.resource.data.expositores)) &&
+         (!request.resource.data.keys().hasAny(['fechaInicio']) 
+             || request.resource.data.fechaInicio is string) &&
+         (!request.resource.data.keys().hasAny(['fechaFin']) 
+             || request.resource.data.fechaFin is string) &&
+         (!request.resource.data.keys().hasAny(['horaInicio']) 
+             || request.resource.data.horaInicio is string) &&
+         (!request.resource.data.keys().hasAny(['horaFin']) 
+             || request.resource.data.horaFin is string) &&
+         // ✅ NUEVAS VALIDACIONES: modoAsistencia y asistenciaAbierta
+         (!request.resource.data.keys().hasAny(['modoAsistencia']) 
+             || isValidModoAsistencia(request.resource.data.modoAsistencia)) &&
+         (!request.resource.data.keys().hasAny(['asistenciaAbierta']) 
+             || request.resource.data.asistenciaAbierta is bool) &&
+         (!request.resource.data.keys().hasAny(['inscripcionesAbiertas']) 
+             || request.resource.data.inscripcionesAbiertas is bool)) ||
+        
+        // CASO 1B: El organizador actualiza su evento (por email - para mantenimiento automático)
+        (resource.data.organizadorEmail == request.auth.token.email &&
+         request.resource.data.organizadorEmail == request.auth.token.email) ||
+        
+        // ✅ CASO 1C: Organizador abre/cierra inscripciones manualmente
+        // Permite cambiar inscripcionesAbiertas a true o false
         (request.auth.uid == resource.data.organizadorId &&
-         request.auth.uid == request.resource.data.organizadorId) ||
-        // Permitir actualizaciones de inscripción/desinscripción
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inscripcionesAbiertas', 'fechaCierre']) &&
+         request.resource.data.inscripcionesAbiertas is bool) ||
+        
+        // ✅ CASO 1D: Organizador abre/cierra asistencia manualmente (NUEVO)
+        // Permite cambiar asistenciaAbierta a true o false, con campos de fecha opcionales
+        (request.auth.uid == resource.data.organizadorId &&
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['asistenciaAbierta', 'fechaCierreAsistencia', 'fechaActualizacion']) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['asistenciaAbierta', 'fechaReaperturaAsistencia', 'fechaActualizacion']) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['asistenciaAbierta'])) &&
+         request.resource.data.asistenciaAbierta is bool) ||
+        
+        // ✅ CASO 1E: Organizador reabre inscripciones manualmente (NUEVO)
+        // Permite cambiar inscripcionesAbiertas a true con campo de reapertura
+        (request.auth.uid == resource.data.organizadorId &&
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inscripcionesAbiertas', 'fechaReaperturaInscripciones', 'fechaActualizacion']) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inscripcionesAbiertas', 'fechaActualizacion'])) &&
+         request.resource.data.inscripcionesAbiertas is bool) ||
+        
+        // ✅ CASO 1F: Organizador finaliza evento (NUEVO)
+        // Permite cambiar estado a 'finalizado' junto con fechaFinalizacion y estadisticasFinales
+        (request.auth.uid == resource.data.organizadorId &&
+         request.resource.data.estado == 'finalizado' &&
+         resource.data.estado == 'publicado' &&
+         resource.data.inscripcionesAbiertas == false &&
+         resource.data.asistenciaAbierta == false &&
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'fechaFinalizacion', 'fechaActualizacion', 'estadisticasFinales']) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'fechaFinalizacion', 'fechaActualizacion']))) ||
+        
+        // CASO 2: Operaciones de inscripción/desinscripción de participantes
         (isValidParticipantOperation() && onlyUpdatingParticipantFields())
       );
       
-      // Permitir eliminar solo al organizador
-      allow delete: if request.auth != null 
-        && request.auth.uid == resource.data.organizadorId;
-
-      // REGLAS PARA SUBCOLLECCIÓN DE INSCRITOS (mantener compatibilidad)
-      match /inscritos/{userId} {
-        // Los usuarios pueden leer sus propias inscripciones
-        allow read: if request.auth != null && request.auth.uid == userId;
-        
-        // Los organizadores pueden leer todas las inscripciones de sus eventos
-        allow read: if request.auth != null 
-          && get(/databases/$(database)/documents/eventos/$(eventoId)).data.organizadorId == request.auth.uid;
-        
-        // Los usuarios pueden crear sus propias inscripciones
-        allow create: if request.auth != null 
-          && request.auth.uid == userId
-          && request.auth.uid == request.resource.data.uid
-          && request.resource.data.correo == request.auth.token.email;
-        
-        // Los usuarios pueden eliminar sus propias inscripciones
-        allow delete: if request.auth != null && request.auth.uid == userId;
-        
-        // Los organizadores pueden eliminar inscripciones de sus eventos
-        allow delete: if request.auth != null 
-          && get(/databases/$(database)/documents/eventos/$(eventoId)).data.organizadorId == request.auth.uid;
-          
-        // Los usuarios pueden actualizar sus propias inscripciones
-        allow update: if request.auth != null && request.auth.uid == userId;
-        
-        // Los organizadores pueden actualizar inscripciones de sus eventos
-        allow update: if request.auth != null 
-          && get(/databases/$(database)/documents/eventos/$(eventoId)).data.organizadorId == request.auth.uid;
-      }
+      // -------------------------------------------
+      // ELIMINACIÓN DE EVENTOS
+      // -------------------------------------------
+      
+      allow delete: if isOwner(resource.data.organizadorId)
+        || (isAuthenticated() && resource.data.organizadorEmail == request.auth.token.email);
     }
     
-    // OPCIONAL: Mantener reglas para colección separada de inscripciones si la usas en el futuro
+    // ============================================
+    // COLECCIÓN: INSCRIPCIONES (OPCIONAL - Para uso futuro)
+    // ============================================
+    
     match /inscripciones/{inscripcionId} {
       // Los usuarios pueden ver sus propias inscripciones
-      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
       
       // Los organizadores pueden ver las inscripciones de sus eventos
-      allow read: if request.auth != null 
+      allow read: if isAuthenticated() 
         && exists(/databases/$(database)/documents/eventos/$(resource.data.eventId))
         && get(/databases/$(database)/documents/eventos/$(resource.data.eventId)).data.organizadorId == request.auth.uid;
       
       // Los usuarios pueden crear sus propias inscripciones
-      allow create: if request.auth != null 
+      allow create: if isAuthenticated() 
         && request.auth.uid == request.resource.data.userId
         && request.resource.data.eventId is string
         && request.resource.data.userId is string
@@ -96,22 +330,26 @@ service cloud.firestore {
         && request.resource.data.estado is string;
       
       // Los usuarios pueden cancelar sus propias inscripciones
-      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
       
       // Los usuarios pueden actualizar sus propias inscripciones
-      allow update: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.userId;
       
       // Los organizadores pueden gestionar inscripciones de sus eventos
-      allow update, delete: if request.auth != null 
+      allow update, delete: if isAuthenticated() 
         && exists(/databases/$(database)/documents/eventos/$(resource.data.eventId))
         && get(/databases/$(database)/documents/eventos/$(resource.data.eventId)).data.organizadorId == request.auth.uid;
     }
     
-    // Funciones auxiliares para validar operaciones de participantes
+    // ============================================
+    // FUNCIONES AUXILIARES PARA PARTICIPANTES
+    // ============================================
+    
     function onlyUpdatingParticipantFields() {
-      // Solo permitir actualización de campos relacionados con participantes
-      return request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly(['participantes', 'participantesInfo', 'asistentes']);
+      // Permitir actualización de campos relacionados con participantes Y sistema QR
+      // ✅ OPTIMIZADO: Eliminados 'asistentes' y 'asistenciaQR' (redundantes)
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return affectedKeys.hasOnly(['participantes', 'participantesInfo', 'asistenciasPorDia', 'qrUsados', 'fechaActualizacion']);
     }
     
     function isValidParticipantOperation() {
@@ -120,45 +358,54 @@ service cloud.firestore {
       let currentUserId = request.auth.uid;
       
       return (
-        // Caso 1: Usuario se inscribe (se agrega a la lista)
+        // CASO 1: Usuario se inscribe (se agrega a la lista)
         (newParticipants.size() == currentParticipants.size() + 1 &&
          newParticipants.hasAll(currentParticipants) &&
          currentUserId in newParticipants &&
          !(currentUserId in currentParticipants) &&
-         isValidInscription()) ||
+         isValidInscription() &&
+         // Validar que no exceda la capacidad
+         newParticipants.size() <= resource.data.capacidadMaxima) ||
         
-        // Caso 2: Usuario se desinscribe (se remueve de la lista)
+        // CASO 2: Usuario se desinscribe (se remueve de la lista)
         (currentParticipants.size() == newParticipants.size() + 1 &&
          currentParticipants.hasAll(newParticipants) &&
          currentUserId in currentParticipants &&
          !(currentUserId in newParticipants) &&
          isValidDesinscription()) ||
         
-        // Caso 3: Organizador marca asistencia (solo actualiza asistentes)
+        // CASO 3: Organizador marca asistencia (actualiza asistentes)
         (request.auth.uid == resource.data.organizadorId &&
          request.resource.data.participantes == resource.data.participantes &&
-         request.resource.data.get('participantesInfo', []) == resource.data.get('participantesInfo', []) &&
-         isValidAttendanceUpdate())
+         isValidAttendanceUpdate()) ||
+        
+        // CASO 4: Sistema QR registra asistencia (via organizador)
+        (request.auth.uid == resource.data.organizadorId &&
+         request.resource.data.participantes == resource.data.participantes &&
+         request.resource.data.get('participantesInfo', []).size() == resource.data.get('participantesInfo', []).size() &&
+         isValidQRAttendanceUpdate()) ||
+        
+        // ✅ NUEVO CASO 5: Organizador elimina participante
+        (request.auth.uid == resource.data.organizadorId &&
+         isValidParticipantRemoval())
       );
     }
     
     function isValidInscription() {
       let newParticipantesInfo = request.resource.data.get('participantesInfo', []);
       let currentParticipantesInfo = resource.data.get('participantesInfo', []);
-      let currentUserId = request.auth.uid;
-      let userEmail = request.auth.token.email;
       
       // Verificar que se agregó correctamente la info del participante
+      // ✅ ACTUALIZADO: Validar estructura de participante (incluyendo qrsPorDia)
+      // ✅ NUEVO: Validar que las inscripciones estén abiertas
       return newParticipantesInfo.size() == currentParticipantesInfo.size() + 1 &&
              newParticipantesInfo.hasAll(currentParticipantesInfo) &&
-             // Verificar que el nuevo participante tiene la estructura correcta
-             newParticipantesInfo.toSet().difference(currentParticipantesInfo.toSet()).size() == 1;
+             resource.data.get('inscripcionesAbiertas', true) == true;
     }
     
     function isValidDesinscription() {
       let newParticipantesInfo = request.resource.data.get('participantesInfo', []);
       let currentParticipantesInfo = resource.data.get('participantesInfo', []);
-      let currentUserId = request.auth.uid;
       
       // Verificar que se removió correctamente la info del participante
       return currentParticipantesInfo.size() == newParticipantesInfo.size() + 1 &&
@@ -169,11 +416,58 @@ service cloud.firestore {
       let currentAsistentes = resource.data.get('asistentes', []);
       let newAsistentes = request.resource.data.get('asistentes', []);
       let currentParticipants = resource.data.get('participantes', []);
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
       
       // Solo se pueden agregar asistentes, no remover
       // Y solo pueden ser participantes ya inscritos
+      // Permitir actualización de participantesInfo si se marca asistencia
       return newAsistentes.hasAll(currentAsistentes) &&
-             newAsistentes.hasOnly(currentParticipants);
+             newAsistentes.hasOnly(currentParticipants) &&
+             (affectedKeys.hasOnly(['asistentes', 'participantesInfo']) ||
+              affectedKeys.hasOnly(['asistentes']));
+    }
+    
+    function isValidQRAttendanceUpdate() {
+      let currentParticipants = resource.data.get('participantes', []);
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let newAsistenciasPorDia = request.resource.data.get('asistenciasPorDia', {});
+      
+      // ✅ ACTUALIZADO: Validar estructura de asistenciasPorDia
+      // - Cada clave debe ser una fecha en formato YYYY-MM-DD
+      // - Cada valor debe ser un map con 'asistentes' (array) y opcionalmente 'participantesInfo' (array)
+      // Permitir actualización de:
+      // 1. asistenciasPorDia (único campo de asistencias)
+      // 2. participantesInfo (opcional, para información adicional)
+      // 3. qrUsados (para tracking de QRs utilizados)
+      return (affectedKeys.hasOnly(['asistenciasPorDia', 'participantesInfo', 'qrUsados']) ||
+             affectedKeys.hasOnly(['asistenciasPorDia', 'qrUsados']) ||
+             affectedKeys.hasOnly(['asistenciasPorDia', 'participantesInfo']) ||
+             affectedKeys.hasOnly(['asistenciasPorDia'])) &&
+             newAsistenciasPorDia is map;
+    }
+    
+    // ✅ NUEVA FUNCIÓN: Validar eliminación de participante por organizador
+    function isValidParticipantRemoval() {
+      let currentParticipants = resource.data.get('participantes', []);
+      let newParticipants = request.resource.data.get('participantes', []);
+      let currentParticipantesInfo = resource.data.get('participantesInfo', []);
+      let newParticipantesInfo = request.resource.data.get('participantesInfo', []);
+      let currentAsistentes = resource.data.get('asistentes', []);
+      let newAsistentes = request.resource.data.get('asistentes', []);
+      
+      // Validar que:
+      // 1. Se eliminó exactamente 1 participante
+      // 2. Todos los participantes nuevos estaban en la lista anterior
+      // 3. Se eliminó la info correspondiente de participantesInfo
+      // 4. Si el participante estaba en asistentes, también se eliminó de ahí
+      // 5. La cantidad de participantesInfo se redujo en 1
+      return currentParticipants.size() == newParticipants.size() + 1 &&
+             currentParticipants.hasAll(newParticipants) &&
+             currentParticipantesInfo.size() == newParticipantesInfo.size() + 1 &&
+             // Los asistentes solo pueden reducirse, no aumentar
+             newAsistentes.size() <= currentAsistentes.size() &&
+             // Los nuevos asistentes deben estar en la lista actual de asistentes
+             currentAsistentes.hasAll(newAsistentes);
     }
   }
 }

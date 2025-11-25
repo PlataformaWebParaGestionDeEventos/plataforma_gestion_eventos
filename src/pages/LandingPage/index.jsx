@@ -1,9 +1,11 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import loginVectorImage from '../../assets/fondo2Sistemas.jpg';
-import FondoImage from '../../assets/fondo.jpg'
+import FondoImage from '../../assets/fondo.jpg';
 
 
-const LandingPage = ({ onIniciarSesion }) => {
+const LandingPage = () => {
+  const navigate = useNavigate();
   return (
     <div className="min-vh-100 position-relative">
       {/* Fondo con overlay */}
@@ -75,8 +77,7 @@ const LandingPage = ({ onIniciarSesion }) => {
                   <div className="row g-4 mb-4">
                     <div className="col-12">
                       <div className="d-flex align-items-start">
-                        <div className="bg-primary bg-opacity-10 rounded-circle p-3 me-3 flex-shrink-0">
-                          <i className="fas fa-calendar-check text-primary"></i>
+                        <div className="p-3 me-3">
                         </div>
                         <div>
                           <h5 className="fw-semibold mb-2">Eventos Académicos</h5>
@@ -89,8 +90,7 @@ const LandingPage = ({ onIniciarSesion }) => {
                     
                     <div className="col-12">
                       <div className="d-flex align-items-start">
-                        <div className="bg-success bg-opacity-10 rounded-circle p-3 me-3 flex-shrink-0">
-                          <i className="fas fa-certificate text-success"></i>
+                        <div className="p-3 me-3">
                         </div>
                         <div>
                           <h5 className="fw-semibold mb-2">Certificados Digitales</h5>
@@ -103,8 +103,7 @@ const LandingPage = ({ onIniciarSesion }) => {
                     
                     <div className="col-12">
                       <div className="d-flex align-items-start">
-                        <div className="bg-info bg-opacity-10 rounded-circle p-3 me-3 flex-shrink-0">
-                          <i className="fas fa-users text-info"></i>
+                        <div className="p-3 me-3">
                         </div>
                         <div>
                           <h5 className="fw-semibold mb-2">Networking</h5>
@@ -120,7 +119,7 @@ const LandingPage = ({ onIniciarSesion }) => {
                   <div className="d-grid gap-3 mt-4">
                     <button 
                       className="btn btn-primary btn-lg rounded-pill fw-semibold py-3 position-relative"
-                      onClick={onIniciarSesion}
+                      onClick={() => navigate('/login')}
                       style={{ boxShadow: '0 4px 15px rgba(255, 255, 255, 0.856)' }}
                     >
                       <i className="fas fa-calendar-plus me-2"></i>
@@ -129,7 +128,7 @@ const LandingPage = ({ onIniciarSesion }) => {
                     
                     <button 
                       className="btn btn-outline-info btn-lg rounded-pill fw-semibold py-3 position-relative"
-                      onClick={() => alert('Función en desarrollo - Próximamente podrás verificar certificados en blockchain')}
+                      onClick={() => navigate('/verificar-certificado')}
                       style={{ 
                         borderWidth: '2px',
                         background: 'linear-gradient(45deg, rgba(13, 202, 240, 0.1), rgba(13, 110, 253, 0.1))'

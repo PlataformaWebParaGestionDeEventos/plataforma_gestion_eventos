@@ -1,0 +1,500 @@
+/* Estilos para QRGenerator */
+
+.btn-ver-qr {
+  background: linear-gradient(135deg, #1976d2 0%, #2196f3 100%);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
+  width: 100%;
+  text-align: center;
+}
+
+.btn-ver-qr:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+  background: linear-gradient(135deg, #1565c0 0%, #1976d2 100%);
+}
+
+.btn-ver-qr i {
+  font-size: 16px;
+}
+
+/* Modal overlay */
+.qr-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.3s ease;
+  padding: 20px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal content */
+.qr-modal-content {
+  background: white;
+  border-radius: 16px;
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease;
+  position: relative;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Close button */
+.qr-modal-close {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: rgba(0, 0, 0, 0.05);
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #6b7280;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.qr-modal-close:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #ef4444;
+  transform: rotate(90deg);
+}
+
+/* Modal header */
+.qr-modal-header {
+  padding: 30px 30px 20px;
+  text-align: center;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.qr-modal-header h3 {
+  color: #1f2937;
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.qr-modal-header h3 i {
+  color: #667eea;
+  font-size: 28px;
+}
+
+.qr-modal-header .text-muted {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Modal body */
+.qr-modal-body {
+  padding: 30px;
+}
+
+/* Info card */
+.qr-info-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 25px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.qr-info-card h5 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.qr-info-details {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.qr-info-details span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.qr-info-details i {
+  font-size: 16px;
+  opacity: 0.9;
+}
+
+.qr-participante {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qr-participante i {
+  font-size: 18px;
+}
+
+/* QR Canvas container */
+.qr-canvas-container {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+  background: #f9fafb;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  border: 2px solid #e5e7eb;
+}
+
+.qr-canvas-container canvas {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Instructions */
+.qr-instructions {
+  background: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+.qr-instructions p {
+  margin: 0;
+  color: #1e40af;
+  font-size: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.6;
+}
+
+.qr-instructions i {
+  color: #3b82f6;
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Modal footer */
+.qr-modal-footer {
+  padding: 20px 30px 30px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Action buttons */
+.btn-qr-action {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  flex: 1;
+  min-width: 120px;
+  justify-content: center;
+}
+
+.btn-qr-download {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.btn-qr-download:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.btn-qr-share {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.btn-qr-share:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.btn-qr-print {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+.btn-qr-print:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+  .qr-modal-content {
+    margin: 10px;
+    max-height: 95vh;
+  }
+
+  .qr-modal-header,
+  .qr-modal-body,
+  .qr-modal-footer {
+    padding: 20px;
+  }
+
+  .qr-modal-header h3 {
+    font-size: 20px;
+  }
+
+  .qr-canvas-container canvas {
+    width: 220px !important;
+    height: 220px !important;
+  }
+
+  .qr-modal-footer {
+    flex-direction: column;
+  }
+
+  .btn-qr-action {
+    width: 100%;
+  }
+
+  .qr-info-details {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+/* Print styles */
+@media print {
+  .qr-modal-overlay,
+  .btn-ver-qr,
+  .qr-modal-close,
+  .qr-modal-footer {
+    display: none !important;
+  }
+
+  .qr-modal-content {
+    box-shadow: none;
+    max-width: 100%;
+  }
+}
+
+/* ✅ NUEVO: Estilos para selector de días */
+.qr-selector-dias {
+  margin-bottom: 25px;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.qr-selector-label {
+  margin: 0 0 15px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qr-selector-label i {
+  color: #667eea;
+  font-size: 18px;
+}
+
+.qr-dias-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.qr-dia-btn {
+  position: relative;
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 80px;
+}
+
+.qr-dia-btn:hover {
+  border-color: #667eea;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.qr-dia-btn.activo {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: #667eea;
+  color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.qr-dia-btn.asistido {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.qr-dia-btn.asistido.activo {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-color: #10b981;
+}
+
+.qr-dia-nombre {
+  font-size: 14px;
+  font-weight: 600;
+  color: inherit;
+}
+
+.qr-dia-fecha {
+  font-size: 12px;
+  opacity: 0.8;
+  color: inherit;
+}
+
+.qr-dia-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: #10b981;
+  font-size: 20px;
+}
+
+.qr-dia-btn.activo .qr-dia-check {
+  color: white;
+}
+
+/* Mensaje de asistencia registrada */
+.qr-asistencia-registrada {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  padding: 40px 30px;
+  border-radius: 12px;
+  text-align: center;
+  margin: 20px 0;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.qr-asistencia-registrada i {
+  font-size: 64px;
+  margin-bottom: 15px;
+  opacity: 0.9;
+}
+
+.qr-asistencia-registrada h4 {
+  margin: 0 0 10px;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.qr-asistencia-registrada p {
+  margin: 0 0 8px;
+  font-size: 16px;
+  opacity: 0.9;
+}
+
+.qr-asistencia-registrada small {
+  display: block;
+  font-size: 14px;
+  opacity: 0.8;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Ajustes para info-card con multi-día */
+.qr-dia-actual {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+/* Responsive para selector de días */
+@media (max-width: 576px) {
+  .qr-dias-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .qr-dia-btn {
+    min-height: 70px;
+  }
+  
+  .qr-asistencia-registrada {
+    padding: 30px 20px;
+  }
+  
+  .qr-asistencia-registrada i {
+    font-size: 48px;
+  }
+  
+  .qr-asistencia-registrada h4 {
+    font-size: 20px;
+  }
+}
