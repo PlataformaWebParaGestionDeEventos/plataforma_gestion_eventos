@@ -31,7 +31,8 @@
 ## ✨ Características Principales
 
 ### 🔐 Autenticación y Seguridad
-- ✅ **Login/registro con cualquier correo electrónico** (gmail, hotmail, upao.edu.pe, etc.)
+- ✅ **Login/registro con dominios permitidos** (gmail.com, hotmail.com, upao.edu.pe)
+- ✅ **Lista blanca de dominios** - Solo emails institucionales y proveedores confiables
 - ✅ Verificación por email obligatoria
 - ✅ Firebase Authentication con gestión de roles (Alumno / Organizador)
 - ✅ **Route Guards protegiendo rutas** por autenticación y rol
@@ -319,7 +320,8 @@ src/
 ### **Validaciones Implementadas con Yup**
 
 #### **Evento**
-- ✅ Email válido (cualquier dominio)
+- ✅ **Email válido** - Solo dominios permitidos: gmail.com, hotmail.com, upao.edu.pe
+- ✅ **Prevención de correos temporales** - Lista blanca de dominios confiables
 - ✅ Contraseñas seguras (8+ chars, mayús, minús, números, símbolos)
 - ✅ Fechas futuras obligatorias
 - ✅ FechaFin >= FechaInicio

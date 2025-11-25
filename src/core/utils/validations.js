@@ -1,4 +1,5 @@
-import { isDisposableEmail } from '../../config/disposableEmailDomains';
+// Dominios de email permitidos
+const ALLOWED_EMAIL_DOMAINS = ['gmail.com', 'hotmail.com', 'upao.edu.pe'];
 
 // Utilidades para validaciones
 export const validations = {
@@ -8,9 +9,19 @@ export const validations = {
     return emailRegex.test(email);
   },
 
-  // Validar que el email NO sea temporal/desechable
-  isDisposableEmail: (email) => {
-    return isDisposableEmail(email);
+  // Validar que el dominio del email esté en la lista permitida
+  isAllowedEmailDomain: (email) => {
+    if (!email || typeof email !== 'string') return false;
+    
+    const domain = email.toLowerCase().split('@')[1];
+    if (!domain) return false;
+    
+    return ALLOWED_EMAIL_DOMAINS.includes(domain);
+  },
+
+  // Obtener lista de dominios permitidos
+  getAllowedDomains: () => {
+    return ALLOWED_EMAIL_DOMAINS;
   },
 
   // Validar email de Gmail específicamente
@@ -38,7 +49,7 @@ export const validations = {
       return `El ${fieldName} no puede contener números`;
     }
     
-    if (/[!@#$%^&*(),.?":{}|<>_\-=+[\]\\\/;'`~]/.test(trimmedName)) {
+    if (/[!@#$%^&*(),.?":{}|<>_\-=+[\]\\;'`~]/.test(trimmedName)) {
       return `El ${fieldName} no puede contener símbolos especiales`;
     }
     

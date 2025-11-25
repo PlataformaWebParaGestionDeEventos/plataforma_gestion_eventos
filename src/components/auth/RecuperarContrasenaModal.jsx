@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
 import toastHelper from '../../core/utils/toastHelper';
 import logger from '../../core/utils/logger';
+import { validations } from "../../core/utils/validations"
+
 
 const RecuperarContrasenaModal = ({ show, onClose }) => {
     const [email, setEmail] = useState('');
@@ -17,6 +19,12 @@ const RecuperarContrasenaModal = ({ show, onClose }) => {
             toastHelper.error('❌ Por favor, ingresa un email válido. Ejemplo: usuario@dominio.com');
             return;
         }
+        // Validar que el dominio del email esté permitido (solo en registro)
+            if (!validations.isAllowedEmailDomain(email)) {
+                const dominiosPermitidos = validations.getAllowedDomains().join(', ');
+                toastHelper.error(`❌ Solo se permiten correos de: ${dominiosPermitidos}`);
+                return;
+            }
 
         setEnviando(true);
         try {

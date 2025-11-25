@@ -107,16 +107,17 @@ const Login = ({ modoInicial = 'login' }) => {
             const gmail = e.target.gmail.value;
             const password = e.target.password.value;
 
-            // Validación del formato de email (acepta cualquier dominio)
+            // Validación del formato de email
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(gmail)) {
                 toastHelper.error('❌ Por favor, ingresa un email válido. Ejemplo: usuario@dominio.com');
                 return;
             }
 
-            // Validar que NO sea correo temporal/desechable (solo en registro)
-            if (registrando && validations.isDisposableEmail(gmail)) {
-                toastHelper.error('❌ No se permiten correos temporales o desechables. Usa un email válido y permanente.');
+            // Validar que el dominio del email esté permitido (solo en registro)
+            if (registrando && !validations.isAllowedEmailDomain(gmail)) {
+                const dominiosPermitidos = validations.getAllowedDomains().join(', ');
+                toastHelper.error(`❌ Solo se permiten correos de: ${dominiosPermitidos}`);
                 return;
             }
 
