@@ -10,7 +10,7 @@ const DetalleEvento = () => {
   const { eventoId } = useParams();
   const navigate = useNavigate();
   const { obtenerEvento, inscribirseEvento, estaInscrito, loading } = useEventosAlumno();
-  const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(5000);
+  const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(2000);
   const [evento, setEvento] = useState(null);
   const [procesandoInscripcion, setProcesandoInscripcion] = useState(false);
 

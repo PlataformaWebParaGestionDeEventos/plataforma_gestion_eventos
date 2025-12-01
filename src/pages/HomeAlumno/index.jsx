@@ -8,7 +8,7 @@ import formatters from "../../core/utils/formatters";
 const HomeAlumno = () => {
     const navigate = useNavigate();
     const { user, userData } = useAuth();
-    const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(5000);
+    const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(2000);
     
     const { 
         eventosDisponibles,

@@ -30,7 +30,7 @@ const ExpositoresTable = ({
   const [editandoBreak, setEditandoBreak] = useState(false);
   
   // ✅ Hook para prevenir múltiples clics
-  const { isDisabled, handleClick } = useButtonDebounce(5000);
+  const { isDisabled, handleClick } = useButtonDebounce(2000);
 
   // Generar array de días del evento
   const diasDelEvento = useMemo(() => {

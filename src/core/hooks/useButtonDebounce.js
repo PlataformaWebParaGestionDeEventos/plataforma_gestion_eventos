@@ -12,7 +12,7 @@ import { useState, useCallback, useRef } from 'react';
  * @param {number} delay - Tiempo de espera en milisegundos (default: 5000ms)
  * @returns {Object} { isDisabled, handleClick }
  */
-const useButtonDebounce = (delay = 5000) => {
+const useButtonDebounce = (delay = 2000) => {
   const [isDisabled, setIsDisabled] = useState(false);
   const timeoutRef = useRef(null);
 

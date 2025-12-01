@@ -10,7 +10,7 @@ const RecuperarContrasenaModal = ({ show, onClose }) => {
     const [email, setEmail] = useState('');
     const [enviando, setEnviando] = useState(false);
     const auth = getAuth();
-    const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(5000);
+    const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(2000);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
