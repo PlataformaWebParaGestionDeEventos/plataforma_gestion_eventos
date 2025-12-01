@@ -15,7 +15,7 @@ const HomeOrganizador = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user, userData } = useAuth();
-    const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(5000);
+    const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(2000);
     
     // Detectar vista actual según la ruta
     const [vistaLocal, setVistaLocal] = useState(null); // Para vistas internas como 'participantes'

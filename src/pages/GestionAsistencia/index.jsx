@@ -21,7 +21,7 @@ const auth = getAuth(appFirebase);
 const GestionAsistencia = () => {
   const { eventoId } = useParams();
   const navigate = useNavigate();
-  const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(5000);
+  const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(2000);
   
   const [evento, setEvento] = useState(null);
   const [participantes, setParticipantes] = useState([]);

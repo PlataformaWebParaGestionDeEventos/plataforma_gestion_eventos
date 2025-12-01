@@ -11,7 +11,7 @@ import logger from '../../core/utils/logger';
 const MisEventos = () => {
   const navigate = useNavigate();
   const { eventosInscritos, desinscribirseEvento, loading, error } = useEventosAlumno();
-  const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(5000);
+  const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(2000);
   const currentUser = authService.getCurrentUser();
 
   const handleDesinscripcion = async (eventoId) => {

@@ -18,7 +18,7 @@ const googleProvider = new GoogleAuthProvider()
 
 const Login = ({ modoInicial = 'login' }) => {
         const navigate = useNavigate();
-        const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(5000);
+        const { isDisabled: isButtonDisabled, handleClick: handleButtonClick } = useButtonDebounce(2000);
 
         const [registrando, setRegistrando] = React.useState(modoInicial === 'register')
         const [esperandoVerificacion, setEsperandoVerificacion] = React.useState(false)
