@@ -7,7 +7,7 @@ import ImageUpao from '../../assets/logo_upao.jpeg';
 
 // 🔧 CONFIGURACIÓN DEL CONTRATO
 const CONTRACT_ADDRESS = '0xCeEAD2E9e9E642Fd36b02FD151636bbFb23b600d';
-const POLYGON_RPC = 'https://polygon-rpc.com/';
+const POLYGON_RPC = 'https://rpc.ankr.com/polygon/8be72ac1340bcc4e1489e8c8309bc723a214686491b90f82f33d0644e5751d82';
 const POLYGONSCAN_BASE = 'https://polygonscan.com';
 
 // 🔧 ABI REAL DEL CONTRATO (verCertificado)
